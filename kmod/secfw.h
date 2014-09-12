@@ -42,6 +42,15 @@ typedef enum secfw_feature_type {
 	segvguard_enabled
 } secfw_feature_type_t;
 
+typedef enum secfw_command_type {
+	secfw_get_version=0,
+	secfw_get_rules,
+	secfw_set_rules,
+	secfw_flush_rules,
+	secfw_delete_rule,
+	secfw_insert_rule
+} secfw_command_type_t;
+
 typedef struct secfw_feature {
 	secfw_feature_type_t	type;
 	void			*metadata;
@@ -59,8 +68,26 @@ typedef struct secfw_rule {
 	gid_t			sr_maxgid;
 	size_t			sr_nfeatures;
 	secfw_feature_t		*sr_features;
-	LIST_ENTRY(secfw_rule)	sr_entry;
 } secfw_rule_t;
+
+typedef struct secfw_rule_list {
+	secfw_rule_t			srl_rule;
+	LIST_ENTRY(secfw_rule_list)	srl_entry;
+} secfw_rules_t;
+
+typedef struct secfw_command {
+	unsigned long		sc_version;
+	size_t			sc_id;
+	secfw_command_type_t	sc_type;
+	void			*sc_metadata;
+} secfw_command_t;
+
+typedef struct secfw_reply {
+	unsigned long		sr_version;
+	size_t			sr_id;
+	unsigned int		sr_code;
+	void			*sr_metadata;
+} secfw_reply_t;
 
 #ifdef _KERNEL
 
