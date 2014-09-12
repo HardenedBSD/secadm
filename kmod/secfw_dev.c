@@ -1,3 +1,4 @@
+
 /*-
  * Copyright (c) 2014 Shawn Webb <shawn.webb@hardenedbsd.org>
  * All rights reserved.
@@ -44,51 +45,37 @@
 
 #include "secfw.h"
 
-static struct mtx secfw_mtx;
-
-void
-secfw_lock(void)
+int
+secfw_open(struct cdev *dev, int flag, int otyp, struct thread *td)
 {
-	mtx_lock(&secfw_mtx);
+	return (0);
 }
 
-void
-secfw_unlock(void)
+int
+secfw_close(struct cdev *dev, int flag, int otyp, struct thread *td)
 {
-	mtx_unlock(&secfw_mtx);
+	return (0);
 }
 
-static void
-secfw_init(struct mac_policy_conf *mpc)
+int
+secfw_write(struct cdev *dev, struct uio *uio, int ioflag)
 {
-	mtx_init(&secfw_mtx, "mac_secfw lock", NULL, MTX_DEF);
-
-	secfw_lock();
-
-	sdev = make_dev(&secfw_devsw, 0, UID_ROOT, GID_WHEEL, 0600, "secfw");
-
-	secfw_unlock();
+	return (0);
 }
 
-static void
-secfw_destroy(struct mac_policy_conf *mpc)
+int
+secfw_read(struct cdev *dev, struct uio *uio, int ioflag)
 {
-	secfw_lock();
-
-	destroy_dev(sdev);
-
-	secfw_unlock();
-
-	mtx_destroy(&secfw_mtx);
+	return (0);
 }
 
-static struct mac_policy_ops secfw_ops =
-{
-	.mpo_destroy = secfw_destroy,
-	.mpo_init = secfw_init,
-	.mpo_vnode_check_exec = secfw_vnode_check_exec,
-	.mpo_vnode_check_unlink = secfw_vnode_check_unlink,
+struct cdevsw secfw_devsw = {
+	.d_version	= SECFW_DEV_VERSION,
+	.d_open		= secfw_open,
+	.d_close	= secfw_close,
+	.d_read		= secfw_read,
+	.d_write	= secfw_write,
+	.d_name		= "secfw"
 };
 
-MAC_POLICY_SET(&secfw_ops, secfw, "HardenedBSD Security Firewall",
-    MPC_LOADTIME_FLAG_UNLOADOK, NULL);
+struct cdev *sdev;

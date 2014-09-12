@@ -29,6 +29,9 @@
 #ifndef _SYS_SECURITY_SECFW_H
 #define _SYS_SECURITY_SECFW_H
 
+#define SECFW_VERSION		20140911001UL
+#define SECFW_DEV_VERSION	1
+
 #define SECFW_RULE_FLAGS_NONE 0x00000000
 #define SECFW_RULE_FLAGS_UID_DEFINED 0x00000001
 #define SECFW_RULE_FLAGS_GID_DEFINED 0x00000002
@@ -91,6 +94,9 @@ typedef struct secfw_reply {
 
 #ifdef _KERNEL
 
+extern struct cdevsw secfw_devsw;
+extern struct cdev *sdev;
+
 typedef struct secfw_kernel_data {
 	secfw_rule_t *sk_rules;
 	struct prison *sk_prison;
@@ -106,6 +112,11 @@ int secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 int secfw_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
     struct label *dvplabel, struct vnode *vp, struct label *vplabel,
     struct componentname *cnp);
+
+int secfw_open(struct cdev *dev, int flag, int otyp, struct thread *td);
+int secfw_close(struct cdev *dev, int flag, int otyp, struct thread *td);
+int secfw_write(struct cdev *dev, struct uio *uio, int ioflag);
+int secfw_read(struct cdev *dev, struct uio *uio, int ioflag);
 
 #endif /* _KERNEL */
 
