@@ -34,6 +34,7 @@
 #include <sys/lock.h>
 #include <sys/malloc.h>
 #include <sys/module.h>
+#include <sys/mount.h>
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
@@ -44,6 +45,18 @@
 #include "secfw.h"
 
 static struct mtx secfw_mtx;
+
+void
+secfw_lock(void)
+{
+	mtx_lock(&secfw_mtx);
+}
+
+void
+secfw_unlock(void)
+{
+	mtx_unlock(&secfw_mtx);
+}
 
 static void
 secfw_init(struct mac_policy_conf *mpc)

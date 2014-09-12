@@ -34,6 +34,7 @@
 #include <sys/lock.h>
 #include <sys/malloc.h>
 #include <sys/module.h>
+#include <sys/mount.h>
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
