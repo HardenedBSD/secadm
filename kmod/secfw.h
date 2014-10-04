@@ -56,6 +56,7 @@ typedef enum secfw_command_type {
 
 typedef struct secfw_feature {
 	secfw_feature_type_t	type;
+	size_t			metadatasz;
 	void			*metadata;
 } secfw_feature_t;
 
@@ -64,6 +65,7 @@ typedef struct secfw_rule {
 	unsigned int		sr_flags;
 	ino_t			sr_inode;
 	struct fsid		sr_fsid;
+	size_t			sr_pathlen;
 	char 			*sr_path;
 	uid_t			sr_minuid;
 	uid_t			sr_maxuid;
@@ -71,12 +73,9 @@ typedef struct secfw_rule {
 	gid_t			sr_maxgid;
 	size_t			sr_nfeatures;
 	secfw_feature_t		*sr_features;
+	struct prison		*sr_prison;
+	LIST_ENTRY(secfw_rule)	sr_entry;
 } secfw_rule_t;
-
-typedef struct secfw_rule_list {
-	secfw_rule_t			srl_rule;
-	LIST_ENTRY(secfw_rule_list)	srl_entry;
-} secfw_rules_t;
 
 typedef struct secfw_command {
 	unsigned long		sc_version;
@@ -94,14 +93,18 @@ typedef struct secfw_reply {
 
 #ifdef _KERNEL
 
-extern struct cdevsw secfw_devsw;
-extern struct cdev *sdev;
+MALLOC_DECLARE(M_SECFW);
 
 typedef struct secfw_kernel_data {
-	secfw_rule_t *sk_rules;
-	struct prison *sk_prison;
+	LIST_HEAD(,secfw_rule) sk_rules;
 } secfw_kernel_t;
 
+extern struct cdevsw secfw_devsw;
+extern struct cdev *sdev;
+extern secfw_kernel_t rules;
+
+void secfw_lock_init(void);
+void secfw_lock_destroy(void);
 void secfw_lock(void);
 void secfw_unlock(void);
 
@@ -117,6 +120,11 @@ int secfw_open(struct cdev *dev, int flag, int otyp, struct thread *td);
 int secfw_close(struct cdev *dev, int flag, int otyp, struct thread *td);
 int secfw_write(struct cdev *dev, struct uio *uio, int ioflag);
 int secfw_read(struct cdev *dev, struct uio *uio, int ioflag);
+
+int validate_rule(struct thread *td, secfw_rule_t *rule);
+int add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule);
+secfw_rule_t *read_rule_from_userland(struct thread *td,
+    void *base, size_t reqlen, secfw_command_t *cmd);
 
 #endif /* _KERNEL */
 

@@ -44,24 +44,10 @@
 
 #include "secfw.h"
 
-static struct mtx secfw_mtx;
-
-void
-secfw_lock(void)
-{
-	mtx_lock(&secfw_mtx);
-}
-
-void
-secfw_unlock(void)
-{
-	mtx_unlock(&secfw_mtx);
-}
-
 static void
 secfw_init(struct mac_policy_conf *mpc)
 {
-	mtx_init(&secfw_mtx, "mac_secfw lock", NULL, MTX_DEF);
+	secfw_lock_init();
 
 	secfw_lock();
 
@@ -75,11 +61,12 @@ secfw_destroy(struct mac_policy_conf *mpc)
 {
 	secfw_lock();
 
-	destroy_dev(sdev);
+	if (sdev != NULL)
+		destroy_dev(sdev);
 
 	secfw_unlock();
 
-	mtx_destroy(&secfw_mtx);
+	secfw_lock_destroy();
 }
 
 static struct mac_policy_ops secfw_ops =

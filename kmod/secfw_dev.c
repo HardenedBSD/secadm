@@ -1,4 +1,3 @@
-
 /*-
  * Copyright (c) 2014 Shawn Webb <shawn.webb@hardenedbsd.org>
  * All rights reserved.
@@ -78,4 +77,4 @@ struct cdevsw secfw_devsw = {
 	.d_name		= "secfw"
 };
 
-struct cdev *sdev;
+struct cdev *sdev=NULL;
