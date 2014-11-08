@@ -59,6 +59,29 @@ secfw_close(struct cdev *dev, int flag, int otyp, struct thread *td)
 int
 secfw_write(struct cdev *dev, struct uio *uio, int ioflag)
 {
+	secfw_rule_t *rule;
+	secfw_command_t cmd;
+	int error = 0;
+
+	if (uio->uio_iov->iov_len != sizeof(secfw_command_t))
+		return (EINVAL);
+
+	error = copyin(uio->uio_iov->iov_base, &cmd, uio->uio_iov->iov_len);
+	if (error != 0)
+		return (error);
+
+	switch (cmd.sc_type) {
+		case secfw_insert_rule:
+			rule = read_rule_from_userland(curthread,
+			    cmd.sc_metadata, cmd.sc_size);
+			if (rule == NULL)
+				return (EINVAL);
+
+			break;
+		default:
+			return (EINVAL);
+	}
+
 	return (0);
 }
 
@@ -69,7 +92,7 @@ secfw_read(struct cdev *dev, struct uio *uio, int ioflag)
 }
 
 struct cdevsw secfw_devsw = {
-	.d_version	= SECFW_DEV_VERSION,
+	.d_version	= D_VERSION,
 	.d_open		= secfw_open,
 	.d_close	= secfw_close,
 	.d_read		= secfw_read,

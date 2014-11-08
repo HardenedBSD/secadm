@@ -30,7 +30,6 @@
 #define _SYS_SECURITY_SECFW_H
 
 #define SECFW_VERSION		20140911001UL
-#define SECFW_DEV_VERSION	1
 
 #define SECFW_RULE_FLAGS_NONE 0x00000000
 #define SECFW_RULE_FLAGS_UID_DEFINED 0x00000001
@@ -82,6 +81,7 @@ typedef struct secfw_command {
 	size_t			sc_id;
 	secfw_command_type_t	sc_type;
 	void			*sc_metadata;
+	size_t			sc_size;
 } secfw_command_t;
 
 typedef struct secfw_reply {
@@ -89,6 +89,7 @@ typedef struct secfw_reply {
 	size_t			sr_id;
 	unsigned int		sr_code;
 	void			*sr_metadata;
+	size_t			sr_size;
 } secfw_reply_t;
 
 #ifdef _KERNEL
@@ -124,7 +125,7 @@ int secfw_read(struct cdev *dev, struct uio *uio, int ioflag);
 int validate_rule(struct thread *td, secfw_rule_t *rule);
 int add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule);
 secfw_rule_t *read_rule_from_userland(struct thread *td,
-    void *base, size_t reqlen, secfw_command_t *cmd);
+    void *base, size_t reqlen);
 
 #endif /* _KERNEL */
 

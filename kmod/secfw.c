@@ -142,8 +142,7 @@ add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule)
 /* XXX This is more of a PoC. This needs to be cleaned up for
  * production use */
 secfw_rule_t *
-read_rule_from_userland(struct thread *td, void *base, size_t reqlen,
-    secfw_command_t *cmd)
+read_rule_from_userland(struct thread *td, void *base, size_t reqlen)
 {
 	char *path;
 	secfw_rule_t *rule, *next;
@@ -232,7 +231,7 @@ read_rule_from_userland(struct thread *td, void *base, size_t reqlen,
 	next = LIST_NEXT(rule, sr_entry);
 	if (next) {
 		next = read_rule_from_userland(td, next,
-		    sizeof(secfw_rule_t), cmd);
+		    sizeof(secfw_rule_t));
 
 		if (next == NULL) {
 			for (i=0; i < rule->sr_nfeatures; i++)
