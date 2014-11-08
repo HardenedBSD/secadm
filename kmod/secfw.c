@@ -77,8 +77,10 @@ int
 validate_rule(struct thread *td, secfw_rule_t *rule)
 {
 	struct prison *pr;
+#if 0
 	secfw_kernel_t *prules;
 	secfw_rule_t *prule;
+#endif
 
 	KASSERT(rule != NULL, ("validate_rule: rule cannot be null!"));
 
@@ -94,17 +96,6 @@ validate_rule(struct thread *td, secfw_rule_t *rule)
 			return (1);
 
 	pr = td->td_ucred->cr_prison;
-	if (pr->pr_secfw_mac != NULL) {
-		prison_lock(pr);
-
-		prules = (secfw_kernel_t *)(pr->pr_secfw_mac);
-		LIST_FOREACH(prule, &(prules->sk_rules), sr_entry) {
-			if (prule->sr_id == rule->sr_id)
-				return (1);
-		}
-
-		prison_unlock(pr);
-	}
 
 	return (0);
 }
@@ -112,6 +103,7 @@ validate_rule(struct thread *td, secfw_rule_t *rule)
 int
 add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule)
 {
+#if 0
 	struct prison *pr;
 	secfw_kernel_t *prules;
 	int err = 0;
@@ -135,6 +127,7 @@ add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule)
 	    sr_entry);
 
 	prison_unlock(pr);
+#endif
 
 	return (0);
 }
