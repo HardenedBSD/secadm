@@ -59,16 +59,21 @@ secfw_rule_t *load_config(const char *config)
 	struct stat sb;
 
 	parser = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
-	if (!(parser))
+	if (!(parser)) {
+		fprintf(stderr, "[-] Could not create new parser\n");
 		return NULL;
+	}
 
 	fd = open(config, O_RDONLY);
 	if (fd < 0) {
+		perror("[-] open");
+		fprintf(stderr, "config is %s\n", config);
 		ucl_parser_free(parser);
 		return NULL;
 	}
 
 	if (fstat(fd, &sb)) {
+		perror("[-] fstat");
 		close(fd);
 		ucl_parser_free(parser);
 		return NULL;
@@ -76,6 +81,7 @@ secfw_rule_t *load_config(const char *config)
 
 	map = mmap(NULL, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
 	if (map == (unsigned char *)MAP_FAILED) {
+		perror("[-] mmap");
 		close(fd);
 		ucl_parser_free(parser);
 		return NULL;
@@ -84,7 +90,39 @@ secfw_rule_t *load_config(const char *config)
 	ucl_parser_add_chunk(parser, map, sb.st_size);
 
 	munmap(map, sb.st_size);
-
 	close(fd);
+
+	if (ucl_parser_get_error(parser)) {
+		fprintf(stderr, "[-] The parser had an error: %s\n", ucl_parser_get_error(parser));
+		return NULL;
+	}
+
+	rules = parse_object(parser);
 	return rules;
+}
+
+secfw_rule_t *parse_object(struct ucl_parser *parser)
+{
+	secfw_rule_t *rules=NULL, *newrules;
+	ucl_object_t *obj;
+	const ucl_object_t *curobj;
+	ucl_object_iter_t it=NULL;
+	const char *key;
+
+	obj = ucl_parser_get_object(parser);
+
+	while ((curobj = ucl_iterate_object(obj, &it, 1))) {
+		key = ucl_object_key(curobj);
+		if (!strcmp(key, "applications")) {
+			newrules = parse_applications_object(curobj);
+		}
+	}
+
+	ucl_object_unref(obj);
+	return NULL;
+}
+
+secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
+{
+	return NULL;
 }

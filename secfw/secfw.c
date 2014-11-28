@@ -48,40 +48,11 @@
 #include "secfw_internal.h"
 
 static void usage(char *);
-static int kldcheck(void);
 
 static void usage(char *name)
 {
 	fprintf(stderr, "USAGE: %s <-c config> <action> <options>\n", name);
 	exit(1);
-}
-
-static int kldcheck(void)
-{
-	int id;
-	struct kld_file_stat kfs;
-
-	for (id = kldnext(0); id > 0; id = kldnext(id)) {
-		memset(&kfs, 0x00, sizeof(struct kld_file_stat));
-		kfs.version = sizeof(struct kld_file_stat);
-
-		if (kldstat(id, &kfs) < 0) {
-			perror("kldstat");
-			return 1;
-		}
-
-		if (!strcmp("secfw.ko", kfs.name))
-			return 0;
-	}
-
-	if (id < 0)
-		perror("kldnext");
-
-	if (!getuid() || !geteuid()) {
-		/* TODO: Attempt to load module */
-	}
-
-	return 1;
 }
 
 int main(int argc, char *argv[])
@@ -103,6 +74,10 @@ int main(int argc, char *argv[])
 		default:
 			usage(argv[0]);
 		}
+	}
+
+	if (!(config)) {
+		usage(argv[0]);
 	}
 
 	rules = load_config(config);
