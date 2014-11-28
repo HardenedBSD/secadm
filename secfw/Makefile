@@ -1,5 +1,8 @@
 PROG=	secfw
-SRCS=	secfw.c config.c
+SRCS=	config.c \
+	kld.c \
+	secfw.c
+
 LDADD=	-lucl -lm
 
 CFLAGS+=	-fpie -I../libucl/include -I../libsecfw
