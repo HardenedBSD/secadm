@@ -1,0 +1,8 @@
+*.a
+*.ko
+*.o
+*.po
+*.so*
+*.So*
+*.un~
+secfw/secfw
