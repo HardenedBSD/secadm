@@ -37,9 +37,11 @@
 #include <unistd.h>
 
 #include <sys/types.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/param.h>
 #include <sys/linker.h>
+#include <sys/mman.h>
 #include <sys/mount.h>
 #include <sys/queue.h>
 
@@ -47,65 +49,42 @@
 #include "secfw.h"
 #include "secfw_internal.h"
 
-static void usage(char *);
-static int kldcheck(void);
-
-static void usage(char *name)
+secfw_rule_t *load_config(const char *config)
 {
-	fprintf(stderr, "USAGE: %s <-c config> <action> <options>\n", name);
-	exit(1);
-}
-
-static int kldcheck(void)
-{
-	int id;
-	struct kld_file_stat kfs;
-
-	for (id = kldnext(0); id > 0; id = kldnext(id)) {
-		memset(&kfs, 0x00, sizeof(struct kld_file_stat));
-		kfs.version = sizeof(struct kld_file_stat);
-
-		if (kldstat(id, &kfs) < 0) {
-			perror("kldstat");
-			return 1;
-		}
-
-		if (!strcmp("secfw.ko", kfs.name))
-			return 0;
-	}
-
-	if (id < 0)
-		perror("kldnext");
-
-	if (!getuid() || !geteuid()) {
-		/* TODO: Attempt to load module */
-	}
-
-	return 1;
-}
-
-int main(int argc, char *argv[])
-{
+	struct ucl_parser *parser=NULL;
 	secfw_rule_t *rules;
-	const char *config=NULL;
-	int ch;
+	unsigned char *map;
+	size_t sz;
+	int fd;
+	struct stat sb;
 
-	if (kldcheck()) {
-		fprintf(stderr, "[-] secfw module not loaded\n");
-		return 1;
+	parser = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
+	if (!(parser))
+		return NULL;
+
+	fd = open(config, O_RDONLY);
+	if (fd < 0) {
+		ucl_parser_free(parser);
+		return NULL;
 	}
 
-	while ((ch = getopt(argc, argv, "c:h?")) != -1) {
-		switch (ch) {
-		case 'c':
-			config = (const char *)optarg;
-			break;
-		default:
-			usage(argv[0]);
-		}
+	if (fstat(fd, &sb)) {
+		close(fd);
+		ucl_parser_free(parser);
+		return NULL;
 	}
 
-	rules = load_config(config);
+	map = mmap(NULL, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
+	if (map == (unsigned char *)MAP_FAILED) {
+		close(fd);
+		ucl_parser_free(parser);
+		return NULL;
+	}
 
-	return 0;
+	ucl_parser_add_chunk(parser, map, sb.st_size);
+
+	munmap(map, sb.st_size);
+
+	close(fd);
+	return rules;
 }
