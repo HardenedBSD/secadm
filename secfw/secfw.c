@@ -61,6 +61,11 @@ int main(int argc, char *argv[])
 	const char *config=NULL;
 	int ch;
 
+#ifndef HARDENEDBSD
+	fprintf(stderr, "[-] HardenedBSD required. FreeBSD not supported.\n");
+	return 1;
+#endif
+
 	if (kldcheck()) {
 		fprintf(stderr, "[-] secfw module not loaded\n");
 		return 1;

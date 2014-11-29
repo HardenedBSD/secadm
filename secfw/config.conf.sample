@@ -2,8 +2,8 @@
 	"applications": {
 		"/usr/local/bin/testpie": {
 			"features": {
-				"aslr: "false"
-			}
+				"aslr": true,
+			},
 		}
 	}
 }

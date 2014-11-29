@@ -124,5 +124,59 @@ secfw_rule_t *parse_object(struct ucl_parser *parser)
 
 secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 {
+	const ucl_object_t *app, *appdata;
+	ucl_object_iter_t it=NULL, it_data=NULL;
+	secfw_rule_t *rules, *apprules;
+	secfw_feature_t *features;
+	const char *path, *datakey;
+
+	while ((app = ucl_iterate_object(obj, &it, 1))) {
+		path = ucl_object_key(app);
+		apprules = calloc(1, sizeof(secfw_rule_t));
+		if (!(apprules)) {
+			return rules;
+		}
+
+		while ((appdata = ucl_iterate_object(app, &it_data, 1))) {
+			datakey = ucl_object_key(appdata);
+			if (!strcmp(datakey, "features")) {
+				if (!(apprules->sr_features))
+					parse_application_features(path, appdata, apprules);
+				else
+					fprintf(stderr, "[*] Warning: Extra features for \"%s\" ignored.\n", path);
+			}
+		}
+	}
+
 	return NULL;
+}
+
+secfw_feature_t *parse_application_features(const char *path, const ucl_object_t *obj, secfw_rule_t *rule)
+{
+	const ucl_object_t *feature=NULL;
+	ucl_object_iter_t it=NULL;
+	secfw_feature_t *features=NULL, *f;
+	const char *value, *key;
+
+	while ((feature = ucl_iterate_object(obj, &it, 1))) {
+		key = ucl_object_key(feature);
+		if (!strcmp(key, "aslr")) {
+			bool enabled;
+			ucl_object_toboolean_safe(feature, &enabled);
+
+			f = realloc(features, sizeof(secfw_feature_t) * (rule->sr_nfeatures + 1));
+			if (!(f))
+				return features;
+
+			features = f;
+			features[rule->sr_nfeatures].type = enabled ? aslr_enabled : aslr_disabled;
+
+			rule->sr_features = features;
+			rule->sr_nfeatures++;
+		} else {
+			fprintf(stderr, "[*] Warning: Unknown feature \"%s\" ignored.\n", key);
+		}
+	}
+
+	return features;
 }
