@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -42,17 +43,32 @@
 #include <sys/linker.h>
 #include <sys/mount.h>
 #include <sys/queue.h>
+#include <sys/sysctl.h>
 
 #include "ucl.h"
 #include "secfw.h"
 #include "secfw_internal.h"
 
 static void usage(char *);
+static void check_bsd(void);
 
 static void usage(char *name)
 {
 	fprintf(stderr, "USAGE: %s <-c config> <action> <options>\n", name);
 	exit(1);
+}
+
+static void check_bsd(void)
+{
+	int version;
+	size_t sz=sizeof(int);
+
+	if (sysctlbyname("hardening.version", &version, &sz, NULL, 0)) {
+		if (errno == ENOENT) {
+			fprintf(stderr, "[-] HardenedBSD required. FreeBSD not supported.\n");
+			exit(1);
+		}
+	}
 }
 
 int main(int argc, char *argv[])
@@ -61,10 +77,7 @@ int main(int argc, char *argv[])
 	const char *config=NULL;
 	int ch;
 
-#ifndef HARDENEDBSD
-	fprintf(stderr, "[-] HardenedBSD required. FreeBSD not supported.\n");
-	return 1;
-#endif
+	check_bsd();
 
 	if (kldcheck()) {
 		fprintf(stderr, "[-] secfw module not loaded\n");
