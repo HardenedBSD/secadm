@@ -29,7 +29,7 @@ checking on all rule changes, including the removal of rules, that the
 MAC module performs.
 
 The userland application will be named secfw. It will consume libsecfw
-and libjson-c. Rules will be written in json to allow for a
+and libucl. Rules will be written in json to allow for a
 configuration file format that is readable and parseable by both
 humans and machines. Using the json format will also allow for
 additional flexibility and dynamic content. One can imagine secfw
