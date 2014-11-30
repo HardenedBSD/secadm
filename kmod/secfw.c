@@ -87,13 +87,6 @@ validate_rule(struct thread *td, secfw_rule_t *rule)
 	if (rule->sr_nfeatures == 0)
 		return (1);
 
-	if ((rule->sr_flags & SECFW_RULE_FLAGS_UID_DEFINED))
-		if (rule->sr_minuid > rule->sr_maxuid)
-			return (1);
-
-	if ((rule->sr_flags & SECFW_RULE_FLAGS_GID_DEFINED))
-		if (rule->sr_mingid > rule->sr_maxgid)
-			return (1);
 
 	pr = td->td_ucred->cr_prison;
 

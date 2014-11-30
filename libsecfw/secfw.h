@@ -54,42 +54,38 @@ typedef enum secfw_command_type {
 } secfw_command_type_t;
 
 typedef struct secfw_feature {
-	secfw_feature_type_t	type;
-	size_t			metadatasz;
+	secfw_feature_type_t	 type;
+	size_t			 metadatasz;
 	void			*metadata;
 } secfw_feature_t;
 
 typedef struct secfw_rule {
-	size_t			sr_id;
-	unsigned int		sr_flags;
-	ino_t			sr_inode;
-	struct fsid		sr_fsid;
-	size_t			sr_pathlen;
+	size_t			 sr_id;
+	unsigned int		 sr_flags;
+	ino_t			 sr_inode;
+	struct fsid		 sr_fsid;
+	size_t			 sr_pathlen;
 	char 			*sr_path;
-	uid_t			sr_minuid;
-	uid_t			sr_maxuid;
-	gid_t			sr_mingid;
-	gid_t			sr_maxgid;
-	size_t			sr_nfeatures;
+	size_t			 sr_nfeatures;
 	secfw_feature_t		*sr_features;
 	struct prison		*sr_prison;
-	LIST_ENTRY(secfw_rule)	sr_entry;
+	LIST_ENTRY(secfw_rule)	 sr_entry;
 } secfw_rule_t;
 
 typedef struct secfw_command {
-	unsigned long		sc_version;
-	size_t			sc_id;
-	secfw_command_type_t	sc_type;
+	unsigned long		 sc_version;
+	size_t			 sc_id;
+	secfw_command_type_t	 sc_type;
 	void			*sc_metadata;
-	size_t			sc_size;
+	size_t			 sc_size;
 } secfw_command_t;
 
 typedef struct secfw_reply {
-	unsigned long		sr_version;
-	size_t			sr_id;
-	unsigned int		sr_code;
+	unsigned long		 sr_version;
+	size_t			 sr_id;
+	unsigned int		 sr_code;
 	void			*sr_metadata;
-	size_t			sr_size;
+	size_t			 sr_size;
 } secfw_reply_t;
 
 #ifdef _KERNEL

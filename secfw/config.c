@@ -126,22 +126,51 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 {
 	const ucl_object_t *app, *appdata;
 	ucl_object_iter_t it=NULL, it_data=NULL;
-	secfw_rule_t *rules, *apprules;
+	secfw_rule_t *rules, *apprule;
 	secfw_feature_t *features;
+	struct stat sb;
+	struct statfs fsb;
 	const char *path, *datakey;
+	int fd;
 
 	while ((app = ucl_iterate_object(obj, &it, 1))) {
 		path = ucl_object_key(app);
-		apprules = calloc(1, sizeof(secfw_rule_t));
-		if (!(apprules)) {
+		fd = open(path, O_RDONLY);
+		if (fd < 0) {
+			fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n", path);
+			continue;
+		}
+
+		if (fstat(fd, &sb)) {
+			perror("fstat");
+			close(fd);
+			continue;
+		}
+
+		if (fstatfs(fd, &fsb)) {
+			perror("fstatfs");
+			close(fd);
+			continue;
+		}
+
+		close(fd);
+
+		apprule = calloc(1, sizeof(secfw_rule_t));
+		if (!(apprule)) {
 			return rules;
 		}
+
+		memcpy(&(apprule->sr_fsid), &(fsb.f_fsid), sizeof(struct fsid));
+		apprule->sr_inode = sb.st_ino;
+		apprule->sr_path = strdup(path);
+		if (apprule->sr_path)
+			apprule->sr_pathlen = strlen(path);
 
 		while ((appdata = ucl_iterate_object(app, &it_data, 1))) {
 			datakey = ucl_object_key(appdata);
 			if (!strcmp(datakey, "features")) {
-				if (!(apprules->sr_features))
-					parse_application_features(path, appdata, apprules);
+				if (!(apprule->sr_features))
+					parse_application_features(path, appdata, apprule);
 				else
 					fprintf(stderr, "[*] Warning: Extra features for \"%s\" ignored.\n", path);
 			}
