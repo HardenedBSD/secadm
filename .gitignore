@@ -5,4 +5,5 @@
 *.so*
 *.So*
 *.un~
+*.conf
 secfw/secfw
