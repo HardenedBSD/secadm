@@ -5,8 +5,8 @@ SRCS=	config.c \
 
 LDADD=	-lucl -lm
 
-CFLAGS+=	-fpie -I../libucl/include -I../libsecfw
-LDFLAGS+=	-pie -L../libucl -L../libsecfw
+CFLAGS+=	-fpie -I../libsecfw -I/usr/local/include
+LDFLAGS+=	-pie -L../libsecfw -L/usr/local/lib
 
 NO_MAN=	"yes"
 
