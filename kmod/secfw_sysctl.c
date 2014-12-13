@@ -38,66 +38,75 @@
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
+#include <sys/sysctl.h>
 #include <sys/uio.h>
 
 #include <security/mac/mac_policy.h>
 
 #include "secfw.h"
 
-int
-secfw_open(struct cdev *dev, int flag, int otyp, struct thread *td)
+static void handle_version_command(secfw_command_t *cmd, secfw_reply_t *reply);
+static int sysctl_control(SYSCTL_HANDLER_ARGS);
+
+SYSCTL_NODE(_hardening, OID_AUTO, secfw, CTLFLAG_RD, 0,
+    "HardenedBSD Security Firewall");
+
+SYSCTL_NODE(_hardening_secfw, OID_AUTO, control,
+    CTLFLAG_MPSAFE | CTLFLAG_RW | CTLFLAG_PRISON, sysctl_control,
+    "secfw management interface");
+
+static void
+handle_version_command(secfw_command_t *cmd, secfw_reply_t *reply)
 {
-	return (0);
+	reply->sr_metadata = cmd->sc_buf;
+	reply->sr_size = sizeof(unsigned long);
+	if (copyout(&(reply->sr_version), cmd->sc_buf, sizeof(unsigned long)))
+		reply->sr_code = EFAULT;
+	else
+		reply->sr_code = 0;
 }
 
-int
-secfw_close(struct cdev *dev, int flag, int otyp, struct thread *td)
+static int
+sysctl_control(SYSCTL_HANDLER_ARGS)
 {
-	return (0);
-}
-
-int
-secfw_write(struct cdev *dev, struct uio *uio, int ioflag)
-{
-	secfw_rule_t *rule;
 	secfw_command_t cmd;
-	int error = 0;
+	secfw_reply_t reply;
+	int err;
 
-	if (uio->uio_iov->iov_len != sizeof(secfw_command_t))
+	if (!(req->newptr) || (req->newlen != sizeof(secfw_command_t)))
 		return (EINVAL);
 
-	error = copyin(uio->uio_iov->iov_base, &cmd, uio->uio_iov->iov_len);
-	if (error != 0)
-		return (error);
+	if (!(req->oldptr) || (req->oldlen) != sizeof(secfw_reply_t))
+		return (EINVAL);
+
+	err = SYSCTL_IN(req, &cmd, sizeof(secfw_command_t));
+	if (err)
+		return (err);
+
+	if (cmd.sc_version != SECFW_VERSION)
+		return (EINVAL);
+
+	memset(&reply, 0x00, sizeof(reply));
+
+	reply.sr_version = SECFW_VERSION;
+	reply.sr_id = cmd.sc_id;
 
 	switch (cmd.sc_type) {
-		case secfw_insert_rule:
-			rule = read_rule_from_userland(curthread,
-			    cmd.sc_metadata, cmd.sc_size);
-			if (rule == NULL)
-				return (EINVAL);
-
-			break;
-		default:
+	case  secfw_get_version:
+		if (cmd.sc_bufsize < sizeof(unsigned long))
 			return (EINVAL);
+		handle_version_command(&cmd, &reply);
+		break;
+	case secfw_get_rules:
+	case secfw_set_rules:
+	case secfw_flush_rules:
+	case secfw_delete_rule:
+	case secfw_insert_rule:
+		return (ENOTSUP);
+	default:
+		return (EINVAL);
 	}
 
-	return (0);
+	err = SYSCTL_OUT(req, &reply, sizeof(secfw_reply_t));
+	return (err);
 }
-
-int
-secfw_read(struct cdev *dev, struct uio *uio, int ioflag)
-{
-	return (0);
-}
-
-struct cdevsw secfw_devsw = {
-	.d_version	= D_VERSION,
-	.d_open		= secfw_open,
-	.d_close	= secfw_close,
-	.d_read		= secfw_read,
-	.d_write	= secfw_write,
-	.d_name		= "secfw"
-};
-
-struct cdev *sdev=NULL;

@@ -51,14 +51,17 @@
 
 static void usage(char *);
 static void check_bsd(void);
+static void get_version(void);
 
-static void usage(char *name)
+static void
+usage(char *name)
 {
 	fprintf(stderr, "USAGE: %s <-c config> <action> <options>\n", name);
 	exit(1);
 }
 
-static void check_bsd(void)
+static void
+check_bsd(void)
 {
 	int version;
 	size_t sz=sizeof(int);
@@ -71,7 +74,44 @@ static void check_bsd(void)
 	}
 }
 
-int main(int argc, char *argv[])
+static void
+get_version(void)
+{
+	secfw_command_t cmd;
+	secfw_reply_t reply;
+	size_t cmdsz, replysz;
+	int err;
+	unsigned long version;
+
+	cmdsz = sizeof(secfw_command_t);
+	replysz = sizeof(secfw_reply_t);
+
+	memset(&cmd, 0x00, sizeof(secfw_command_t));
+	cmd.sc_version = SECFW_VERSION;
+	cmd.sc_type = secfw_get_version;
+	cmd.sc_buf = calloc(1, sizeof(unsigned long));
+	if (!(cmd.sc_buf))
+		return;
+
+	cmd.sc_bufsize = sizeof(unsigned long);
+
+	err = sysctlbyname("hardening.secfw.control", &reply, &replysz, &cmd, cmdsz);
+	if (err) {
+		fprintf(stderr, "[-] Could not get version: %s\n", strerror(errno));
+	} else {
+		if (reply.sr_code) {
+			fprintf(stderr, "[-] Error in getting version: %s\n", strerror(reply.sr_code));
+		} else {
+			version = *((unsigned long *)(reply.sr_metadata));
+			fprintf(stderr, "[+] Kernel module version: %lu\n", version);
+		}
+	}
+
+	exit(0);
+}
+
+int
+main(int argc, char *argv[])
 {
 	secfw_rule_t *rules;
 	const char *config=NULL;
@@ -84,11 +124,13 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	while ((ch = getopt(argc, argv, "c:h?")) != -1) {
+	while ((ch = getopt(argc, argv, "c:hv?")) != -1) {
 		switch (ch) {
 		case 'c':
 			config = (const char *)optarg;
 			break;
+		case 'v':
+			get_version();
 		default:
 			usage(argv[0]);
 		}

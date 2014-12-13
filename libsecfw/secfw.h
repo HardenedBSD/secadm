@@ -29,7 +29,7 @@
 #ifndef _SYS_SECURITY_SECFW_H
 #define _SYS_SECURITY_SECFW_H
 
-#define SECFW_VERSION		20140911001UL
+#define SECFW_VERSION		20141213001UL
 
 #define SECFW_RULE_FLAGS_NONE 0x00000000
 #define SECFW_RULE_FLAGS_UID_DEFINED 0x00000001
@@ -78,6 +78,8 @@ typedef struct secfw_command {
 	secfw_command_type_t	 sc_type;
 	void			*sc_metadata;
 	size_t			 sc_size;
+	void			*sc_buf;
+	size_t			 sc_bufsize;
 } secfw_command_t;
 
 typedef struct secfw_reply {
@@ -96,8 +98,6 @@ typedef struct secfw_kernel_data {
 	LIST_HEAD(,secfw_rule) sk_rules;
 } secfw_kernel_t;
 
-extern struct cdevsw secfw_devsw;
-extern struct cdev *sdev;
 extern secfw_kernel_t rules;
 
 void secfw_lock_init(void);

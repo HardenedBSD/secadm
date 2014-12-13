@@ -48,24 +48,11 @@ static void
 secfw_init(struct mac_policy_conf *mpc)
 {
 	secfw_lock_init();
-
-	secfw_lock();
-
-	sdev = make_dev(&secfw_devsw, 0, UID_ROOT, GID_WHEEL, 0600, "secfw");
-
-	secfw_unlock();
 }
 
 static void
 secfw_destroy(struct mac_policy_conf *mpc)
 {
-	secfw_lock();
-
-	if (sdev != NULL)
-		destroy_dev(sdev);
-
-	secfw_unlock();
-
 	secfw_lock_destroy();
 }
 

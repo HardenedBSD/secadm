@@ -1,5 +1,5 @@
 KMOD=	secfw
-SRCS=	secfw.c secfw_dev.c secfw_mac.c secfw_vnode.c
+SRCS=	secfw.c secfw_mac.c secfw_vnode.c secfw_sysctl.c
 
 CFLAGS+=	-I../libsecfw
 
