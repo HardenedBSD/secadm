@@ -44,7 +44,7 @@
 #include <sys/queue.h>
 
 #include "ucl.h"
-#include "secfw.h"
+#include "libsecfw.h"
 #include "secfw_internal.h"
 
 int kldcheck(void)

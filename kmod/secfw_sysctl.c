@@ -83,7 +83,7 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 	if (err)
 		return (err);
 
-	if (cmd.sc_version != SECFW_VERSION)
+	if (cmd.sc_version < SECFW_VERSION)
 		return (EINVAL);
 
 	memset(&reply, 0x00, sizeof(reply));

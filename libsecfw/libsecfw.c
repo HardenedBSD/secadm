@@ -45,77 +45,56 @@
 #include <sys/queue.h>
 #include <sys/sysctl.h>
 
-#include "ucl.h"
-#include "libsecfw.h"
-#include "secfw_internal.h"
-
-static void usage(char *);
-static void check_bsd(void);
-static void get_version(void);
-
-static void
-usage(char *name)
-{
-	fprintf(stderr, "USAGE: %s <-c config> <action> <options>\n", name);
-	exit(1);
-}
-
-static void
-check_bsd(void)
-{
-	int version;
-	size_t sz=sizeof(int);
-
-	if (sysctlbyname("hardening.version", &version, &sz, NULL, 0)) {
-		if (errno == ENOENT) {
-			fprintf(stderr, "[-] HardenedBSD required. FreeBSD not supported.\n");
-			exit(1);
-		}
-	}
-}
-
-static void get_version(void)
-{
-	unsigned long version;
-
-	version = secfw_kernel_version();
-	if (version)
-		fprintf(stderr, "[+] secfw kernel module version: %lu\n", version);
-
-	exit(0);
-}
+#include "secfw.h"
 
 int
-main(int argc, char *argv[])
+secfw_sysctl(secfw_command_t *cmd, secfw_reply_t *reply)
 {
-	secfw_rule_t *rules;
-	const char *config=NULL;
-	int ch;
+	int err;
+	size_t cmdsz, replysz;
 
-	check_bsd();
+	cmdsz = sizeof(secfw_command_t);
+	replysz = sizeof(secfw_reply_t);
 
-	if (kldcheck()) {
-		fprintf(stderr, "[-] secfw module not loaded\n");
-		return 1;
+	err = sysctlbyname("hardening.secfw.control", reply, &replysz, cmd, cmdsz);
+
+	if (err)
+		return (err);
+
+	if (reply->sr_code)
+		return (reply->sr_code);
+
+	return (0);
+}
+
+unsigned long
+secfw_kernel_version(void)
+{
+	secfw_command_t cmd;
+	secfw_reply_t reply;
+	int err;
+	unsigned long version=0;
+
+	memset(&cmd, 0x00, sizeof(secfw_command_t));
+	cmd.sc_version = SECFW_VERSION;
+	cmd.sc_type = secfw_get_version;
+	cmd.sc_buf = calloc(1, sizeof(unsigned long));
+	if (!(cmd.sc_buf))
+		return 0;
+
+	cmd.sc_bufsize = sizeof(unsigned long);
+
+	err = secfw_sysctl(&cmd, &reply);
+	if (err == 0) {
+		version = *((unsigned long *)(reply.sr_metadata));
+	} else {
+		fprintf(stderr, "[-] Could not get version: %s\n", strerror(errno));
+		goto error;
 	}
 
-	while ((ch = getopt(argc, argv, "c:hv?")) != -1) {
-		switch (ch) {
-		case 'c':
-			config = (const char *)optarg;
-			break;
-		case 'v':
-			get_version();
-		default:
-			usage(argv[0]);
-		}
-	}
+error:
+	if (cmd.sc_buf != NULL)
+		free(cmd.sc_buf);
 
-	if (!(config)) {
-		usage(argv[0]);
-	}
-
-	rules = load_config(config);
-
-	return 0;
+	return version;
 }

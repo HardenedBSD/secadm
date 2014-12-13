@@ -46,7 +46,7 @@
 #include <sys/queue.h>
 
 #include "ucl.h"
-#include "secfw.h"
+#include "libsecfw.h"
 #include "secfw_internal.h"
 
 secfw_rule_t *load_config(const char *config)
