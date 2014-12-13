@@ -2,9 +2,12 @@
 #define _SECFW_INTERNAL_H
 
 int kldcheck(void);
-secfw_rule_t *load_config(const char *config);
-secfw_rule_t *parse_object(struct ucl_parser *parser);
-secfw_rule_t *parse_applications_object(const ucl_object_t *obj);
-secfw_feature_t *parse_application_features(const char *path, const ucl_object_t *obj, secfw_rule_t *rule);
+secfw_rule_t *load_config(const char *);
+secfw_rule_t *parse_object(struct ucl_parser *);
+void add_feature(secfw_rule_t *, const ucl_object_t *, secfw_feature_type_t);
+secfw_rule_t *parse_applications_object(const ucl_object_t *);
+
+void debug_print_rule(secfw_rule_t *);
+void debug_print_rules(secfw_rule_t *);
 
 #endif

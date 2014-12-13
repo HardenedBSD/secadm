@@ -116,6 +116,7 @@ main(int argc, char *argv[])
 	}
 
 	rules = load_config(config);
+	debug_print_rules(rules);
 
 	return 0;
 }

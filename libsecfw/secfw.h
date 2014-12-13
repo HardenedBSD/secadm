@@ -40,7 +40,7 @@ typedef enum secfw_feature_type {
 	secfw_invalid=0,
 	aslr_disabled,
 	aslr_enabled,
-	segvgaurd_disabled,
+	segvguard_disabled,
 	segvguard_enabled
 } secfw_feature_type_t;
 
@@ -69,7 +69,8 @@ typedef struct secfw_rule {
 	size_t			 sr_nfeatures;
 	secfw_feature_t		*sr_features;
 	struct prison		*sr_prison;
-	LIST_ENTRY(secfw_rule)	 sr_entry;
+	char			*sr_prisonname;
+	struct secfw_rule	*sr_next;
 } secfw_rule_t;
 
 typedef struct secfw_command {
@@ -95,7 +96,7 @@ typedef struct secfw_reply {
 MALLOC_DECLARE(M_SECFW);
 
 typedef struct secfw_kernel_data {
-	LIST_HEAD(,secfw_rule) sk_rules;
+	secfw_rule_t	 *rules;
 } secfw_kernel_t;
 
 extern secfw_kernel_t rules;

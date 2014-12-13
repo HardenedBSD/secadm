@@ -52,11 +52,12 @@
 secfw_rule_t *load_config(const char *config)
 {
 	struct ucl_parser *parser=NULL;
-	secfw_rule_t *rules;
+	secfw_rule_t *rules, *rule;
 	unsigned char *map;
 	size_t sz;
 	int fd;
 	struct stat sb;
+	size_t id=0;
 
 	parser = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
 	if (!(parser)) {
@@ -98,12 +99,16 @@ secfw_rule_t *load_config(const char *config)
 	}
 
 	rules = parse_object(parser);
+
+	for (rule = rules; rule != NULL; rule = rule->sr_next)
+		rule->sr_id = id++;
+
 	return rules;
 }
 
 secfw_rule_t *parse_object(struct ucl_parser *parser)
 {
-	secfw_rule_t *rules=NULL, *newrules;
+	secfw_rule_t *rules=NULL, *newrules, *rule;
 	ucl_object_t *obj;
 	const ucl_object_t *curobj;
 	ucl_object_iter_t it=NULL;
@@ -113,99 +118,179 @@ secfw_rule_t *parse_object(struct ucl_parser *parser)
 
 	while ((curobj = ucl_iterate_object(obj, &it, 1))) {
 		key = ucl_object_key(curobj);
+		newrules=NULL;
+
 		if (!strcmp(key, "applications")) {
 			newrules = parse_applications_object(curobj);
 		}
-	}
 
-	ucl_object_unref(obj);
-	return NULL;
-}
+		if (newrules != NULL) {
+			if (rules != NULL) {
+				for (rule = rules; rule->sr_next != NULL; rule = rule->sr_next)
+					;
 
-secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
-{
-	const ucl_object_t *app, *appdata;
-	ucl_object_iter_t it=NULL, it_data=NULL;
-	secfw_rule_t *rules, *apprule;
-	secfw_feature_t *features;
-	struct stat sb;
-	struct statfs fsb;
-	const char *path, *datakey;
-	int fd;
-
-	while ((app = ucl_iterate_object(obj, &it, 1))) {
-		path = ucl_object_key(app);
-		fd = open(path, O_RDONLY);
-		if (fd < 0) {
-			fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n", path);
-			continue;
-		}
-
-		if (fstat(fd, &sb)) {
-			perror("fstat");
-			close(fd);
-			continue;
-		}
-
-		if (fstatfs(fd, &fsb)) {
-			perror("fstatfs");
-			close(fd);
-			continue;
-		}
-
-		close(fd);
-
-		apprule = calloc(1, sizeof(secfw_rule_t));
-		if (!(apprule)) {
-			return rules;
-		}
-
-		memcpy(&(apprule->sr_fsid), &(fsb.f_fsid), sizeof(struct fsid));
-		apprule->sr_inode = sb.st_ino;
-		apprule->sr_path = strdup(path);
-		if (apprule->sr_path)
-			apprule->sr_pathlen = strlen(path);
-
-		while ((appdata = ucl_iterate_object(app, &it_data, 1))) {
-			datakey = ucl_object_key(appdata);
-			if (!strcmp(datakey, "features")) {
-				if (!(apprule->sr_features))
-					parse_application_features(path, appdata, apprule);
-				else
-					fprintf(stderr, "[*] Warning: Extra features for \"%s\" ignored.\n", path);
+				rule->sr_next = newrules;
+			} else {
+				rules = newrules;
 			}
 		}
 	}
 
-	return NULL;
+	ucl_object_unref(obj);
+	return rules;
 }
 
-secfw_feature_t *parse_application_features(const char *path, const ucl_object_t *obj, secfw_rule_t *rule)
+int
+parse_path(secfw_rule_t *rule, const char *path)
 {
-	const ucl_object_t *feature=NULL;
+	struct stat sb;
+	struct statfs fsb;
+	int fd;
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n", path);
+		return -1;
+	}
+
+	if (fstat(fd, &sb)) {
+		perror("fstat");
+		close(fd);
+		return -1;
+	}
+
+	if (fstatfs(fd, &fsb)) {
+		perror("fstatfs");
+		close(fd);
+		return -1;
+	}
+
+	close(fd);
+
+	memcpy(&(rule->sr_fsid), &(fsb.f_fsid), sizeof(struct fsid));
+	rule->sr_inode = sb.st_ino;
+	rule->sr_path = strdup(path);
+	if (rule->sr_path)
+		rule->sr_pathlen = strlen(path);
+
+	return 0;
+}
+
+void
+add_feature(secfw_rule_t *rule, const ucl_object_t *obj, secfw_feature_type_t feature)
+{
+	void *f;
+
+	f = reallocarray(rule->sr_features, rule->sr_nfeatures + 1, sizeof(secfw_feature_t));
+	if (f == NULL)
+		return;
+	rule->sr_features = f;
+
+	memset(&(rule->sr_features[rule->sr_nfeatures]), 0x00, sizeof(secfw_feature_t));
+
+	switch (feature) {
+	case aslr_enabled:
+	case aslr_disabled:
+	case segvguard_enabled:
+	case segvguard_disabled:
+		rule->sr_features[rule->sr_nfeatures].type = feature;
+		break;
+	default:
+		fprintf(stderr, "Unknown feature\n");
+	}
+
+	rule->sr_nfeatures++;
+}
+
+secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
+{
+	const ucl_object_t *appindex, *ucl_feature, *appdata;
 	ucl_object_iter_t it=NULL;
-	secfw_feature_t *features=NULL, *f;
-	const char *value, *key;
+	secfw_rule_t *head=NULL, *apprule;
+	const char *path, *datakey, *key;
+	bool enabled;
 
-	while ((feature = ucl_iterate_object(obj, &it, 1))) {
-		key = ucl_object_key(feature);
-		if (!strcmp(key, "aslr")) {
-			bool enabled;
-			ucl_object_toboolean_safe(feature, &enabled);
+	while ((appindex = ucl_iterate_object(obj, &it, 1))) {
+		apprule = calloc(1, sizeof(secfw_rule_t));
+		if (!(apprule)) {
+			return head;
+		}
 
-			f = realloc(features, sizeof(secfw_feature_t) * (rule->sr_nfeatures + 1));
-			if (!(f))
-				return features;
+		appdata = ucl_lookup_path(appindex, "path");
+		if (!(appdata)) {
+			free(apprule);
+			fprintf(stderr, "Object does not have a path!\n");
+			continue;
+		}
 
-			features = f;
-			features[rule->sr_nfeatures].type = enabled ? aslr_enabled : aslr_disabled;
+		if (ucl_object_tostring_safe(appdata, &path) == false) {
+			free(apprule);
+			fprintf(stderr, "Object's path is not a string!\n");
+			continue;
+		}
 
-			rule->sr_features = features;
-			rule->sr_nfeatures++;
+		if (parse_path(apprule, path)) {
+			fprintf(stderr, "Could not set the rule's path!\n");
+			free(apprule);
+			continue;
+		}
+
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.aslr")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				add_feature(apprule, ucl_feature, enabled ? aslr_enabled : aslr_disabled);
+		}
+
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.segvguard")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				add_feature(apprule, ucl_feature, enabled ? segvguard_enabled : segvguard_disabled);
+		}
+
+		if (head) {
+			apprule->sr_next = head->sr_next;
+			head->sr_next = apprule;
 		} else {
-			fprintf(stderr, "[*] Warning: Unknown feature \"%s\" ignored.\n", key);
+			head = apprule;
 		}
 	}
 
-	return features;
+	return head;;
+}
+
+void
+debug_print_rule(secfw_rule_t *rule)
+{
+	secfw_feature_t *feature;
+	size_t i;
+
+	fprintf(stderr, "[*] Rule %zu\n", rule->sr_id);
+	fprintf(stderr, "    - Path: %s\n", rule->sr_path);
+	for (i=0; i < rule->sr_nfeatures; i++) {
+		switch (rule->sr_features[i].type) {
+		case aslr_disabled:
+			fprintf(stderr, "    - Feature[ASLR]: Disabled\n");
+			break;
+		case aslr_enabled:
+			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
+			break;
+		case segvguard_enabled:
+			fprintf(stderr, "    - Feature[SEGVGUARD] - Enabled\n");
+			break;
+		case segvguard_disabled:
+			fprintf(stderr, "    - Feature[SEGVGUARD] - Disabled\n");
+			break;
+		default:
+			fprintf(stderr, "    - Feature %d unkown\n", rule->sr_features[i].type);
+			break;
+		}
+	}
+}
+
+void
+debug_print_rules(secfw_rule_t *rules)
+{
+	secfw_rule_t *rule;
+
+	for (rule = rules; rule != NULL; rule = rule->sr_next) {
+		debug_print_rule(rule);
+	}
 }

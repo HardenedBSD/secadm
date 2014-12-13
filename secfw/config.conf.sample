@@ -1,9 +1,16 @@
 {
-	"applications": {
-		"/usr/local/bin/testpie": {
+	"applications": [
+		{
+			"path": "/usr/local/bin/testpie",
 			"features": {
 				"aslr": true,
 			},
+		},
+		{
+			"path": "/bin/ls",
+			"features": {
+				"aslr": false,
+			}
 		}
-	}
+	]
 }

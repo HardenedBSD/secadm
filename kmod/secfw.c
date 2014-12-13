@@ -214,7 +214,7 @@ read_rule_from_userland(struct thread *td, void *base, size_t reqlen)
 		return (NULL);
 	}
 
-	next = LIST_NEXT(rule, sr_entry);
+	next = rule->sr_next;
 	if (next) {
 		next = read_rule_from_userland(td, next,
 		    sizeof(secfw_rule_t));
@@ -232,7 +232,7 @@ read_rule_from_userland(struct thread *td, void *base, size_t reqlen)
 			return (NULL);
 		}
 
-		LIST_INSERT_AFTER(rule, next, sr_entry);
+		rule->sr_next = next;
 	}
 
 	return rule;
