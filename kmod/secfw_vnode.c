@@ -65,27 +65,31 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	secfw_lock_read();
 
 	for (rule = rules.rules; rule != NULL; rule = rule->sr_next) {
-		if (vap.va_fileid == rule->sr_inode) {
-			for (i=0; i < rule->sr_nfeatures; i++) {
-				switch(rule->sr_features[i].type) {
-				case aslr_enabled:
-					flags |= PAX_NOTE_ASLR;
-					break;
-				case aslr_disabled:
-					flags |= PAX_NOTE_NOASLR;
-					break;
-				case segvguard_enabled:
-					flags |= PAX_NOTE_SEGVGUARD;
-					break;
-				case segvguard_disabled:
-					flags |= PAX_NOTE_NOSEGVGUARD;
-					break;
-				default:
-					break;
+		if (bcmp(&(rule->sr_fsid),
+		    &(vp->v_mount->mnt_stat.f_fsid),
+		    sizeof(struct fsid)) == 0) {
+			if (vap.va_fileid == rule->sr_inode) {
+				for (i=0; i < rule->sr_nfeatures; i++) {
+					switch(rule->sr_features[i].type) {
+					case aslr_enabled:
+						flags |= PAX_NOTE_ASLR;
+						break;
+					case aslr_disabled:
+						flags |= PAX_NOTE_NOASLR;
+						break;
+					case segvguard_enabled:
+						flags |= PAX_NOTE_SEGVGUARD;
+						break;
+					case segvguard_disabled:
+						flags |= PAX_NOTE_NOSEGVGUARD;
+						break;
+					default:
+						break;
+					}
 				}
-			}
 
-			break;
+				break;
+			}
 		}
 	}
 
