@@ -139,10 +139,17 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 			return (EINVAL);
 		}
 
+		secfw_rules_lock_write();
+		flush_rules();
+		secfw_rules_unlock_write();
+
 		handle_add_rule(req->td, &cmd, &reply);
 		break;
-	case secfw_get_rules:
 	case secfw_flush_rules:
+		secfw_rules_lock_write();
+		flush_rules();
+		secfw_rules_unlock_write();
+	case secfw_get_rules:
 		return (ENOTSUP);
 	default:
 		return (EINVAL);

@@ -159,38 +159,6 @@ validate_rule(struct thread *td, secfw_rule_t *rule)
 	return (0);
 }
 
-int
-add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule)
-{
-#if 0
-	struct prison *pr;
-	secfw_kernel_t *prules;
-	int err = 0;
-
-	err = validate_rule(td, rule);
-	if (err)
-		return (err);
-
-	pr = td->td_ucred->cr_prison;
-
-	prison_lock(pr);
-
-	prules = (secfw_kernel_t *)(pr->pr_secfw_mac);
-	if (prules == NULL) {
-		prules = malloc(sizeof(secfw_kernel_t), M_SECFW, M_WAITOK);
-		LIST_INIT(&(prules->sk_rules));
-		pr->pr_secfw_mac = prules;
-	}
-
-	LIST_INSERT_HEAD(&(prules->sk_rules), rule,
-	    sr_entry);
-
-	prison_unlock(pr);
-#endif
-
-	return (0);
-}
-
 void
 free_rule(secfw_rule_t *rule, int freerule)
 {
@@ -215,6 +183,19 @@ free_rule(secfw_rule_t *rule, int freerule)
 
 	if (freerule)
 		free(rule, M_SECFW);
+}
+
+void
+flush_rules(void)
+{
+	secfw_rule_t *rule, *next;
+
+	for (rule = rules.rules; rule != NULL; rule = next) {
+		next = rule->sr_next;
+		free_rule(rule, 1);
+	}
+
+	rules.rules = NULL;
 }
 
 /* XXX This is more of a PoC. This needs to be cleaned up for

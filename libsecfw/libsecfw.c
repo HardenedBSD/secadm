@@ -107,7 +107,7 @@ secfw_add_rules(secfw_rule_t *rule)
 	int err=0;
 
 	memset(&cmd, 0x00, sizeof(secfw_command_t));
-	memset(&reply, 0x00, sizeof(secfw_rule_t));
+	memset(&reply, 0x00, sizeof(secfw_reply_t));
 
 	cmd.sc_version = SECFW_VERSION;
 	cmd.sc_type = secfw_set_rules;
@@ -116,6 +116,26 @@ secfw_add_rules(secfw_rule_t *rule)
 
 	if ((err = secfw_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "[-] Control channel received an error code: %d\n", err);
+	}
+
+	return (unsigned int)err;
+}
+
+unsigned int
+secfw_flush_all_rules(void)
+{
+	secfw_command_t cmd;
+	secfw_reply_t reply;
+	int err=0;
+
+	memset(&cmd, 0x00, sizeof(secfw_command_t));
+	memset(&reply, 0x00, sizeof(secfw_reply_t));
+
+	cmd.sc_version = SECFW_VERSION;
+	cmd.sc_type = secfw_flush_rules;
+
+	if ((err = secfw_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "[-] Could not flush rules. Error code: %d\n", err);
 	}
 
 	return (unsigned int)err;

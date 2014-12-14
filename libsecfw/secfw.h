@@ -148,14 +148,9 @@ int secfw_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
     struct label *dvplabel, struct vnode *vp, struct label *vplabel,
     struct componentname *cnp);
 
-int secfw_open(struct cdev *dev, int flag, int otyp, struct thread *td);
-int secfw_close(struct cdev *dev, int flag, int otyp, struct thread *td);
-int secfw_write(struct cdev *dev, struct uio *uio, int ioflag);
-int secfw_read(struct cdev *dev, struct uio *uio, int ioflag);
-
 int validate_rule(struct thread *td, secfw_rule_t *rule);
-int add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule);
 void free_rule(secfw_rule_t *, int);
+void flush_rules(void);
 int read_rule_from_userland(struct thread *td, secfw_rule_t *rule);
 
 #endif /* _KERNEL */

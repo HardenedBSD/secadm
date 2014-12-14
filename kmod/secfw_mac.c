@@ -47,6 +47,7 @@
 static void
 secfw_init(struct mac_policy_conf *mpc)
 {
+
 	memset(&rules, 0x00, sizeof(secfw_kernel_t));
 
 	secfw_lock_init();
@@ -55,14 +56,10 @@ secfw_init(struct mac_policy_conf *mpc)
 static void
 secfw_destroy(struct mac_policy_conf *mpc)
 {
-	secfw_rule_t *rule, *next;
 
 	secfw_rules_lock_write();
 
-	for (rule = rules.rules; rule != NULL; rule = next) {
-		next = rule->sr_next;
-		free_rule(rule, 1);
-	}
+	flush_rules();
 
 	secfw_rules_unlock_write();
 
