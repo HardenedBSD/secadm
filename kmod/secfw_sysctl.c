@@ -122,6 +122,8 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		return (EINVAL);
 
 	memset(&reply, 0x00, sizeof(reply));
+	if (copyin(req->oldptr, &reply, sizeof(reply)))
+		return (EFAULT);
 
 	reply.sr_version = SECFW_VERSION;
 	reply.sr_id = cmd.sc_id;
@@ -158,6 +160,16 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		secfw_rules_lock_write();
 		flush_rules();
 		secfw_rules_unlock_write();
+	case secfw_get_rule_size:
+		secfw_rules_lock_read();
+		reply.sr_code = get_rule_size(&cmd, &reply);
+		secfw_rules_unlock_read();
+		break;
+	case secfw_get_num_rules:
+		secfw_rules_lock_read();
+		reply.sr_code = (unsigned int)get_num_rules(&cmd, &reply);
+		secfw_rules_unlock_read();
+		break;
 	case secfw_get_rules:
 	case secfw_get_admins:
 	case secfw_set_admins:

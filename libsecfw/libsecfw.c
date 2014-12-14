@@ -185,3 +185,56 @@ secfw_debug_print_rules(secfw_rule_t *rules)
 		secfw_debug_print_rule(rule);
 	}
 }
+
+size_t
+secfw_get_kernel_rule_size(size_t id)
+{
+	secfw_command_t cmd;
+	secfw_reply_t reply;
+	size_t size;
+	int err;
+
+	memset(&cmd, 0x00, sizeof(secfw_command_t));
+	memset(&reply, 0x00, sizeof(secfw_reply_t));
+
+	cmd.sc_version = SECFW_VERSION;
+	cmd.sc_type = secfw_get_rule_size;
+	cmd.sc_buf = &id;
+	cmd.sc_bufsize = sizeof(size_t);
+
+	reply.sr_metadata = &size;
+	reply.sr_size = sizeof(size_t);
+
+	if ((err = secfw_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "[-] Could not get rule size for id %zu: %s\n", id, strerror(err));
+		return (0);
+	}
+
+	return (size);
+}
+
+size_t
+secfw_get_num_kernel_rules(void)
+{
+	secfw_command_t cmd;
+	secfw_reply_t reply;
+	size_t size;
+	int err;
+
+	memset(&cmd, 0x00, sizeof(secfw_command_t));
+	memset(&reply, 0x00, sizeof(secfw_reply_t));
+
+	cmd.sc_version = SECFW_VERSION;
+	cmd.sc_type = secfw_get_num_rules;
+
+	reply.sr_metadata = &size;
+	reply.sr_size = sizeof(size_t);
+
+	if ((err = secfw_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "[-] Could not get number of kernel rules: %s\n", strerror(err));
+		return (0);
+	}
+
+	return (size);
+
+}

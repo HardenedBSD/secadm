@@ -318,3 +318,74 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 
 	return 0;
 }
+
+secfw_rule_t
+*get_rule_by_id(size_t id)
+{
+	secfw_rule_t *rule;
+
+	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
+		if (rule->sr_id == id)
+			return rule;
+
+	return NULL;
+}
+
+int
+get_rule_size(secfw_command_t *cmd, secfw_reply_t *reply)
+{
+	secfw_rule_t *rule;
+	size_t id, size, i;
+	int err;
+
+	if (reply->sr_size < sizeof(size_t) || cmd->sc_bufsize != sizeof(size_t))
+		return (EINVAL);
+
+	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t))))
+		return (err);
+
+	id = *((size_t *)(cmd->sc_buf));
+
+	size = 0;
+	rule = get_rule_by_id(id);
+	if (rule == NULL)
+		goto end;
+
+	size += sizeof(secfw_rule_t);
+	size += rule->sr_pathlen+1;
+	size += sizeof(char **) * rule->sr_nprisons;
+	size += sizeof(secfw_feature_t) * rule->sr_nfeatures;
+
+	for (i=0; i < rule->sr_nfeatures; i++)
+		if (rule->sr_features[i].metadata)
+			size += rule->sr_features[i].metadatasz;
+
+	for (i=0; i < rule->sr_nprisons; i++)
+		size += strlen(rule->sr_prisonnames[i]) + 1;
+
+end:
+	if ((err = copyout(&size, reply->sr_metadata, sizeof(size_t))))
+		reply->sr_code = err;
+
+	return 0;
+}
+
+int
+get_num_rules(secfw_command_t *cmd, secfw_reply_t *reply)
+{
+	secfw_rule_t *rule;
+	size_t nrules;
+	int err;
+
+	if (reply->sr_size < sizeof(size_t))
+		return (EINVAL);
+
+	nrules=0;
+	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
+		nrules++;
+
+	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t))))
+		reply->sr_code = err;
+
+	return 0;
+}

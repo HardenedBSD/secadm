@@ -37,5 +37,7 @@ unsigned int secfw_add_rules(secfw_rule_t *);
 int secfw_parse_path(secfw_rule_t *, const char *);
 void secfw_debug_print_rule(secfw_rule_t *rule);
 void secfw_debug_print_rules(secfw_rule_t *rules);
+size_t secfw_get_kernel_rule_size(size_t id);
+size_t secfw_get_num_kernel_rules(void);
 
 #endif

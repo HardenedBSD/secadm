@@ -52,7 +52,9 @@ typedef enum secfw_command_type {
 	secfw_get_admins,
 	secfw_get_views,
 	secfw_set_admins,
-	secfw_set_views
+	secfw_set_views,
+	secfw_get_rule_size,
+	secfw_get_num_rules
 } secfw_command_type_t;
 
 typedef struct secfw_feature {
@@ -152,6 +154,9 @@ int validate_rule(struct thread *td, secfw_rule_t *rule);
 void free_rule(secfw_rule_t *, int);
 void flush_rules(void);
 int read_rule_from_userland(struct thread *td, secfw_rule_t *rule);
+secfw_rule_t *get_rule_by_id(size_t);
+int get_rule_size(secfw_command_t *, secfw_reply_t *);
+int get_num_rules(secfw_command_t *, secfw_reply_t *);
 
 #endif /* _KERNEL */
 
