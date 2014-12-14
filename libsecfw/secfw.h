@@ -49,8 +49,10 @@ typedef enum secfw_command_type {
 	secfw_get_rules,
 	secfw_set_rules,
 	secfw_flush_rules,
-	secfw_delete_rule,
-	secfw_insert_rule
+	secfw_get_admins,
+	secfw_get_views,
+	secfw_set_admins,
+	secfw_set_views
 } secfw_command_type_t;
 
 typedef struct secfw_feature {
@@ -68,10 +70,18 @@ typedef struct secfw_rule {
 	char 			*sr_path;
 	size_t			 sr_nfeatures;
 	secfw_feature_t		*sr_features;
-	struct prison		*sr_prison;
-	char			*sr_prisonname;
+	char			**sr_prisonnames;
+	size_t			 sr_nprisons;
 	struct secfw_rule	*sr_next;
 } secfw_rule_t;
+
+#define SPS_FLAG_VIEW	0x1
+#define SPS_FLAG_ADMIN	0x2
+
+typedef struct secfw_prison_spec {
+	char		*sps_name;
+	unsigned long	 sps_flags;
+} secfw_prison_spec_t;
 
 typedef struct secfw_command {
 	unsigned long		 sc_version;
@@ -96,17 +106,39 @@ typedef struct secfw_reply {
 MALLOC_DECLARE(M_SECFW);
 
 typedef struct secfw_kernel_data {
-	secfw_rule_t	 *rules;
+	secfw_rule_t	 	*rules;
+	secfw_prison_spec_t	*admins;
+	secfw_prison_spec_t	*views;
+
+	size_t			 nadmins;
+	size_t			 nviews;
+
+	struct rmlock		 rules_lock;
+	struct rmlock		 admins_lock;
+	struct rmlock		 views_lock;
+	struct rm_priotracker	 rules_tracker;
+	struct rm_priotracker	 admins_tracker;
+	struct rm_priotracker	 views_tracker;
 } secfw_kernel_t;
 
 extern secfw_kernel_t rules;
 
 void secfw_lock_init(void);
 void secfw_lock_destroy(void);
-void secfw_lock_read(void);
-void secfw_unlock_read(void);
-void secfw_lock_write(void);
-void secfw_unlock_write(void);
+void secfw_rules_lock_read(void);
+void secfw_rules_unlock_read(void);
+void secfw_rules_lock_write(void);
+void secfw_rules_unlock_write(void);
+void secfw_admins_lock_read(void);
+void secfw_admins_unlock_read(void);
+void secfw_admins_lock_write(void);
+void secfw_admins_unlock_write(void);
+void secfw_views_lock_read(void);
+void secfw_views_unlock_read(void);
+void secfw_views_lock_write(void);
+void secfw_views_unlock_write(void);
+
+int secfw_check_prison(secfw_rule_t *rule, struct prison *pr);
 
 int secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,

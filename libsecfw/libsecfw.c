@@ -100,7 +100,7 @@ error:
 }
 
 unsigned int
-secfw_insert_rules(secfw_rule_t *rule)
+secfw_add_rules(secfw_rule_t *rule)
 {
 	secfw_command_t cmd;
 	secfw_reply_t reply;
@@ -110,7 +110,7 @@ secfw_insert_rules(secfw_rule_t *rule)
 	memset(&reply, 0x00, sizeof(secfw_rule_t));
 
 	cmd.sc_version = SECFW_VERSION;
-	cmd.sc_type = secfw_insert_rule;
+	cmd.sc_type = secfw_set_rules;
 	cmd.sc_metadata = rule;
 	cmd.sc_size = sizeof(secfw_rule_t);
 
@@ -119,4 +119,49 @@ secfw_insert_rules(secfw_rule_t *rule)
 	}
 
 	return (unsigned int)err;
+}
+
+void
+secfw_debug_print_rule(secfw_rule_t *rule)
+{
+	secfw_feature_t *feature;
+	size_t i;
+
+	fprintf(stderr, "[*] Rule %zu\n", rule->sr_id);
+	fprintf(stderr, "    - Path: %s\n", rule->sr_path);
+	for (i=0; i < rule->sr_nfeatures; i++) {
+		switch (rule->sr_features[i].type) {
+		case aslr_disabled:
+			fprintf(stderr, "    - Feature[ASLR]: Disabled\n");
+			break;
+		case aslr_enabled:
+			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
+			break;
+		case segvguard_enabled:
+			fprintf(stderr, "    - Feature[SEGVGUARD] - Enabled\n");
+			break;
+		case segvguard_disabled:
+			fprintf(stderr, "    - Feature[SEGVGUARD] - Disabled\n");
+			break;
+		default:
+			fprintf(stderr, "    - Feature %d unkown\n", rule->sr_features[i].type);
+			break;
+		}
+	}
+
+	if (rule->sr_nprisons > 0)
+		fprintf(stderr, "    - Jails: ");
+
+	for (i=0; i < rule->sr_nprisons; i++)
+		fprintf(stderr, "%s%s", rule->sr_prisonnames[i], i+1 < rule->sr_nprisons ? ", " : "\n");
+}
+
+void
+secfw_debug_print_rules(secfw_rule_t *rules)
+{
+	secfw_rule_t *rule;
+
+	for (rule = rules; rule != NULL; rule = rule->sr_next) {
+		secfw_debug_print_rule(rule);
+	}
 }

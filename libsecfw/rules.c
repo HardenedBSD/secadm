@@ -45,79 +45,44 @@
 #include <sys/queue.h>
 #include <sys/sysctl.h>
 
-#include "ucl.h"
-#include "libsecfw.h"
-#include "secfw_internal.h"
+#include <fcntl.h>
 
-static void usage(char *);
-static void check_bsd(void);
-static void get_version(void);
-
-static void
-usage(char *name)
-{
-	fprintf(stderr, "USAGE: %s <-c config> <action> <options>\n", name);
-	exit(1);
-}
-
-static void
-check_bsd(void)
-{
-	int version;
-	size_t sz=sizeof(int);
-
-	if (sysctlbyname("hardening.version", &version, &sz, NULL, 0)) {
-		if (errno == ENOENT) {
-			fprintf(stderr, "[-] HardenedBSD required. FreeBSD not supported.\n");
-			exit(1);
-		}
-	}
-}
-
-static void get_version(void)
-{
-	unsigned long version;
-
-	version = secfw_kernel_version();
-	if (version)
-		fprintf(stderr, "[+] secfw kernel module version: %lu\n", version);
-
-	exit(0);
-}
+#include "secfw.h"
 
 int
-main(int argc, char *argv[])
+secfw_parse_path(secfw_rule_t *rule, const char *path)
 {
-	secfw_rule_t *rules;
-	const char *config=NULL;
-	int ch;
+	struct stat sb;
+	struct statfs fsb;
+	int fd;
 
-	check_bsd();
-
-	if (kldcheck()) {
-		fprintf(stderr, "[-] secfw module not loaded\n");
-		return 1;
+	fd = open(path, O_RDONLY);
+	if (fd < 0) {
+		fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n", path);
+		return -1;
 	}
 
-	while ((ch = getopt(argc, argv, "c:hv?")) != -1) {
-		switch (ch) {
-		case 'c':
-			config = (const char *)optarg;
-			break;
-		case 'v':
-			get_version();
-		default:
-			usage(argv[0]);
-		}
+	if (fstat(fd, &sb)) {
+		perror("fstat");
+		close(fd);
+		return -1;
 	}
 
-	if (!(config)) {
-		usage(argv[0]);
+	if (fstatfs(fd, &fsb)) {
+		perror("fstatfs");
+		close(fd);
+		return -1;
 	}
 
-	rules = load_config(config);
-	secfw_debug_print_rules(rules);
-	secfw_add_rules(rules);
+	close(fd);
+
+	memcpy(&(rule->sr_fsid), &(fsb.f_fsid), sizeof(struct fsid));
+	rule->sr_inode = sb.st_ino;
+	rule->sr_path = strdup(path);
+	if (rule->sr_path)
+		rule->sr_pathlen = strlen(path);
+	else
+		rule->sr_pathlen = 0;
 
 	return 0;
 }

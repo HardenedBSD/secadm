@@ -84,7 +84,7 @@ handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 		goto err;
 	}
 
-	secfw_lock_write();
+	secfw_rules_lock_write();
 
 	if (rules.rules == NULL) {
 		rules.rules = rule;
@@ -95,7 +95,7 @@ handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 		tail->sr_next = rule;
 	}
 
-	secfw_unlock_write();
+	secfw_rules_unlock_write();
 err:
 	reply->sr_code = res;
 	return (res);
@@ -132,7 +132,7 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 			return (EINVAL);
 		handle_version_command(&cmd, &reply);
 		break;
-	case secfw_insert_rule:
+	case secfw_set_rules:
 		if (cmd.sc_size != sizeof(secfw_rule_t)) {
 			printf("Size mismatch\n");
 			uprintf("Size mismatch\n");
@@ -142,9 +142,7 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		handle_add_rule(req->td, &cmd, &reply);
 		break;
 	case secfw_get_rules:
-	case secfw_set_rules:
 	case secfw_flush_rules:
-	case secfw_delete_rule:
 		return (ENOTSUP);
 	default:
 		return (EINVAL);

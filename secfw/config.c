@@ -140,44 +140,6 @@ secfw_rule_t *parse_object(struct ucl_parser *parser)
 	return rules;
 }
 
-int
-parse_path(secfw_rule_t *rule, const char *path)
-{
-	struct stat sb;
-	struct statfs fsb;
-	int fd;
-
-	fd = open(path, O_RDONLY);
-	if (fd < 0) {
-		fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n", path);
-		return -1;
-	}
-
-	if (fstat(fd, &sb)) {
-		perror("fstat");
-		close(fd);
-		return -1;
-	}
-
-	if (fstatfs(fd, &fsb)) {
-		perror("fstatfs");
-		close(fd);
-		return -1;
-	}
-
-	close(fd);
-
-	memcpy(&(rule->sr_fsid), &(fsb.f_fsid), sizeof(struct fsid));
-	rule->sr_inode = sb.st_ino;
-	rule->sr_path = strdup(path);
-	if (rule->sr_path)
-		rule->sr_pathlen = strlen(path);
-	else
-		rule->sr_pathlen = 0;
-
-	return 0;
-}
-
 void
 add_feature(secfw_rule_t *rule, const ucl_object_t *obj, secfw_feature_type_t feature)
 {
@@ -206,8 +168,8 @@ add_feature(secfw_rule_t *rule, const ucl_object_t *obj, secfw_feature_type_t fe
 
 secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 {
-	const ucl_object_t *appindex, *ucl_feature, *appdata;
-	ucl_object_iter_t it=NULL;
+	const ucl_object_t *appindex, *ucl_feature, *appdata, *ucl_jails, *ucl_jail;
+	ucl_object_iter_t it=NULL, jailit=NULL;
 	secfw_rule_t *head=NULL, *apprule;
 	const char *path, *datakey, *key;
 	bool enabled;
@@ -231,7 +193,7 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 			continue;
 		}
 
-		if (parse_path(apprule, path)) {
+		if (secfw_parse_path(apprule, path)) {
 			fprintf(stderr, "Could not set the rule's path!\n");
 			free(apprule);
 			continue;
@@ -253,6 +215,22 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 			continue;
 		}
 
+		if ((ucl_jails = ucl_lookup_path(appindex, "jails")) != NULL) {
+			while ((ucl_jail = ucl_iterate_object(ucl_jails, &jailit, 1))) {
+				void *p;
+
+				if (ucl_object_tostring_safe(ucl_jail, &datakey) == false)
+					continue;
+
+				p = reallocarray(apprule->sr_prisonnames, apprule->sr_nprisons + 1, sizeof(char **));
+				if (!(p))
+					break;
+
+				apprule->sr_prisonnames = p;
+				apprule->sr_prisonnames[apprule->sr_nprisons++] = strdup(datakey);
+			}
+		}
+
 		if (head) {
 			apprule->sr_next = head->sr_next;
 			head->sr_next = apprule;
@@ -262,43 +240,4 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 	}
 
 	return head;;
-}
-
-void
-debug_print_rule(secfw_rule_t *rule)
-{
-	secfw_feature_t *feature;
-	size_t i;
-
-	fprintf(stderr, "[*] Rule %zu\n", rule->sr_id);
-	fprintf(stderr, "    - Path: %s\n", rule->sr_path);
-	for (i=0; i < rule->sr_nfeatures; i++) {
-		switch (rule->sr_features[i].type) {
-		case aslr_disabled:
-			fprintf(stderr, "    - Feature[ASLR]: Disabled\n");
-			break;
-		case aslr_enabled:
-			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
-			break;
-		case segvguard_enabled:
-			fprintf(stderr, "    - Feature[SEGVGUARD] - Enabled\n");
-			break;
-		case segvguard_disabled:
-			fprintf(stderr, "    - Feature[SEGVGUARD] - Disabled\n");
-			break;
-		default:
-			fprintf(stderr, "    - Feature %d unkown\n", rule->sr_features[i].type);
-			break;
-		}
-	}
-}
-
-void
-debug_print_rules(secfw_rule_t *rules)
-{
-	secfw_rule_t *rule;
-
-	for (rule = rules; rule != NULL; rule = rule->sr_next) {
-		debug_print_rule(rule);
-	}
 }

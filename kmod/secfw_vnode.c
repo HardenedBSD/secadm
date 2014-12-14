@@ -49,6 +49,21 @@
 #include "secfw.h"
 
 int
+secfw_check_prison(secfw_rule_t *rule, struct prison *pr)
+{
+	size_t i;
+
+	if (rule->sr_nprisons == 0)
+		return 1;
+
+	for (i=0; i < rule->sr_nprisons; i++)
+		if (!strcmp(rule->sr_prisonnames[i], pr->pr_name))
+			return 1;
+
+	return 0;
+}
+
+int
 secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,
     struct label *execlabel)
@@ -62,13 +77,16 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	if (err)
 		return (err);
 
-	secfw_lock_read();
+	secfw_rules_lock_read();
 
 	for (rule = rules.rules; rule != NULL; rule = rule->sr_next) {
 		if (bcmp(&(rule->sr_fsid),
 		    &(vp->v_mount->mnt_stat.f_fsid),
 		    sizeof(struct fsid)) == 0) {
 			if (vap.va_fileid == rule->sr_inode) {
+				if (secfw_check_prison(rule, ucred->cr_prison) == 0)
+					continue;
+
 				for (i=0; i < rule->sr_nfeatures; i++) {
 					switch(rule->sr_features[i].type) {
 					case aslr_enabled:
@@ -93,7 +111,7 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		}
 	}
 
-	secfw_unlock_read();
+	secfw_rules_unlock_read();
 
 	err = pax_elf(imgp, flags);
 

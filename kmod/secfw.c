@@ -47,45 +47,97 @@
 
 MALLOC_DEFINE(M_SECFW, "secfw", "secfw rule data");
 
-static struct rmlock secfw_mtx;
 secfw_kernel_t rules;
-struct rm_priotracker tracker;
 
 void
 secfw_lock_init(void)
 {
-	rm_init(&secfw_mtx, "mac_secfw lock");
-	memset(&tracker, 0x00, sizeof(struct rm_priotracker));
+	rm_init(&(rules.rules_lock), "mac_secfw rules lock");
+	rm_init(&(rules.admins_lock), "mac_secfw admins lock");
+	rm_init(&(rules.views_lock), "mac_secfw views lock");
+	memset(&(rules.rules_tracker), 0x00, sizeof(struct rm_priotracker));
+	memset(&(rules.admins_tracker), 0x00, sizeof(struct rm_priotracker));
+	memset(&(rules.views_tracker), 0x00, sizeof(struct rm_priotracker));
 }
 
 void
 secfw_lock_destroy(void)
 {
-	rm_destroy(&secfw_mtx);
+	rm_destroy(&(rules.rules_lock));
+	rm_destroy(&(rules.admins_lock));
+	rm_destroy(&(rules.views_lock));
 }
 
 void
-secfw_lock_read(void)
+secfw_rules_lock_read(void)
 {
-	rm_rlock(&secfw_mtx, &tracker);
+	rm_rlock(&(rules.rules_lock), &(rules.rules_tracker));
 }
 
 void
-secfw_unlock_read(void)
+secfw_rules_unlock_read(void)
 {
-	rm_runlock(&secfw_mtx, &tracker);
+	rm_runlock(&(rules.rules_lock), &(rules.rules_tracker));
 }
 
 void
-secfw_lock_write(void)
+secfw_rules_lock_write(void)
 {
-	rm_wlock(&secfw_mtx);
+	rm_wlock(&(rules.rules_lock));
 }
 
 void
-secfw_unlock_write(void)
+secfw_rules_unlock_write(void)
 {
-	rm_wunlock(&secfw_mtx);
+	rm_wunlock(&(rules.rules_lock));
+}
+
+void
+secfw_admins_lock_read(void)
+{
+	rm_rlock(&(rules.admins_lock), &(rules.admins_tracker));
+}
+
+void
+secfw_admins_unlock_read(void)
+{
+	rm_runlock(&(rules.admins_lock), &(rules.admins_tracker));
+}
+
+void
+secfw_admins_lock_write(void)
+{
+	rm_wlock(&(rules.admins_lock));
+}
+
+void
+secfw_admins_unlock_write(void)
+{
+	rm_wunlock(&(rules.admins_lock));
+}
+
+void
+secfw_views_lock_read(void)
+{
+	rm_rlock(&(rules.views_lock), &(rules.views_tracker));
+}
+
+void
+secfw_views_unlock_read(void)
+{
+	rm_runlock(&(rules.views_lock), &(rules.views_tracker));
+}
+
+void
+secfw_views_lock_write(void)
+{
+	rm_wlock(&(rules.views_lock));
+}
+
+void
+secfw_views_unlock_write(void)
+{
+	rm_wunlock(&(rules.views_lock));
 }
 
 int
@@ -144,8 +196,14 @@ free_rule(secfw_rule_t *rule, int freerule)
 {
 	size_t i;
 	
-	if (rule->sr_path) {
+	if (rule->sr_path)
 		free(rule->sr_path, M_SECFW);
+
+	if (rule->sr_prisonnames) {
+		for (i=0; i < rule->sr_nprisons; i++)
+			free(rule->sr_prisonnames[i], M_SECFW);
+
+		free(rule->sr_prisonnames, M_SECFW);
 	}
 
 	for (i=0; i < rule->sr_nfeatures; i++)
@@ -170,6 +228,12 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 	void *metadata;
 	size_t i, j;
 	int err = 0;
+	char jailname[MAXHOSTNAMELEN];
+	char **jails;
+
+	if (rule->sr_features == NULL || rule->sr_nfeatures == 0) {
+		return (-1);
+	}
 
 	features = malloc(sizeof(secfw_feature_t) *
 	    rule->sr_nfeatures, M_SECFW, M_WAITOK);
@@ -206,7 +270,7 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 	rule->sr_features = features;
 
 	if (rule->sr_path && rule->sr_pathlen) {
-		path = malloc(rule->sr_pathlen+2, M_SECFW, M_WAITOK | M_ZERO);
+		path = malloc(rule->sr_pathlen+1, M_SECFW, M_WAITOK | M_ZERO);
 		err = copyin(rule->sr_path, path, rule->sr_pathlen);
 		if (err) {
 			rule->sr_path = NULL;
@@ -218,6 +282,33 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 	} else {
 		rule->sr_path = NULL;
 		rule->sr_pathlen = 0;
+	}
+
+	if (rule->sr_prisonnames && rule->sr_nprisons) {
+		jails = malloc(sizeof(char **) * rule->sr_nprisons, M_SECFW, M_WAITOK);
+		for (i=0; i < rule->sr_nprisons; i++) {
+			if (rule->sr_prisonnames[i]) {
+				if ((err = copyinstr(rule->sr_prisonnames[i], jailname, MAXHOSTNAMELEN, NULL)) != 0) {
+					for (j=0; j < i; j++)
+						free(rule->sr_prisonnames[j], M_SECFW);
+					free(jails, M_SECFW);
+					break;
+				}
+
+				jails[i] = malloc(strlen(jailname)+1, M_SECFW, M_WAITOK | M_ZERO);
+				strcpy(jails[i], jailname);
+			}
+		}
+
+		if (err == 0) {
+			rule->sr_prisonnames = jails;
+		} else {
+			rule->sr_prisonnames = NULL;
+			rule->sr_nprisons = 0;
+		}
+	} else {
+		rule->sr_prisonnames = NULL;
+		rule->sr_nprisons = 0;
 	}
 
 	if (validate_rule(td, rule)) {
