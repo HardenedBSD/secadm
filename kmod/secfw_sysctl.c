@@ -139,6 +139,15 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 			return (EINVAL);
 		}
 
+		/*
+		 * Ideally, we would not want to flush rules prior to
+		 * resetting our ruleset. Doing it this way creates a
+		 * race condition where there are no rules loaded. So
+		 * in the future, behave more like pf and only flush
+		 * the ruleset when the new ruleset is 100% ready to
+		 * be activated.
+		 */
+
 		secfw_rules_lock_write();
 		flush_rules();
 		secfw_rules_unlock_write();
@@ -150,6 +159,10 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		flush_rules();
 		secfw_rules_unlock_write();
 	case secfw_get_rules:
+	case secfw_get_admins:
+	case secfw_set_admins:
+	case secfw_get_views:
+	case secfw_set_views:
 		return (ENOTSUP);
 	default:
 		return (EINVAL);
