@@ -3,7 +3,7 @@
 		{
 			"path": "/usr/local/bin/testpie",
 			"features": {
-				"aslr": true,
+				"aslr": false,
 			},
 		},
 		{

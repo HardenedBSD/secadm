@@ -98,3 +98,25 @@ error:
 
 	return version;
 }
+
+unsigned int
+secfw_insert_rules(secfw_rule_t *rule)
+{
+	secfw_command_t cmd;
+	secfw_reply_t reply;
+	int err=0;
+
+	memset(&cmd, 0x00, sizeof(secfw_command_t));
+	memset(&reply, 0x00, sizeof(secfw_rule_t));
+
+	cmd.sc_version = SECFW_VERSION;
+	cmd.sc_type = secfw_insert_rule;
+	cmd.sc_metadata = rule;
+	cmd.sc_size = sizeof(secfw_rule_t);
+
+	if ((err = secfw_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "[-] Control channel received an error code: %d\n", err);
+	}
+
+	return (unsigned int)err;
+}

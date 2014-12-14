@@ -87,7 +87,6 @@ validate_rule(struct thread *td, secfw_rule_t *rule)
 	if (rule->sr_nfeatures == 0)
 		return (1);
 
-
 	pr = td->td_ucred->cr_prison;
 
 	return (0);
@@ -125,28 +124,37 @@ add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule)
 	return (0);
 }
 
+void
+free_rule(secfw_rule_t *rule, int freerule)
+{
+	size_t i;
+	
+	if (rule->sr_path) {
+		free(rule->sr_path, M_SECFW);
+	}
+
+	for (i=0; i < rule->sr_nfeatures; i++)
+		if (rule->sr_features[i].metadata)
+			free(rule->sr_features[i].metadata, M_SECFW);
+
+	if (rule->sr_features)
+		free(rule->sr_features, M_SECFW);
+
+	if (freerule)
+		free(rule, M_SECFW);
+}
+
 /* XXX This is more of a PoC. This needs to be cleaned up for
  * production use */
-secfw_rule_t *
-read_rule_from_userland(struct thread *td, void *base, size_t reqlen)
+int
+read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 {
 	char *path;
-	secfw_rule_t *rule, *next;
+	secfw_rule_t *newrule, *next;
 	secfw_feature_t *features;
 	void *metadata;
 	size_t i, j;
 	int err = 0;
-
-	if (reqlen != sizeof(secfw_rule_t))
-		return (NULL);
-
-	rule = malloc(sizeof(secfw_rule_t), M_SECFW, M_WAITOK);
-
-	err = copyin(base, rule, sizeof(secfw_rule_t));
-	if (err) {
-		free(rule, M_SECFW);
-		return (NULL);
-	}
 
 	features = malloc(sizeof(secfw_feature_t) *
 	    rule->sr_nfeatures, M_SECFW, M_WAITOK);
@@ -155,14 +163,13 @@ read_rule_from_userland(struct thread *td, void *base, size_t reqlen)
 	    sizeof(secfw_feature_t) * rule->sr_nfeatures);
 	if (err) {
 		free(features, M_SECFW);
-		free(rule, M_SECFW);
-		return (NULL);
+		return (-1);
 	}
 
 	for (i=0; i<rule->sr_nfeatures; i++) {
 		if (features[i].metadata && features[i].metadatasz) {
 			metadata = malloc(features[i].metadatasz,
-			    M_SECFW, M_WAITOK);
+			    M_SECFW, M_WAITOK | M_ZERO);
 
 			err = copyin(features[i].metadata, metadata,
 			    features[i].metadatasz);
@@ -173,8 +180,7 @@ read_rule_from_userland(struct thread *td, void *base, size_t reqlen)
 				}
 
 				free(features, M_SECFW);
-				free(rule, M_SECFW);
-				return (NULL);
+				return (-1);
 			}
 		} else {
 			features[i].metadata = NULL;
@@ -185,55 +191,43 @@ read_rule_from_userland(struct thread *td, void *base, size_t reqlen)
 	rule->sr_features = features;
 
 	if (rule->sr_path && rule->sr_pathlen) {
-		path = malloc(rule->sr_pathlen, M_SECFW, M_WAITOK);
+		path = malloc(rule->sr_pathlen+2, M_SECFW, M_WAITOK | M_ZERO);
 		err = copyin(rule->sr_path, path, rule->sr_pathlen);
 		if (err) {
-			for (i=0; i < rule->sr_nfeatures; i++)
-				if (features[i].metadata)
-					free(features[i].metadata, M_SECFW);
-
-			free(features, M_SECFW);
-			free(rule, M_SECFW);
-			return (NULL);
+			rule->sr_path = NULL;
+			free_rule(rule, 0);
+			return (-1);
 		}
+
+		rule->sr_path = path;
 	} else {
 		rule->sr_path = NULL;
 		rule->sr_pathlen = 0;
 	}
 
 	if (validate_rule(td, rule)) {
-		for (i=0; i < rule->sr_nfeatures; i++)
-			if (features[i].metadata)
-				free(features[i].metadata, M_SECFW);
-
-		if (path)
-			free(path, M_SECFW);
-
-		free(features, M_SECFW);
-		free(rule, M_SECFW);
-		return (NULL);
+		free_rule(rule, 0);
+		return (-1);
 	}
 
 	next = rule->sr_next;
 	if (next) {
-		next = read_rule_from_userland(td, next,
-		    sizeof(secfw_rule_t));
-
-		if (next == NULL) {
-			for (i=0; i < rule->sr_nfeatures; i++)
-				if (features[i].metadata)
-					free(features[i].metadata, M_SECFW);
-
-			if (path)
-				free(path, M_SECFW);
-
-			free(features, M_SECFW);
-			free(rule, M_SECFW);
-			return (NULL);
+		newrule = malloc(sizeof(secfw_rule_t), M_SECFW, M_WAITOK);
+		err = copyin(next, newrule, sizeof(secfw_rule_t));
+		if (err) {
+			free(newrule, M_SECFW);
+			rule->sr_next = NULL;
+			return 0;
 		}
 
-		rule->sr_next = next;
+		if (read_rule_from_userland(td, newrule)) {
+			free(newrule, M_SECFW);
+			rule->sr_next = NULL;
+			return 0;
+		}
+
+		rule->sr_next = newrule;
 	}
 
-	return rule;
+	return 0;
 }

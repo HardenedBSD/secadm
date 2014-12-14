@@ -117,6 +117,7 @@ main(int argc, char *argv[])
 
 	rules = load_config(config);
 	debug_print_rules(rules);
+	secfw_insert_rules(rules);
 
 	return 0;
 }

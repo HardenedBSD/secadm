@@ -121,8 +121,8 @@ int secfw_read(struct cdev *dev, struct uio *uio, int ioflag);
 
 int validate_rule(struct thread *td, secfw_rule_t *rule);
 int add_rule(struct thread *td, secfw_command_t *cmd, secfw_rule_t *rule);
-secfw_rule_t *read_rule_from_userland(struct thread *td,
-    void *base, size_t reqlen);
+void free_rule(secfw_rule_t *, int);
+int read_rule_from_userland(struct thread *td, secfw_rule_t *rule);
 
 #endif /* _KERNEL */
 

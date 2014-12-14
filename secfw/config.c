@@ -172,6 +172,8 @@ parse_path(secfw_rule_t *rule, const char *path)
 	rule->sr_path = strdup(path);
 	if (rule->sr_path)
 		rule->sr_pathlen = strlen(path);
+	else
+		rule->sr_pathlen = 0;
 
 	return 0;
 }
@@ -243,6 +245,12 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.segvguard")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
 				add_feature(apprule, ucl_feature, enabled ? segvguard_enabled : segvguard_disabled);
+		}
+
+		if (apprule->sr_nfeatures == 0) {
+			fprintf(stderr, "Application %s has no features. Skipping application rule.\n", apprule->sr_path);
+			free(apprule);
+			continue;
 		}
 
 		if (head) {

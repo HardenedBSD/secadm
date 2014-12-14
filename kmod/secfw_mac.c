@@ -48,11 +48,23 @@ static void
 secfw_init(struct mac_policy_conf *mpc)
 {
 	secfw_lock_init();
+	rules.rules = NULL;
 }
 
 static void
 secfw_destroy(struct mac_policy_conf *mpc)
 {
+	secfw_rule_t *rule, *next;
+
+	secfw_lock();
+
+	for (rule = rules.rules; rule != NULL; rule = next) {
+		next = rule->sr_next;
+		free_rule(rule, 1);
+	}
+
+	secfw_unlock();
+
 	secfw_lock_destroy();
 }
 

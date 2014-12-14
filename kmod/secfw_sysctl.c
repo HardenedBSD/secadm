@@ -66,6 +66,41 @@ handle_version_command(secfw_command_t *cmd, secfw_reply_t *reply)
 		reply->sr_code = 0;
 }
 
+static unsigned int
+handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
+{
+	unsigned int res=0;
+	int err;
+	secfw_rule_t *rule, *tail;
+
+	rule = malloc(sizeof(secfw_rule_t), M_SECFW, M_WAITOK);
+	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secfw_rule_t))) != 0) {
+		res = EFAULT;
+		goto err;
+	}
+
+	if (read_rule_from_userland(td, rule)) {
+		res=1;
+		goto err;
+	}
+
+	secfw_lock();
+
+	if (rules.rules == NULL) {
+		rules.rules = rule;
+	} else {
+		for (tail = rules.rules; tail->sr_next != NULL; tail = tail->sr_next)
+			;
+
+		tail->sr_next = rule;
+	}
+
+	secfw_unlock();
+err:
+	reply->sr_code = res;
+	return (res);
+}
+
 static int
 sysctl_control(SYSCTL_HANDLER_ARGS)
 {
@@ -97,11 +132,19 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 			return (EINVAL);
 		handle_version_command(&cmd, &reply);
 		break;
+	case secfw_insert_rule:
+		if (cmd.sc_size != sizeof(secfw_rule_t)) {
+			printf("Size mismatch\n");
+			uprintf("Size mismatch\n");
+			return (EINVAL);
+		}
+
+		handle_add_rule(req->td, &cmd, &reply);
+		break;
 	case secfw_get_rules:
 	case secfw_set_rules:
 	case secfw_flush_rules:
 	case secfw_delete_rule:
-	case secfw_insert_rule:
 		return (ENOTSUP);
 	default:
 		return (EINVAL);

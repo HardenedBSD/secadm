@@ -7,3 +7,4 @@
 *.un~
 *.conf
 secfw/secfw
+kmod/vnode_if*

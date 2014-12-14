@@ -33,5 +33,6 @@
 
 int secfw_sysctl(secfw_command_t *, secfw_reply_t *);
 unsigned long secfw_kernel_version(void);
+unsigned int secfw_insert_rules(secfw_rule_t *rules);
 
 #endif

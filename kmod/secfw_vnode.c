@@ -27,8 +27,7 @@
  */
 
 #include <sys/param.h>
-#include <sys/conf.h>
-#include <sys/systm.h>
+#include <sys/acl.h>
 #include <sys/kernel.h>
 #include <sys/jail.h>
 #include <sys/lock.h>
@@ -37,8 +36,13 @@
 #include <sys/mount.h>
 #include <sys/mutex.h>
 #include <sys/pax.h>
+#include <sys/priv.h>
 #include <sys/proc.h>
-#include <sys/uio.h>
+#include <sys/systm.h>
+#include <sys/vnode.h>
+#include <sys/sysctl.h>
+#include <sys/syslog.h>
+#include <sys/stat.h>
 
 #include <security/mac/mac_policy.h>
 
@@ -49,7 +53,43 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,
     struct label *execlabel)
 {
-	return (0);
+	secfw_rule_t *rule;
+	struct vattr vap;
+	size_t i;
+	int err, flags=0;
+
+	err = VOP_GETATTR(vp, &vap, ucred);
+	if (err)
+		return (err);
+
+	for (rule = rules.rules; rule != NULL; rule = rule->sr_next) {
+		if (vap.va_fileid == rule->sr_inode) {
+			for (i=0; i < rule->sr_nfeatures; i++) {
+				switch(rule->sr_features[i].type) {
+				case aslr_enabled:
+					flags |= PAX_NOTE_ASLR;
+					break;
+				case aslr_disabled:
+					flags |= PAX_NOTE_NOASLR;
+					break;
+				case segvguard_enabled:
+					flags |= PAX_NOTE_SEGVGUARD;
+					break;
+				case segvguard_disabled:
+					flags |= PAX_NOTE_NOSEGVGUARD;
+					break;
+				default:
+					break;
+				}
+			}
+
+			break;
+		}
+	}
+
+	err = pax_elf(imgp, flags);
+
+	return (err);
 }
 
 int
