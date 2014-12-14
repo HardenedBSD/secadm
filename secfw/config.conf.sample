@@ -1,6 +1,29 @@
 {
+	/* security section not supported, yet */
+	"security": {
+		"jails": {
+			/* 
+ 			 * admin array means jails that are allowed to
+			 * administer the in-kernel ruleset
+			 */
+			"admin": [ "test-jail-01" ],
+
+			/* 
+ 			 * view array means jails that are only
+			 * allowed to view their own ruleset.
+			 */
+			"view": [ "test-jail-02" ],
+		}
+	},
 	"applications": [
 		{
+			/*
+ 			 * The jails array means that this application
+			 * rule is only applicable to the jails in the
+			 * array.
+			 */
+			# jails = [ "test-jail-01" ]
+
 			"path": "/usr/local/bin/testpie",
 			"features": {
 				"aslr": false,
