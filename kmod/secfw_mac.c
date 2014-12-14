@@ -56,14 +56,14 @@ secfw_destroy(struct mac_policy_conf *mpc)
 {
 	secfw_rule_t *rule, *next;
 
-	secfw_lock();
+	secfw_lock_write();
 
 	for (rule = rules.rules; rule != NULL; rule = next) {
 		next = rule->sr_next;
 		free_rule(rule, 1);
 	}
 
-	secfw_unlock();
+	secfw_unlock_write();
 
 	secfw_lock_destroy();
 }

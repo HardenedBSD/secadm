@@ -84,7 +84,7 @@ handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 		goto err;
 	}
 
-	secfw_lock();
+	secfw_lock_write();
 
 	if (rules.rules == NULL) {
 		rules.rules = rule;
@@ -95,7 +95,7 @@ handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 		tail->sr_next = rule;
 	}
 
-	secfw_unlock();
+	secfw_unlock_write();
 err:
 	reply->sr_code = res;
 	return (res);

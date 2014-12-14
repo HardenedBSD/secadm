@@ -62,6 +62,8 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	if (err)
 		return (err);
 
+	secfw_lock_read();
+
 	for (rule = rules.rules; rule != NULL; rule = rule->sr_next) {
 		if (vap.va_fileid == rule->sr_inode) {
 			for (i=0; i < rule->sr_nfeatures; i++) {
@@ -86,6 +88,8 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 			break;
 		}
 	}
+
+	secfw_unlock_read();
 
 	err = pax_elf(imgp, flags);
 

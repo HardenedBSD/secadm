@@ -38,6 +38,7 @@
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
+#include <sys/rmlock.h>
 #include <sys/uio.h>
 
 #include <security/mac/mac_policy.h>
@@ -46,31 +47,45 @@
 
 MALLOC_DEFINE(M_SECFW, "secfw", "secfw rule data");
 
-static struct mtx secfw_mtx;
+static struct rmlock secfw_mtx;
 secfw_kernel_t rules;
+struct rm_priotracker tracker;
 
 void
 secfw_lock_init(void)
 {
-	mtx_init(&secfw_mtx, "mac_secfw lock", NULL, MTX_DEF);
+	rm_init(&secfw_mtx, "mac_secfw lock");
+	memset(&tracker, 0x00, sizeof(struct rm_priotracker));
 }
 
 void
 secfw_lock_destroy(void)
 {
-	mtx_destroy(&secfw_mtx);
+	rm_destroy(&secfw_mtx);
 }
 
 void
-secfw_lock(void)
+secfw_lock_read(void)
 {
-	mtx_lock(&secfw_mtx);
+	rm_rlock(&secfw_mtx, &tracker);
 }
 
 void
-secfw_unlock(void)
+secfw_unlock_read(void)
 {
-	mtx_unlock(&secfw_mtx);
+	rm_runlock(&secfw_mtx, &tracker);
+}
+
+void
+secfw_lock_write(void)
+{
+	rm_wlock(&secfw_mtx);
+}
+
+void
+secfw_unlock_write(void)
+{
+	rm_wunlock(&secfw_mtx);
 }
 
 int

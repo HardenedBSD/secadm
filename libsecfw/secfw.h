@@ -103,8 +103,10 @@ extern secfw_kernel_t rules;
 
 void secfw_lock_init(void);
 void secfw_lock_destroy(void);
-void secfw_lock(void);
-void secfw_unlock(void);
+void secfw_lock_read(void);
+void secfw_unlock_read(void);
+void secfw_lock_write(void);
+void secfw_unlock_write(void);
 
 int secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,
