@@ -141,20 +141,20 @@ void secfw_views_unlock_read(void);
 void secfw_views_lock_write(void);
 void secfw_views_unlock_write(void);
 
-int secfw_check_prison(secfw_rule_t *rule, struct prison *pr);
+int secfw_check_prison(secfw_rule_t *, struct prison *);
 
-int secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
-    struct label *vplabel, struct image_params *imgp,
-    struct label *execlabel);
+int secfw_vnode_check_exec(struct ucred *, struct vnode *,
+    struct label *, struct image_params *,
+    struct label *);
 
-int secfw_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
-    struct label *dvplabel, struct vnode *vp, struct label *vplabel,
-    struct componentname *cnp);
+int secfw_vnode_check_unlink(struct ucred *, struct vnode *,
+    struct label *, struct vnode *, struct label *,
+    struct componentname *);
 
-int validate_rule(struct thread *td, secfw_rule_t *rule);
+int validate_rule(struct thread *, secfw_rule_t *, secfw_rule_t *);
 void free_rule(secfw_rule_t *, int);
 void flush_rules(void);
-int read_rule_from_userland(struct thread *td, secfw_rule_t *rule);
+int read_rule_from_userland(struct thread *, secfw_rule_t *);
 secfw_rule_t *get_rule_by_id(size_t);
 size_t get_rule_size(size_t);
 int handle_get_rule_size(secfw_command_t *, secfw_reply_t *);

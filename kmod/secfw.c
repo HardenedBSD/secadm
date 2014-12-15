@@ -141,20 +141,18 @@ secfw_views_unlock_write(void)
 }
 
 int
-validate_rule(struct thread *td, secfw_rule_t *rule)
+validate_rule(struct thread *td, secfw_rule_t *head, secfw_rule_t *rule)
 {
-	struct prison *pr;
-#if 0
-	secfw_kernel_t *prules;
-	secfw_rule_t *prule;
-#endif
+	secfw_rule_t *r;
 
 	KASSERT(rule != NULL, ("validate_rule: rule cannot be null!"));
 
+	for (r = head; r != NULL; r = r->sr_next)
+		if (r != rule && r->sr_id == rule->sr_id)
+			return (1);
+
 	if (rule->sr_nfeatures == 0)
 		return (1);
-
-	pr = td->td_ucred->cr_prison;
 
 	return (0);
 }
@@ -292,9 +290,9 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 		rule->sr_nprisons = 0;
 	}
 
-	if (validate_rule(td, rule)) {
+	if (validate_rule(td, rules.rules, rule)) {
 		free_rule(rule, 0);
-		return (-1);
+		return (EINVAL);
 	}
 
 	next = rule->sr_next;

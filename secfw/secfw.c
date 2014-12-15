@@ -49,12 +49,39 @@
 #include "libsecfw.h"
 #include "secfw_internal.h"
 
-static void usage(char *);
+typedef int (*action_t)(int, char **);
+
+static void usage(const char *);
 static void check_bsd(void);
 static void get_version(void);
 
+static int listact(int, char **);
+static int setact(int, char **);
+static int flushact(int, char **);
+
+const char *configpath=NULL;
+const char *name;
+
+struct _action {
+	const char *action;
+	action_t op;
+} actions[] = {
+	{
+		"list",
+		listact
+	},
+	{
+		"set",
+		setact
+	},
+	{
+		"flush",
+		flushact
+	},
+};
+
 static void
-usage(char *name)
+usage(const char *name)
 {
 	fprintf(stderr, "USAGE: %s <-c config> <action> <options>\n", name);
 	exit(1);
@@ -85,13 +112,65 @@ static void get_version(void)
 	exit(0);
 }
 
+static int
+listact(int argc, char *argv[])
+{
+	secfw_rule_t *rule;
+	size_t nrules, i;
+
+	nrules = secfw_get_num_kernel_rules();
+	for (i=0; i < nrules; i++) {
+		rule = secfw_get_kernel_rule(i);
+		if (!(rule)) {
+			fprintf(stderr, "[-] Could not get rule %zu from the kernel.\n", i);
+			free(rule);
+			return 1;
+		}
+
+		secfw_debug_print_rule(rule);
+		free(rule);
+	}
+
+	return 0;
+}
+
+static int
+setact(int argc, char *argv[])
+{
+	secfw_rule_t *rules;
+
+	if (!(configpath))
+		usage(name);
+
+	rules = load_config(configpath);
+	if (rules == NULL) {
+		fprintf(stderr, "[-] Could not load the config file\n");
+		return 1;
+	}
+
+	if (secfw_add_rules(rules)) {
+		fprintf(stderr, "[-] Could not load the rules\n");
+		return 1;
+	}
+
+	free(rules);
+	return 0;
+}
+
+static int
+flushact(int argc, char *argv[])
+{
+	return ((int)secfw_flush_all_rules());
+}
+
 int
 main(int argc, char *argv[])
 {
 	secfw_rule_t *rules, *rule;
-	const char *config=NULL;
 	size_t nrules, rulesize, i;
 	int ch;
+
+	name=argv[0];
 
 	check_bsd();
 
@@ -103,28 +182,24 @@ main(int argc, char *argv[])
 	while ((ch = getopt(argc, argv, "c:hv?")) != -1) {
 		switch (ch) {
 		case 'c':
-			config = (const char *)optarg;
+			configpath = (const char *)optarg;
 			break;
 		case 'v':
 			get_version();
 		default:
-			usage(argv[0]);
+			usage(name);
 		}
 	}
 
-	if (!(config)) {
-		usage(argv[0]);
-	}
+	argc -= optind;
+	argv += optind;
 
-	rules = load_config(config);
-	secfw_add_rules(rules);
+	if (argc < 1)
+		usage(name);
 
-	nrules = secfw_get_num_kernel_rules();
-	for (i=0; i < nrules; i++) {
-		rulesize = secfw_get_kernel_rule_size(i);
-		rule = secfw_get_kernel_rule(i);
-		secfw_debug_print_rule(rule);
-	}
+	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++)
+		if (!strcmp(argv[0], actions[i].action))
+			return (actions[i].op(argc, argv));
 
-	return 0;
+	return 1;
 }

@@ -40,5 +40,6 @@ void secfw_debug_print_rules(secfw_rule_t *rules);
 size_t secfw_get_kernel_rule_size(size_t id);
 size_t secfw_get_num_kernel_rules(void);
 secfw_rule_t *secfw_get_kernel_rule(size_t id);
+unsigned int secfw_flush_all_rules(void);
 
 #endif

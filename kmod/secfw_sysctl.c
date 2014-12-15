@@ -160,6 +160,7 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		secfw_rules_lock_write();
 		flush_rules();
 		secfw_rules_unlock_write();
+		break;
 	case secfw_get_rule_size:
 		secfw_rules_lock_read();
 		reply.sr_code = handle_get_rule_size(&cmd, &reply);

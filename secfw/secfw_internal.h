@@ -7,7 +7,4 @@ secfw_rule_t *parse_object(struct ucl_parser *);
 void add_feature(secfw_rule_t *, const ucl_object_t *, secfw_feature_type_t);
 secfw_rule_t *parse_applications_object(const ucl_object_t *);
 
-void debug_print_rule(secfw_rule_t *);
-void debug_print_rules(secfw_rule_t *);
-
 #endif
