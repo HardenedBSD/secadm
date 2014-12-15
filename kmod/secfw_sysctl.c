@@ -162,12 +162,17 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		secfw_rules_unlock_write();
 	case secfw_get_rule_size:
 		secfw_rules_lock_read();
-		reply.sr_code = get_rule_size(&cmd, &reply);
+		reply.sr_code = handle_get_rule_size(&cmd, &reply);
 		secfw_rules_unlock_read();
 		break;
 	case secfw_get_num_rules:
 		secfw_rules_lock_read();
 		reply.sr_code = (unsigned int)get_num_rules(&cmd, &reply);
+		secfw_rules_unlock_read();
+		break;
+	case secfw_get_rule:
+		secfw_rules_lock_read();
+		reply.sr_code = (unsigned int)handle_get_rule(&cmd, &reply);
 		secfw_rules_unlock_read();
 		break;
 	case secfw_get_rules:

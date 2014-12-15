@@ -88,7 +88,7 @@ static void get_version(void)
 int
 main(int argc, char *argv[])
 {
-	secfw_rule_t *rules;
+	secfw_rule_t *rules, *rule;
 	const char *config=NULL;
 	size_t nrules, rulesize, i;
 	int ch;
@@ -117,15 +117,13 @@ main(int argc, char *argv[])
 	}
 
 	rules = load_config(config);
-	secfw_debug_print_rules(rules);
 	secfw_add_rules(rules);
 
 	nrules = secfw_get_num_kernel_rules();
-	fprintf(stderr, "[*] Number of kernel rules: %zu\n", nrules);
-
 	for (i=0; i < nrules; i++) {
 		rulesize = secfw_get_kernel_rule_size(i);
-		fprintf(stderr, "[*] Rule %zu size: %zu\n", i, rulesize);
+		rule = secfw_get_kernel_rule(i);
+		secfw_debug_print_rule(rule);
 	}
 
 	return 0;

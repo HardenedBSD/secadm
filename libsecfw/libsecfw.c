@@ -58,11 +58,15 @@ secfw_sysctl(secfw_command_t *cmd, secfw_reply_t *reply)
 
 	err = sysctlbyname("hardening.secfw.control", reply, &replysz, cmd, cmdsz);
 
-	if (err)
+	if (err) {
+		perror("sysctlbyname");
 		return (err);
+	}
 
-	if (reply->sr_code)
+	if (reply->sr_code) {
+		fprintf(stderr, "[-] Control channel returned error code %u\n", reply->sr_code);
 		return (reply->sr_code);
+	}
 
 	return (0);
 }
@@ -237,4 +241,41 @@ secfw_get_num_kernel_rules(void)
 
 	return (size);
 
+}
+
+secfw_rule_t *
+secfw_get_kernel_rule(size_t id)
+{
+	secfw_command_t cmd;
+	secfw_reply_t reply;
+	void *buf;
+	size_t size;
+	int err;
+
+	size = secfw_get_kernel_rule_size(id);
+	if (size == 0)
+		return NULL;
+
+	buf = calloc(1, size);
+	if (buf == NULL)
+		return NULL;
+
+	memset(&cmd, 0x00, sizeof(secfw_command_t));
+	memset(&reply, 0x00, sizeof(secfw_reply_t));
+
+	cmd.sc_version = SECFW_VERSION;
+	cmd.sc_type = secfw_get_rule;
+	cmd.sc_buf = &id;
+	cmd.sc_bufsize = sizeof(size_t);
+
+	reply.sr_metadata = buf;
+	reply.sr_size = size;
+
+	if ((err = secfw_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "[-] Could not get rule %zu: %s\n", id, strerror(err));
+		free(buf);
+		return NULL;
+	}
+
+	return ((secfw_rule_t *)buf);
 }

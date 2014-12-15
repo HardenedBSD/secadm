@@ -331,20 +331,11 @@ secfw_rule_t
 	return NULL;
 }
 
-int
-get_rule_size(secfw_command_t *cmd, secfw_reply_t *reply)
+size_t
+get_rule_size(size_t id)
 {
 	secfw_rule_t *rule;
-	size_t id, size, i;
-	int err;
-
-	if (reply->sr_size < sizeof(size_t) || cmd->sc_bufsize != sizeof(size_t))
-		return (EINVAL);
-
-	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t))))
-		return (err);
-
-	id = *((size_t *)(cmd->sc_buf));
+	size_t size, i;
 
 	size = 0;
 	rule = get_rule_by_id(id);
@@ -364,6 +355,23 @@ get_rule_size(secfw_command_t *cmd, secfw_reply_t *reply)
 		size += strlen(rule->sr_prisonnames[i]) + 1;
 
 end:
+	return (size);
+}
+
+int
+handle_get_rule_size(secfw_command_t *cmd, secfw_reply_t *reply)
+{
+	size_t id, size;
+	int err;
+
+	if (reply->sr_size < sizeof(size_t) || cmd->sc_bufsize != sizeof(size_t))
+		return (EINVAL);
+
+	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t))))
+		return (err);
+
+	size = get_rule_size(id);
+
 	if ((err = copyout(&size, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;
 
@@ -386,6 +394,82 @@ get_num_rules(secfw_command_t *cmd, secfw_reply_t *reply)
 
 	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;
+
+	return 0;
+}
+
+int
+handle_get_rule(secfw_command_t *cmd, secfw_reply_t *reply)
+{
+	secfw_rule_t *rule, *newrule;
+	secfw_feature_t *newrule_features;
+	size_t id, size, written, i, prisons_offset;
+	char *buf;
+	char **prisons, *path, *t;
+	int err;
+
+	if (cmd->sc_bufsize != sizeof(size_t))
+		return (EINVAL);
+
+	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t))))
+		return (err);
+
+	rule = get_rule_by_id(id);
+	if (rule == NULL)
+		return (ENOENT);
+
+	size = get_rule_size(id);
+	if (size == 0)
+		return (ENOENT);
+
+	if (reply->sr_size < size)
+		return (EOVERFLOW);
+
+	written=0;
+	buf = malloc(size, M_SECFW, M_WAITOK);
+
+	memcpy(buf, rule, sizeof(secfw_rule_t));
+	newrule = (secfw_rule_t *)buf;
+	newrule->sr_next = NULL;
+	written += sizeof(secfw_rule_t);
+
+	newrule->sr_features = (secfw_feature_t *)(buf+written);
+	newrule_features = (secfw_feature_t *)((char *)(reply->sr_metadata) + written);
+	written += sizeof(secfw_feature_t) * rule->sr_nfeatures;
+
+	for (i=0; i < rule->sr_nfeatures; i++)
+		memcpy(&(newrule->sr_features[i]), &rule->sr_features[i], sizeof(secfw_feature_t));
+
+	newrule->sr_features = newrule_features;
+
+	if (rule->sr_pathlen) {
+		path = buf + written;
+		memcpy(path, rule->sr_path, rule->sr_pathlen+1);
+		newrule->sr_path = (char *)(reply->sr_metadata) + written;
+		written += rule->sr_pathlen + 1;
+	}
+
+	if (rule->sr_nprisons) {
+		prisons = (char **)(buf + written);
+		prisons_offset = written;
+		written += sizeof(char **) * rule->sr_nprisons;
+		t = buf + written;
+		for (i = 0; i < rule->sr_nprisons; i++) {
+			size_t len = strlen(rule->sr_prisonnames[i])+1;
+
+			memcpy(t, rule->sr_prisonnames[i], len);
+			prisons[i] = (char *)(reply->sr_metadata) + written;
+
+			written += len;
+			t = buf + written;
+		}
+
+		newrule->sr_prisonnames = (char **)((char *)(reply->sr_metadata) + prisons_offset);
+	}
+
+	copyout(newrule, reply->sr_metadata, size);
+
+	free(buf, M_SECFW);
 
 	return 0;
 }
