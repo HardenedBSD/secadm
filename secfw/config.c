@@ -153,10 +153,14 @@ add_feature(secfw_rule_t *rule, const ucl_object_t *obj, secfw_feature_type_t fe
 	memset(&(rule->sr_features[rule->sr_nfeatures]), 0x00, sizeof(secfw_feature_t));
 
 	switch (feature) {
-	case aslr_enabled:
-	case aslr_disabled:
+	case pageexec_enabled:
+	case pageexec_disabled:
+	case mprotect_enabled:
+	case mprotect_disabled:
 	case segvguard_enabled:
 	case segvguard_disabled:
+	case aslr_enabled:
+	case aslr_disabled:
 		rule->sr_features[rule->sr_nfeatures].type = feature;
 		break;
 	default:
@@ -199,14 +203,24 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 			continue;
 		}
 
-		if ((ucl_feature = ucl_lookup_path(appindex, "features.aslr")) != NULL) {
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.pageexec")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature, enabled ? aslr_enabled : aslr_disabled);
+				add_feature(apprule, ucl_feature, enabled ? pageexec_enabled : pageexec_disabled);
+		}
+
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.mprotect")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				add_feature(apprule, ucl_feature, enabled ? mprotect_enabled : mprotect_disabled);
 		}
 
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.segvguard")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
 				add_feature(apprule, ucl_feature, enabled ? segvguard_enabled : segvguard_disabled);
+		}
+
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.aslr")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				add_feature(apprule, ucl_feature, enabled ? aslr_enabled : aslr_disabled);
 		}
 
 		if (apprule->sr_nfeatures == 0) {

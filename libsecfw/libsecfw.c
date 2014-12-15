@@ -155,17 +155,29 @@ secfw_debug_print_rule(secfw_rule_t *rule)
 	fprintf(stderr, "    - Path: %s\n", rule->sr_path);
 	for (i=0; i < rule->sr_nfeatures; i++) {
 		switch (rule->sr_features[i].type) {
-		case aslr_disabled:
-			fprintf(stderr, "    - Feature[ASLR]: Disabled\n");
+		case pageexec_disabled:
+			fprintf(stderr, "    - Feature[PAGEEXEC]: Disabled\n");
 			break;
-		case aslr_enabled:
-			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
+		case pageexec_enabled:
+			fprintf(stderr, "    - Feature[PAGEEXEC]: Enabled\n");
+			break;
+		case mprotect_disabled:
+			fprintf(stderr, "    - Feature[MPROTECT]: Disabled\n");
+			break;
+		case mprotect_enabled:
+			fprintf(stderr, "    - Feature[MPROTECT]: Enabled\n");
 			break;
 		case segvguard_enabled:
 			fprintf(stderr, "    - Feature[SEGVGUARD] - Enabled\n");
 			break;
 		case segvguard_disabled:
 			fprintf(stderr, "    - Feature[SEGVGUARD] - Disabled\n");
+			break;
+		case aslr_disabled:
+			fprintf(stderr, "    - Feature[ASLR]: Disabled\n");
+			break;
+		case aslr_enabled:
+			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
 			break;
 		default:
 			fprintf(stderr, "    - Feature %d unkown\n", rule->sr_features[i].type);

@@ -38,10 +38,14 @@
 
 typedef enum secfw_feature_type {
 	secfw_invalid=0,
+	pageexec_enabled,
+	pageexec_disabled,
+	mprotect_enabled,
+	mprotect_disabled,
+	segvguard_disabled,
+	segvguard_enabled,
 	aslr_disabled,
 	aslr_enabled,
-	segvguard_disabled,
-	segvguard_enabled
 } secfw_feature_type_t;
 
 typedef enum secfw_command_type {

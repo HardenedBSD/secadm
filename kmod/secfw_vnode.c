@@ -89,17 +89,29 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 
 				for (i=0; i < rule->sr_nfeatures; i++) {
 					switch(rule->sr_features[i].type) {
-					case aslr_enabled:
-						flags |= PAX_NOTE_ASLR;
+					case pageexec_enabled:
+						flags |= PAX_NOTE_PAGEEXEC;
 						break;
-					case aslr_disabled:
-						flags |= PAX_NOTE_NOASLR;
+					case pageexec_disabled:
+						flags |= PAX_NOTE_NOPAGEEXEC;
+						break;
+					case mprotect_enabled:
+						flags |= PAX_NOTE_MPROTECT;
+						break;
+					case mprotect_disabled:
+						flags |= PAX_NOTE_NOMPROTECT;
 						break;
 					case segvguard_enabled:
 						flags |= PAX_NOTE_SEGVGUARD;
 						break;
 					case segvguard_disabled:
 						flags |= PAX_NOTE_NOSEGVGUARD;
+						break;
+					case aslr_enabled:
+						flags |= PAX_NOTE_ASLR;
+						break;
+					case aslr_disabled:
+						flags |= PAX_NOTE_NOASLR;
 						break;
 					default:
 						break;
