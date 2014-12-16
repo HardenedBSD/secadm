@@ -45,7 +45,7 @@ typedef enum secfw_feature_type {
 	segvguard_disabled,
 	segvguard_enabled,
 	aslr_disabled,
-	aslr_enabled,
+	aslr_enabled
 } secfw_feature_type_t;
 
 typedef enum secfw_command_type {

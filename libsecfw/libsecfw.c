@@ -180,7 +180,7 @@ secfw_debug_print_rule(secfw_rule_t *rule)
 			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
 			break;
 		default:
-			fprintf(stderr, "    - Feature %d unkown\n", rule->sr_features[i].type);
+			fprintf(stderr, "    - Feature %d unknown\n", rule->sr_features[i].type);
 			break;
 		}
 	}
