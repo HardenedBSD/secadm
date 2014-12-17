@@ -59,7 +59,7 @@ secfw_destroy(struct mac_policy_conf *mpc)
 
 	secfw_rules_lock_write();
 
-	flush_rules();
+	flush_rules(NULL);
 
 	secfw_rules_unlock_write();
 

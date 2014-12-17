@@ -17,13 +17,6 @@
 	},
 	"applications": [
 		{
-			/*
- 			 * The jails array means that this application
-			 * rule is only applicable to the jails in the
-			 * array.
-			 */
-			# jails = [ "test-jail-01" ]
-
 			"path": "/usr/local/bin/testpie",
 			"features": {
 				"aslr": false,
@@ -32,7 +25,7 @@
 		{
 			"path": "/bin/ls",
 			"features": {
-				"aslr": false,
+				"aslr": true,
 			}
 		}
 	]

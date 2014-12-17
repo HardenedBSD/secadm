@@ -29,6 +29,7 @@
 #include <sys/param.h>
 #include <sys/acl.h>
 #include <sys/kernel.h>
+#include <sys/imgact.h>
 #include <sys/jail.h>
 #include <sys/lock.h>
 #include <sys/malloc.h>
@@ -51,14 +52,8 @@
 int
 secfw_check_prison(secfw_rule_t *rule, struct prison *pr)
 {
-	size_t i;
-
-	if (rule->sr_nprisons == 0)
+	if (!strcmp(rule->sr_prison, pr->pr_name))
 		return 1;
-
-	for (i=0; i < rule->sr_nprisons; i++)
-		if (!strcmp(rule->sr_prisonnames[i], pr->pr_name))
-			return 1;
 
 	return 0;
 }
@@ -73,58 +68,58 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	size_t i;
 	int err, flags=0;
 
-	err = VOP_GETATTR(vp, &vap, ucred);
+	err = VOP_GETATTR(imgp->vp, &vap, ucred);
 	if (err)
 		return (err);
 
 	secfw_rules_lock_read();
 
 	for (rule = rules.rules; rule != NULL; rule = rule->sr_next) {
-		if (bcmp(&(rule->sr_fsid),
-		    &(vp->v_mount->mnt_stat.f_fsid),
-		    sizeof(struct fsid)) == 0) {
-			if (vap.va_fileid == rule->sr_inode) {
-				if (secfw_check_prison(rule, ucred->cr_prison) == 0)
-					continue;
+		if (vap.va_fileid != rule->sr_inode)
+			continue;
 
-				for (i=0; i < rule->sr_nfeatures; i++) {
-					switch(rule->sr_features[i].type) {
+		if (secfw_check_prison(rule, ucred->cr_prison) == 0)
+			continue;
+
+		if (strcmp(imgp->vp->v_mount->mnt_stat.f_mntonname, rule->sr_mount))
+			continue;
+
+		for (i=0; i < rule->sr_nfeatures; i++) {
+			switch(rule->sr_features[i].type) {
 #ifdef PAX_NOTE_PAGEEXEC
-					case pageexec_enabled:
-						flags |= PAX_NOTE_PAGEEXEC;
-						break;
-					case pageexec_disabled:
-						flags |= PAX_NOTE_NOPAGEEXEC;
-						break;
+			case pageexec_enabled:
+				flags |= PAX_NOTE_PAGEEXEC;
+				break;
+			case pageexec_disabled:
+				flags |= PAX_NOTE_NOPAGEEXEC;
+				break;
 #endif
 #ifdef PAX_NOTE_MPROTECT
-					case mprotect_enabled:
-						flags |= PAX_NOTE_MPROTECT;
-						break;
-					case mprotect_disabled:
-						flags |= PAX_NOTE_NOMPROTECT;
-						break;
+			case mprotect_enabled:
+				flags |= PAX_NOTE_MPROTECT;
+				break;
+			case mprotect_disabled:
+				flags |= PAX_NOTE_NOMPROTECT;
+				break;
 #endif
-					case segvguard_enabled:
-						flags |= PAX_NOTE_SEGVGUARD;
-						break;
-					case segvguard_disabled:
-						flags |= PAX_NOTE_NOSEGVGUARD;
-						break;
-					case aslr_enabled:
-						flags |= PAX_NOTE_ASLR;
-						break;
-					case aslr_disabled:
-						flags |= PAX_NOTE_NOASLR;
-						break;
-					default:
-						break;
-					}
-				}
-
+			case segvguard_enabled:
+				flags |= PAX_NOTE_SEGVGUARD;
+				break;
+			case segvguard_disabled:
+				flags |= PAX_NOTE_NOSEGVGUARD;
+				break;
+			case aslr_enabled:
+				flags |= PAX_NOTE_ASLR;
+				break;
+			case aslr_disabled:
+				flags |= PAX_NOTE_NOASLR;
+				break;
+			default:
 				break;
 			}
 		}
+
+		break;
 	}
 
 	secfw_rules_unlock_read();

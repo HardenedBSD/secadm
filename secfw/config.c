@@ -234,22 +234,6 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 			continue;
 		}
 
-		if ((ucl_jails = ucl_lookup_path(appindex, "jails")) != NULL) {
-			while ((ucl_jail = ucl_iterate_object(ucl_jails, &jailit, 1))) {
-				void *p;
-
-				if (ucl_object_tostring_safe(ucl_jail, &datakey) == false)
-					continue;
-
-				p = reallocarray(apprule->sr_prisonnames, apprule->sr_nprisons + 1, sizeof(char **));
-				if (!(p))
-					break;
-
-				apprule->sr_prisonnames = p;
-				apprule->sr_prisonnames[apprule->sr_nprisons++] = strdup(datakey);
-			}
-		}
-
 		if (head) {
 			apprule->sr_next = head->sr_next;
 			head->sr_next = apprule;

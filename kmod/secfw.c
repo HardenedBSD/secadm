@@ -143,13 +143,7 @@ secfw_views_unlock_write(void)
 int
 validate_rule(struct thread *td, secfw_rule_t *head, secfw_rule_t *rule)
 {
-	secfw_rule_t *r;
-
 	KASSERT(rule != NULL, ("validate_rule: rule cannot be null!"));
-
-	for (r = head; r != NULL; r = r->sr_next)
-		if (r != rule && r->sr_id == rule->sr_id)
-			return (1);
 
 	if (rule->sr_nfeatures == 0)
 		return (1);
@@ -165,13 +159,6 @@ free_rule(secfw_rule_t *rule, int freerule)
 	if (rule->sr_path)
 		free(rule->sr_path, M_SECFW);
 
-	if (rule->sr_prisonnames) {
-		for (i=0; i < rule->sr_nprisons; i++)
-			free(rule->sr_prisonnames[i], M_SECFW);
-
-		free(rule->sr_prisonnames, M_SECFW);
-	}
-
 	for (i=0; i < rule->sr_nfeatures; i++)
 		if (rule->sr_features[i].metadata)
 			free(rule->sr_features[i].metadata, M_SECFW);
@@ -179,21 +166,43 @@ free_rule(secfw_rule_t *rule, int freerule)
 	if (rule->sr_features)
 		free(rule->sr_features, M_SECFW);
 
+	free(rule->sr_prison, M_SECFW);
+	free(rule->sr_kernel, M_SECFW);
+
 	if (freerule)
 		free(rule, M_SECFW);
 }
 
-void
-flush_rules(void)
+secfw_rule_t *
+get_first_rule(struct thread *td)
 {
-	secfw_rule_t *rule, *next;
+	secfw_rule_t *rule;
 
-	for (rule = rules.rules; rule != NULL; rule = next) {
-		next = rule->sr_next;
-		free_rule(rule, 1);
+	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
+		if (td == NULL || !strcmp(rule->sr_prison, td->td_ucred->cr_prison->pr_name))
+			return rule;
+
+	return NULL;
+}
+
+void
+flush_rules(struct thread *td)
+{
+	secfw_rule_t *prev, *rule;
+
+	while ((rule = get_first_rule(td)) != NULL) {
+		if (rule == rules.rules) {
+			rules.rules = rule->sr_next;
+			free_rule(rule, 1);
+		} else {
+			prev = rules.rules;
+			while (prev->sr_next != rule)
+				prev = prev->sr_next;
+
+			prev->sr_next = rule->sr_next;
+			free_rule(rule, 1);
+		}
 	}
-
-	rules.rules = NULL;
 }
 
 /* XXX This is more of a PoC. This needs to be cleaned up for
@@ -201,14 +210,13 @@ flush_rules(void)
 int
 read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 {
-	char *path;
 	secfw_rule_t *newrule, *next;
 	secfw_feature_t *features;
+	secfw_kernel_metadata_t *kernel_metadata;
 	void *metadata;
 	size_t i, j;
 	int err = 0;
-	char jailname[MAXHOSTNAMELEN];
-	char **jails;
+	char *path;
 
 	if (rule->sr_features == NULL || rule->sr_nfeatures == 0) {
 		return (-1);
@@ -263,32 +271,11 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 		rule->sr_pathlen = 0;
 	}
 
-	if (rule->sr_prisonnames && rule->sr_nprisons) {
-		jails = malloc(sizeof(char **) * rule->sr_nprisons, M_SECFW, M_WAITOK);
-		for (i=0; i < rule->sr_nprisons; i++) {
-			if (rule->sr_prisonnames[i]) {
-				if ((err = copyinstr(rule->sr_prisonnames[i], jailname, MAXHOSTNAMELEN, NULL)) != 0) {
-					for (j=0; j < i; j++)
-						free(rule->sr_prisonnames[j], M_SECFW);
-					free(jails, M_SECFW);
-					break;
-				}
-
-				jails[i] = malloc(strlen(jailname)+1, M_SECFW, M_WAITOK | M_ZERO);
-				strcpy(jails[i], jailname);
-			}
-		}
-
-		if (err == 0) {
-			rule->sr_prisonnames = jails;
-		} else {
-			rule->sr_prisonnames = NULL;
-			rule->sr_nprisons = 0;
-		}
-	} else {
-		rule->sr_prisonnames = NULL;
-		rule->sr_nprisons = 0;
-	}
+	kernel_metadata = malloc(sizeof(secfw_kernel_metadata_t), M_SECFW, M_WAITOK);
+	kernel_metadata->skm_owner = td->td_ucred->cr_prison;
+	rule->sr_kernel = kernel_metadata;
+	rule->sr_prison = malloc(strlen(kernel_metadata->skm_owner->pr_name)+1, M_SECFW, M_WAITOK | M_ZERO);
+	strcpy(rule->sr_prison, kernel_metadata->skm_owner->pr_name);
 
 	if (validate_rule(td, rules.rules, rule)) {
 		free_rule(rule, 0);
@@ -318,46 +305,43 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 }
 
 secfw_rule_t
-*get_rule_by_id(size_t id)
+*get_rule_by_id(struct thread *td, size_t id)
 {
 	secfw_rule_t *rule;
 
 	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
 		if (rule->sr_id == id)
-			return rule;
+			if (!strcmp(rule->sr_prison, td->td_ucred->cr_prison->pr_name))
+				return rule;
 
 	return NULL;
 }
 
 size_t
-get_rule_size(size_t id)
+get_rule_size(struct thread *td, size_t id)
 {
 	secfw_rule_t *rule;
 	size_t size, i;
 
 	size = 0;
-	rule = get_rule_by_id(id);
+	rule = get_rule_by_id(td, id);
 	if (rule == NULL)
 		goto end;
 
 	size += sizeof(secfw_rule_t);
 	size += rule->sr_pathlen+1;
-	size += sizeof(char **) * rule->sr_nprisons;
 	size += sizeof(secfw_feature_t) * rule->sr_nfeatures;
+	size += strlen(rule->sr_prison)+1;
 
 	for (i=0; i < rule->sr_nfeatures; i++)
 		if (rule->sr_features[i].metadata)
 			size += rule->sr_features[i].metadatasz;
-
-	for (i=0; i < rule->sr_nprisons; i++)
-		size += strlen(rule->sr_prisonnames[i]) + 1;
-
 end:
 	return (size);
 }
 
 int
-handle_get_rule_size(secfw_command_t *cmd, secfw_reply_t *reply)
+handle_get_rule_size(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 {
 	size_t id, size;
 	int err;
@@ -368,7 +352,7 @@ handle_get_rule_size(secfw_command_t *cmd, secfw_reply_t *reply)
 	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t))))
 		return (err);
 
-	size = get_rule_size(id);
+	size = get_rule_size(td, id);
 
 	if ((err = copyout(&size, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;
@@ -377,7 +361,7 @@ handle_get_rule_size(secfw_command_t *cmd, secfw_reply_t *reply)
 }
 
 int
-get_num_rules(secfw_command_t *cmd, secfw_reply_t *reply)
+get_num_rules(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 {
 	secfw_rule_t *rule;
 	size_t nrules;
@@ -387,8 +371,10 @@ get_num_rules(secfw_command_t *cmd, secfw_reply_t *reply)
 		return (EINVAL);
 
 	nrules=0;
-	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
-		nrules++;
+	for (rule = rules.rules; rule != NULL; rule = rule->sr_next) {
+		if (!strcmp(rule->sr_prison, td->td_ucred->cr_prison->pr_name))
+			nrules++;
+	}
 
 	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;
@@ -397,26 +383,29 @@ get_num_rules(secfw_command_t *cmd, secfw_reply_t *reply)
 }
 
 int
-handle_get_rule(secfw_command_t *cmd, secfw_reply_t *reply)
+handle_get_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 {
 	secfw_rule_t *rule, *newrule;
 	secfw_feature_t *newrule_features;
-	size_t id, size, written, i, prisons_offset;
-	char *buf;
-	char **prisons, *path, *t;
+	size_t id, size, written, i;
+	char *buf, *path;
 	int err;
 
 	if (cmd->sc_bufsize != sizeof(size_t))
 		return (EINVAL);
 
+	/*
+	 * Get the requested rule ID and ensure the userland buffer
+	 * can hold the rule
+	 */
 	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t))))
 		return (err);
 
-	rule = get_rule_by_id(id);
+	rule = get_rule_by_id(td, id);
 	if (rule == NULL)
 		return (ENOENT);
 
-	size = get_rule_size(id);
+	size = get_rule_size(td, id);
 	if (size == 0)
 		return (ENOENT);
 
@@ -428,8 +417,11 @@ handle_get_rule(secfw_command_t *cmd, secfw_reply_t *reply)
 
 	memcpy(buf, rule, sizeof(secfw_rule_t));
 	newrule = (secfw_rule_t *)buf;
-	newrule->sr_next = NULL;
 	written += sizeof(secfw_rule_t);
+
+	/* Sanitize sensitive data */
+	newrule->sr_next = NULL;
+	newrule->sr_kernel = NULL;
 
 	newrule->sr_features = (secfw_feature_t *)(buf+written);
 	newrule_features = (secfw_feature_t *)((char *)(reply->sr_metadata) + written);
@@ -447,23 +439,9 @@ handle_get_rule(secfw_command_t *cmd, secfw_reply_t *reply)
 		written += rule->sr_pathlen + 1;
 	}
 
-	if (rule->sr_nprisons) {
-		prisons = (char **)(buf + written);
-		prisons_offset = written;
-		written += sizeof(char **) * rule->sr_nprisons;
-		t = buf + written;
-		for (i = 0; i < rule->sr_nprisons; i++) {
-			size_t len = strlen(rule->sr_prisonnames[i])+1;
-
-			memcpy(t, rule->sr_prisonnames[i], len);
-			prisons[i] = (char *)(reply->sr_metadata) + written;
-
-			written += len;
-			t = buf + written;
-		}
-
-		newrule->sr_prisonnames = (char **)((char *)(reply->sr_metadata) + prisons_offset);
-	}
+	newrule->sr_prison = (char *)(reply->sr_metadata) + written;
+	memcpy(buf + written, rule->sr_prison, strlen(rule->sr_prison)+1);
+	written += strlen(rule->sr_prison)+1;
 
 	copyout(newrule, reply->sr_metadata, size);
 

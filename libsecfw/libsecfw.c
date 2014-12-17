@@ -185,11 +185,7 @@ secfw_debug_print_rule(secfw_rule_t *rule)
 		}
 	}
 
-	if (rule->sr_nprisons > 0)
-		fprintf(stderr, "    - Jails: ");
-
-	for (i=0; i < rule->sr_nprisons; i++)
-		fprintf(stderr, "%s%s", rule->sr_prisonnames[i], i+1 < rule->sr_nprisons ? ", " : "\n");
+	fprintf(stderr, "    - Owning jail: %s\n", rule->sr_prison);
 }
 
 void

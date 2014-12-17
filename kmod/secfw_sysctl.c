@@ -89,8 +89,10 @@ handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 	if (rules.rules == NULL) {
 		rules.rules = rule;
 	} else {
-		for (tail = rules.rules; tail->sr_next != NULL; tail = tail->sr_next)
-			;
+		for (tail = rules.rules; tail->sr_next != NULL; tail = tail->sr_next) {
+			printf("Passing through rule %zu for jail %s\n", tail->sr_id, tail->sr_prison);
+			uprintf("Passing through rule %zu for jail %s\n", tail->sr_id, tail->sr_prison);
+		}
 
 		tail->sr_next = rule;
 	}
@@ -151,29 +153,29 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		 */
 
 		secfw_rules_lock_write();
-		flush_rules();
+		flush_rules(req->td);
 		secfw_rules_unlock_write();
 
 		handle_add_rule(req->td, &cmd, &reply);
 		break;
 	case secfw_flush_rules:
 		secfw_rules_lock_write();
-		flush_rules();
+		flush_rules(req->td);
 		secfw_rules_unlock_write();
 		break;
 	case secfw_get_rule_size:
 		secfw_rules_lock_read();
-		reply.sr_code = handle_get_rule_size(&cmd, &reply);
+		reply.sr_code = handle_get_rule_size(req->td, &cmd, &reply);
 		secfw_rules_unlock_read();
 		break;
 	case secfw_get_num_rules:
 		secfw_rules_lock_read();
-		reply.sr_code = (unsigned int)get_num_rules(&cmd, &reply);
+		reply.sr_code = (unsigned int)get_num_rules(req->td, &cmd, &reply);
 		secfw_rules_unlock_read();
 		break;
 	case secfw_get_rule:
 		secfw_rules_lock_read();
-		reply.sr_code = (unsigned int)handle_get_rule(&cmd, &reply);
+		reply.sr_code = (unsigned int)handle_get_rule(req->td, &cmd, &reply);
 		secfw_rules_unlock_read();
 		break;
 	case secfw_get_rules:

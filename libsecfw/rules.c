@@ -68,6 +68,7 @@ secfw_parse_path(secfw_rule_t *rule, const char *path)
 		return -1;
 	}
 
+	memset(&fsb, 0x00, sizeof(struct statfs));
 	if (fstatfs(fd, &fsb)) {
 		perror("fstatfs");
 		close(fd);
@@ -76,7 +77,7 @@ secfw_parse_path(secfw_rule_t *rule, const char *path)
 
 	close(fd);
 
-	memcpy(&(rule->sr_fsid), &(fsb.f_fsid), sizeof(struct fsid));
+	strlcpy(rule->sr_mount, fsb.f_mntonname, MNAMELEN);
 	rule->sr_inode = sb.st_ino;
 	rule->sr_path = strdup(path);
 	if (rule->sr_path)

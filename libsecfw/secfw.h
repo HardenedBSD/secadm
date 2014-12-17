@@ -71,15 +71,15 @@ typedef struct secfw_feature {
 typedef struct secfw_rule {
 	size_t			 sr_id;
 	unsigned int		 sr_flags;
+	char			 sr_mount[MNAMELEN];
 	ino_t			 sr_inode;
-	struct fsid		 sr_fsid;
 	size_t			 sr_pathlen;
 	char 			*sr_path;
 	size_t			 sr_nfeatures;
 	secfw_feature_t		*sr_features;
-	char			**sr_prisonnames;
-	size_t			 sr_nprisons;
 	struct secfw_rule	*sr_next;
+	char			*sr_prison;
+	void			*sr_kernel;
 } secfw_rule_t;
 
 #define SPS_FLAG_VIEW	0x1
@@ -128,6 +128,10 @@ typedef struct secfw_kernel_data {
 	struct rm_priotracker	 views_tracker;
 } secfw_kernel_t;
 
+typedef struct secfw_kernel_metadata {
+	struct prison		*skm_owner;
+} secfw_kernel_metadata_t;
+
 extern secfw_kernel_t rules;
 
 void secfw_lock_init(void);
@@ -157,13 +161,14 @@ int secfw_vnode_check_unlink(struct ucred *, struct vnode *,
 
 int validate_rule(struct thread *, secfw_rule_t *, secfw_rule_t *);
 void free_rule(secfw_rule_t *, int);
-void flush_rules(void);
+secfw_rule_t *get_first_rule(struct thread *);
+void flush_rules(struct thread *);
 int read_rule_from_userland(struct thread *, secfw_rule_t *);
-secfw_rule_t *get_rule_by_id(size_t);
-size_t get_rule_size(size_t);
-int handle_get_rule_size(secfw_command_t *, secfw_reply_t *);
-int get_num_rules(secfw_command_t *, secfw_reply_t *);
-int handle_get_rule(secfw_command_t *, secfw_reply_t *);
+secfw_rule_t *get_rule_by_id(struct thread *, size_t);
+size_t get_rule_size(struct thread *, size_t);
+int handle_get_rule_size(struct thread *, secfw_command_t *, secfw_reply_t *);
+int get_num_rules(struct thread *, secfw_command_t *, secfw_reply_t *);
+int handle_get_rule(struct thread *, secfw_command_t *, secfw_reply_t *);
 
 #endif /* _KERNEL */
 
