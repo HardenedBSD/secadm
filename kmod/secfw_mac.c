@@ -66,12 +66,23 @@ secfw_destroy(struct mac_policy_conf *mpc)
 	secfw_lock_destroy();
 }
 
+static void
+secfw_jail_destroy(struct prison *pr)
+{
+	secfw_rules_lock_write();
+
+	cleanup_jail_rules(pr);
+
+	secfw_rules_unlock_write();
+}
+
 static struct mac_policy_ops secfw_ops =
 {
-	.mpo_destroy = secfw_destroy,
-	.mpo_init = secfw_init,
-	.mpo_vnode_check_exec = secfw_vnode_check_exec,
-	.mpo_vnode_check_unlink = secfw_vnode_check_unlink,
+	.mpo_destroy		= secfw_destroy,
+	.mpo_init		= secfw_init,
+	.mpo_vnode_check_exec	= secfw_vnode_check_exec,
+	.mpo_vnode_check_unlink	= secfw_vnode_check_unlink,
+	.mpo_prison_destroy	= secfw_jail_destroy
 };
 
 MAC_POLICY_SET(&secfw_ops, secfw, "HardenedBSD Security Firewall",

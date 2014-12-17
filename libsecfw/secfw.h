@@ -162,6 +162,7 @@ int secfw_vnode_check_unlink(struct ucred *, struct vnode *,
 int validate_rule(struct thread *, secfw_rule_t *, secfw_rule_t *);
 void free_rule(secfw_rule_t *, int);
 secfw_rule_t *get_first_rule(struct thread *);
+secfw_rule_t *get_first_prison_rule(struct prison *);
 void flush_rules(struct thread *);
 int read_rule_from_userland(struct thread *, secfw_rule_t *);
 secfw_rule_t *get_rule_by_id(struct thread *, size_t);
@@ -169,6 +170,7 @@ size_t get_rule_size(struct thread *, size_t);
 int handle_get_rule_size(struct thread *, secfw_command_t *, secfw_reply_t *);
 int get_num_rules(struct thread *, secfw_command_t *, secfw_reply_t *);
 int handle_get_rule(struct thread *, secfw_command_t *, secfw_reply_t *);
+void cleanup_jail_rules(struct prison *pr);
 
 #endif /* _KERNEL */
 

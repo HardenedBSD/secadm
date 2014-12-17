@@ -185,6 +185,38 @@ get_first_rule(struct thread *td)
 	return NULL;
 }
 
+secfw_rule_t *
+get_first_prison_rule(struct prison *pr)
+{
+	secfw_rule_t *rule;
+
+	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
+		if (!strcmp(rule->sr_prison, pr->pr_name))
+			return rule;
+
+	return NULL;
+}
+
+void
+cleanup_jail_rules(struct prison *pr)
+{
+	secfw_rule_t *prev, *rule;
+
+	while ((rule = get_first_prison_rule(pr)) != NULL) {
+		if (rule == rules.rules) {
+			rules.rules = rule->sr_next;
+			free_rule(rule, 1);
+		} else {
+			prev = rules.rules;
+			while (prev->sr_next != rule)
+				prev = prev->sr_next;
+
+			prev->sr_next = rule->sr_next;
+			free_rule(rule, 1);
+		}
+	}
+}
+
 void
 flush_rules(struct thread *td)
 {
