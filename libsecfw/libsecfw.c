@@ -56,7 +56,8 @@ secfw_sysctl(secfw_command_t *cmd, secfw_reply_t *reply)
 	cmdsz = sizeof(secfw_command_t);
 	replysz = sizeof(secfw_reply_t);
 
-	err = sysctlbyname("hardening.secfw.control", reply, &replysz, cmd, cmdsz);
+	err = sysctlbyname("hardening.secfw.control", reply, &replysz, cmd,
+	    cmdsz);
 
 	if (err) {
 		perror("sysctlbyname");
@@ -92,7 +93,8 @@ secfw_kernel_version(void)
 	if (err == 0) {
 		version = *((unsigned long *)(reply.sr_metadata));
 	} else {
-		fprintf(stderr, "[-] Could not get version: %s\n", strerror(errno));
+		fprintf(stderr, "[-] Could not get version: %s\n",
+		    strerror(errno));
 		goto error;
 	}
 
@@ -119,7 +121,8 @@ secfw_add_rules(secfw_rule_t *rule)
 	cmd.sc_size = sizeof(secfw_rule_t);
 
 	if ((err = secfw_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Control channel received an error code: %d\n", err);
+		fprintf(stderr, "[-] Control channel received an error code: %d\n",
+		    err);
 	}
 
 	return (unsigned int)err;
@@ -139,7 +142,8 @@ secfw_flush_all_rules(void)
 	cmd.sc_type = secfw_flush_rules;
 
 	if ((err = secfw_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Could not flush rules. Error code: %d\n", err);
+		fprintf(stderr, "[-] Could not flush rules. Error code: %d\n",
+		    err);
 	}
 
 	return (unsigned int)err;
@@ -180,7 +184,8 @@ secfw_debug_print_rule(secfw_rule_t *rule)
 			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
 			break;
 		default:
-			fprintf(stderr, "    - Feature %d unknown\n", rule->sr_features[i].type);
+			fprintf(stderr, "    - Feature %d unknown\n",
+			    rule->sr_features[i].type);
 			break;
 		}
 	}
@@ -193,9 +198,8 @@ secfw_debug_print_rules(secfw_rule_t *rules)
 {
 	secfw_rule_t *rule;
 
-	for (rule = rules; rule != NULL; rule = rule->sr_next) {
+	for (rule = rules; rule != NULL; rule = rule->sr_next)
 		secfw_debug_print_rule(rule);
-	}
 }
 
 size_t
@@ -218,7 +222,8 @@ secfw_get_kernel_rule_size(size_t id)
 	reply.sr_size = sizeof(size_t);
 
 	if ((err = secfw_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Could not get rule size for id %zu: %s\n", id, strerror(err));
+		fprintf(stderr, "[-] Could not get rule size for id %zu: %s\n",
+		    id, strerror(err));
 		return (0);
 	}
 
@@ -243,7 +248,8 @@ secfw_get_num_kernel_rules(void)
 	reply.sr_size = sizeof(size_t);
 
 	if ((err = secfw_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Could not get number of kernel rules: %s\n", strerror(err));
+		fprintf(stderr, "[-] Could not get number of kernel rules: %s\n",
+		    strerror(err));
 		return (0);
 	}
 
@@ -280,7 +286,8 @@ secfw_get_kernel_rule(size_t id)
 	reply.sr_size = size;
 
 	if ((err = secfw_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Could not get rule %zu: %s\n", id, strerror(err));
+		fprintf(stderr, "[-] Could not get rule %zu: %s\n", id,
+		    strerror(err));
 		free(buf);
 		return NULL;
 	}

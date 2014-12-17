@@ -134,6 +134,7 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 	case  secfw_get_version:
 		if (cmd.sc_bufsize < sizeof(unsigned long))
 			return (EINVAL);
+
 		handle_version_command(&cmd, &reply);
 		break;
 	case secfw_set_rules:
@@ -170,12 +171,14 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		break;
 	case secfw_get_num_rules:
 		secfw_rules_lock_read();
-		reply.sr_code = (unsigned int)get_num_rules(req->td, &cmd, &reply);
+		reply.sr_code = (unsigned int)get_num_rules(req->td, &cmd,
+		    &reply);
 		secfw_rules_unlock_read();
 		break;
 	case secfw_get_rule:
 		secfw_rules_lock_read();
-		reply.sr_code = (unsigned int)handle_get_rule(req->td, &cmd, &reply);
+		reply.sr_code = (unsigned int)handle_get_rule(req->td, &cmd,
+		    &reply);
 		secfw_rules_unlock_read();
 		break;
 	case secfw_get_rules:

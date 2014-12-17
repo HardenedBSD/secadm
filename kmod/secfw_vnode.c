@@ -81,7 +81,8 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		if (secfw_check_prison(rule, ucred->cr_prison) == 0)
 			continue;
 
-		if (strcmp(imgp->vp->v_mount->mnt_stat.f_mntonname, rule->sr_mount))
+		if (strcmp(imgp->vp->v_mount->mnt_stat.f_mntonname,
+		    rule->sr_mount))
 			continue;
 
 		for (i=0; i < rule->sr_nfeatures; i++) {

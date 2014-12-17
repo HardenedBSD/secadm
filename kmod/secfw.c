@@ -179,7 +179,8 @@ get_first_rule(struct thread *td)
 	secfw_rule_t *rule;
 
 	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
-		if (td == NULL || !strcmp(rule->sr_prison, td->td_ucred->cr_prison->pr_name))
+		if (td == NULL || !strcmp(rule->sr_prison,
+		    td->td_ucred->cr_prison->pr_name))
 			return rule;
 
 	return NULL;
@@ -306,7 +307,8 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 	kernel_metadata = malloc(sizeof(secfw_kernel_metadata_t), M_SECFW, M_WAITOK);
 	kernel_metadata->skm_owner = td->td_ucred->cr_prison;
 	rule->sr_kernel = kernel_metadata;
-	rule->sr_prison = malloc(strlen(kernel_metadata->skm_owner->pr_name)+1, M_SECFW, M_WAITOK | M_ZERO);
+	rule->sr_prison = malloc(strlen(kernel_metadata->skm_owner->pr_name)+1,
+	    M_SECFW, M_WAITOK | M_ZERO);
 	strcpy(rule->sr_prison, kernel_metadata->skm_owner->pr_name);
 
 	if (validate_rule(td, rules.rules, rule)) {
@@ -343,7 +345,8 @@ secfw_rule_t
 
 	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
 		if (rule->sr_id == id)
-			if (!strcmp(rule->sr_prison, td->td_ucred->cr_prison->pr_name))
+			if (!strcmp(rule->sr_prison,
+			    td->td_ucred->cr_prison->pr_name))
 				return rule;
 
 	return NULL;

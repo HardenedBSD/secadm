@@ -58,7 +58,8 @@ secfw_parse_path(secfw_rule_t *rule, const char *path)
 
 	fd = open(path, O_RDONLY);
 	if (fd < 0) {
-		fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n", path);
+		fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n",
+		    path);
 		return -1;
 	}
 

@@ -101,13 +101,15 @@ check_bsd(void)
 	}
 }
 
-static void get_version(void)
+static void
+get_version(void)
 {
 	unsigned long version;
 
 	version = secfw_kernel_version();
 	if (version)
-		fprintf(stderr, "[+] secfw kernel module version: %lu\n", version);
+		fprintf(stderr, "[+] secfw kernel module version: %lu\n",
+		    version);
 
 	exit(0);
 }
@@ -154,12 +156,13 @@ setact(int argc, char *argv[])
 	}
 
 	free(rules);
-	return 0;
+	return (0);
 }
 
 static int
 flushact(int argc, char *argv[])
 {
+
 	return ((int)secfw_flush_all_rules());
 }
 
@@ -200,6 +203,8 @@ main(int argc, char *argv[])
 	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++)
 		if (!strcmp(argv[0], actions[i].action))
 			return (actions[i].op(argc, argv));
+
+	usage(name);
 
 	return 1;
 }

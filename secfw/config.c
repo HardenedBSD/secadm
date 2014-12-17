@@ -50,7 +50,8 @@
 #include "libsecfw.h"
 #include "secfw_internal.h"
 
-secfw_rule_t *load_config(const char *config)
+secfw_rule_t *
+load_config(const char *config)
 {
 	struct ucl_parser *parser=NULL;
 	secfw_rule_t *rules, *rule;
@@ -95,7 +96,8 @@ secfw_rule_t *load_config(const char *config)
 	close(fd);
 
 	if (ucl_parser_get_error(parser)) {
-		fprintf(stderr, "[-] The parser had an error: %s\n", ucl_parser_get_error(parser));
+		fprintf(stderr, "[-] The parser had an error: %s\n",
+		    ucl_parser_get_error(parser));
 		return NULL;
 	}
 
@@ -107,7 +109,8 @@ secfw_rule_t *load_config(const char *config)
 	return rules;
 }
 
-secfw_rule_t *parse_object(struct ucl_parser *parser)
+secfw_rule_t *
+parse_object(struct ucl_parser *parser)
 {
 	secfw_rule_t *rules=NULL, *newrules, *rule;
 	ucl_object_t *obj;
@@ -127,7 +130,8 @@ secfw_rule_t *parse_object(struct ucl_parser *parser)
 
 		if (newrules != NULL) {
 			if (rules != NULL) {
-				for (rule = rules; rule->sr_next != NULL; rule = rule->sr_next)
+				for (rule = rules; rule->sr_next != NULL;
+				    rule = rule->sr_next)
 					;
 
 				rule->sr_next = newrules;
@@ -146,12 +150,14 @@ add_feature(secfw_rule_t *rule, const ucl_object_t *obj, secfw_feature_type_t fe
 {
 	void *f;
 
-	f = reallocarray(rule->sr_features, rule->sr_nfeatures + 1, sizeof(secfw_feature_t));
+	f = reallocarray(rule->sr_features, rule->sr_nfeatures + 1,
+	    sizeof(secfw_feature_t));
 	if (f == NULL)
 		return;
 	rule->sr_features = f;
 
-	memset(&(rule->sr_features[rule->sr_nfeatures]), 0x00, sizeof(secfw_feature_t));
+	memset(&(rule->sr_features[rule->sr_nfeatures]), 0x00,
+	    sizeof(secfw_feature_t));
 
 	switch (feature) {
 	case pageexec_enabled:
@@ -171,9 +177,11 @@ add_feature(secfw_rule_t *rule, const ucl_object_t *obj, secfw_feature_type_t fe
 	rule->sr_nfeatures++;
 }
 
-secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
+secfw_rule_t *
+parse_applications_object(const ucl_object_t *obj)
 {
-	const ucl_object_t *appindex, *ucl_feature, *appdata, *ucl_jails, *ucl_jail;
+	const ucl_object_t *appindex, *ucl_feature, *appdata, *ucl_jails,
+	    *ucl_jail;
 	ucl_object_iter_t it=NULL, jailit=NULL;
 	secfw_rule_t *head=NULL, *apprule;
 	const char *path, *datakey, *key;
@@ -181,9 +189,8 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 
 	while ((appindex = ucl_iterate_object(obj, &it, 1))) {
 		apprule = calloc(1, sizeof(secfw_rule_t));
-		if (!(apprule)) {
+		if (!(apprule))
 			return head;
-		}
 
 		appdata = ucl_lookup_path(appindex, "path");
 		if (!(appdata)) {
@@ -207,29 +214,34 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 #ifdef PAX_NOTE_PAGEEXEC
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.pageexec")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature, enabled ? pageexec_enabled : pageexec_disabled);
+				add_feature(apprule, ucl_feature,
+				    enabled ? pageexec_enabled : pageexec_disabled);
 		}
 #endif
 
 #ifdef PAX_NOTE_MPROTECT
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.mprotect")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature, enabled ? mprotect_enabled : mprotect_disabled);
+				add_feature(apprule, ucl_feature,
+				    enabled ? mprotect_enabled : mprotect_disabled);
 		}
 #endif
 
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.segvguard")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature, enabled ? segvguard_enabled : segvguard_disabled);
+				add_feature(apprule, ucl_feature,
+				    enabled ? segvguard_enabled : segvguard_disabled);
 		}
 
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.aslr")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature, enabled ? aslr_enabled : aslr_disabled);
+				add_feature(apprule, ucl_feature,
+				    enabled ? aslr_enabled : aslr_disabled);
 		}
 
 		if (apprule->sr_nfeatures == 0) {
-			fprintf(stderr, "Application %s has no features. Skipping application rule.\n", apprule->sr_path);
+			fprintf(stderr, "Application %s has no features. Skipping application rule.\n",
+			    apprule->sr_path);
 			free(apprule);
 			continue;
 		}
@@ -242,5 +254,5 @@ secfw_rule_t *parse_applications_object(const ucl_object_t *obj)
 		}
 	}
 
-	return head;;
+	return head;
 }

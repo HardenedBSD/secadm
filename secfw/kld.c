@@ -47,7 +47,8 @@
 #include "libsecfw.h"
 #include "secfw_internal.h"
 
-int kldcheck(void)
+int
+kldcheck(void)
 {
 	int id;
 	struct kld_file_stat kfs;
