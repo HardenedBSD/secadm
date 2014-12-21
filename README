@@ -1,16 +1,16 @@
-secfw
-=====
+secadm
+======
 Author: Shawn Webb <shawn.webb@hardenedbsd.org>
 
-secfw is a project to replace the mac_bsdextended(4)/ugidfw(8)
+secadm is a project to replace the mac_bsdextended(4)/ugidfw(8)
 integration the HardenedBSD project has done for ASLR, SEGVGUARD, and
-PTrace hardening. The secfw project will be implemented as a custom
+PTrace hardening. The secadm project will be implemented as a custom
 ports entry in the HardenedBSD/freebsd-ports repo. The port will
 consist of three parts: a kernel module that integrates with the MAC
 framework, a shared library that communicates between kernel and
 userland, and an application that consumes the shared library.
 
-The MAC module will be named mac_secfw. It will work on a per-jail
+The MAC module will be named mac_secadm. It will work on a per-jail
 basis and will communicate with userland via a custom /dev entry. The
 MAC module should hook into the execve() call to set per-process
 security/hardening flags, such as toggling ASLR or SEGVGUARD. Jails
@@ -22,20 +22,19 @@ that jail and any child jails associated with that jail. The root jail
 will perform sanitization and sanity checking on all rule changes,
 including the removal of rules.
 
-The shared library will be named libsecfw and will simply act as a
+The shared library will be named libsecadm and will simply act as a
 communication layer between userland applications and the /dev entry.
 The shared library will perform the same sanitization and sanity
 checking on all rule changes, including the removal of rules, that the
 MAC module performs.
 
-The userland application will be named secfw. It will consume libsecfw
+The userland application will be named secadm. It will consume libsecadm
 and libucl. Rules will be written in json to allow for a
 configuration file format that is readable and parseable by both
 humans and machines. Using the json format will also allow for
-additional flexibility and dynamic content. One can imagine secfw
+additional flexibility and dynamic content. One can imagine secadm
 deployed in a security appliance where the rulesets are created and
 updated via a web service API.
 
-secfw will initially support toggling ASLR, SEGVGUARD, and PTrace
-hardening. It will work on a per-jail, per-user, per-group,
-per-filesystem, and per-file basis.
+secadm will initially support toggling ASLR, SEGVGUARD, and PTrace
+hardening. It will work on a per-jail and per-file basis.
