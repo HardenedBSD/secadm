@@ -10,17 +10,11 @@ consist of three parts: a kernel module that integrates with the MAC
 framework, a shared library that communicates between kernel and
 userland, and an application that consumes the shared library.
 
-The MAC module will be named mac_secadm. It will work on a per-jail
-basis and will communicate with userland via a custom /dev entry. The
-MAC module should hook into the execve() call to set per-process
-security/hardening flags, such as toggling ASLR or SEGVGUARD. Jails
-should be able to call into the MAC module if the device is exposed to
-the jail. However, when the MAC module is interacted within the
-confines of a jail, the MAC module will be restricted to the rules for
-that jail and any child jails associated with that jail. The root jail
-(JID 0) can optionally administer rules for all jails. The MAC module
-will perform sanitization and sanity checking on all rule changes,
-including the removal of rules.
+The MAC module will work on a per-jail basis. It will communicate
+with userland via a sysctl node. The MAC module should hook into the
+execve() call to set per-process security/hardening flags, such as
+toggling ASLR or SEGVGUARD. Each jail manages its own rules. Rules
+applied in one jail do not interact or impact other jails.
 
 The shared library will be named libsecadm and will simply act as a
 communication layer between userland applications and the /dev entry.
