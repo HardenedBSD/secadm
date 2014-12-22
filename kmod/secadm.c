@@ -92,12 +92,40 @@ get_prison_list_entry(const char *name, int create)
 }
 
 int
-validate_rule(struct thread *td, secadm_rule_t *head, secadm_rule_t *rule)
+pre_validate_rule(struct thread *td, secadm_rule_t *rule)
 {
 	KASSERT(rule != NULL, ("validate_rule: rule cannot be null!"));
 
-	if (rule->sr_nfeatures == 0)
-		return (1);
+	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
+	    || rule->sr_nfeatures > SECADM_MAX_FEATURES) {
+		return (-1);
+	}
+
+	if (rule->sr_path != NULL && rule->sr_pathlen > MNAMELEN)
+		return (-1);
+
+	return (0);
+}
+
+int
+validate_ruleset(struct thread *td, secadm_rule_t *head)
+{
+	secadm_rule_t *rule;
+	size_t nrules, maxid;
+
+	nrules = maxid = 0;
+	for (rule = head; rule != NULL; rule = rule->sr_next) {
+		if (pre_validate_rule(td, rule))
+			return (-1);
+
+		if (rule->sr_id > maxid)
+			maxid = rule->sr_id;
+
+		nrules++;
+	}
+
+	if (maxid > nrules)
+		return (-1);
 
 	return (0);
 }
@@ -222,12 +250,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 
 	rule->sr_mount[MNAMELEN-1] = '\0';
 
-	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
-	    || rule->sr_nfeatures > SECADM_MAX_FEATURES) {
-		return (-1);
-	}
-
-	if (rule->sr_pathlen > MNAMELEN)
+	if (pre_validate_rule(td, rule))
 		return (-1);
 
 	features = malloc(sizeof(secadm_feature_t) *
@@ -284,15 +307,28 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 secadm_rule_t
 *get_rule_by_id(struct thread *td, size_t id)
 {
+	struct rm_priotracker tracker;
+	secadm_prison_list_t *list;
 	secadm_rule_t *rule;
 
 	rule = get_first_rule(td);
 	if (rule == NULL)
 		return (NULL);
 
-	for ( ; rule != NULL; rule = rule->sr_next)
-		if (rule->sr_id == id)
+	list = get_prison_list_entry(rule->sr_prison, 0);
+	if (list == NULL)
+		return (NULL);
+
+	rm_rlock(&(list->spl_lock), &tracker);
+
+	for ( ; rule != NULL; rule = rule->sr_next) {
+		if (rule->sr_id == id) {
+			rm_runlock(&(list->spl_lock), &tracker);
 			return (rule);
+		}
+	}
+
+	rm_runlock(&(list->spl_lock), &tracker);
 
 	return (NULL);
 }

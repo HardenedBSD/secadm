@@ -60,7 +60,6 @@ secadm_destroy(struct mac_policy_conf *mpc)
 
 	rm_wlock(&(kernel_data.skd_prisons_lock));
 
-
 	while (kernel_data.skd_prisons != NULL)
 		cleanup_jail_rules(kernel_data.skd_prisons);
 

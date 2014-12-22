@@ -76,6 +76,8 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	unsigned int res=0;
 	int err;
 
+	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 1);
+
 	rule = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
 	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secadm_rule_t))) != 0) {
 		res = EFAULT;
@@ -108,18 +110,20 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 		tail = next;
 	}
 
-	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 1);
-
-	rm_wlock(&(list->spl_lock));
-	if (list->spl_rules == NULL) {
-		list->spl_rules = rule;
-	} else {
-		for (tail = list->spl_rules; tail->sr_next != NULL; tail = tail->sr_next)
-			;
-
-		tail->sr_next = rule;
+	if (validate_ruleset(td, rule)) {
+		while (rule) {
+			next = rule->sr_next;
+			free_rule(rule, 1);
+			rule = next;
+			res = EINVAL;
+			goto err;
+		}
 	}
 
+	flush_rules(td);
+
+	rm_wlock(&(list->spl_lock));
+	list->spl_rules = rule;
 	list->spl_max_id = maxid;
 	rm_wunlock(&(list->spl_lock));
 err:
@@ -167,17 +171,6 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 			uprintf("Size mismatch\n");
 			return (EINVAL);
 		}
-
-		/*
-		 * Ideally, we would not want to flush rules prior to
-		 * resetting our ruleset. Doing it this way creates a
-		 * race condition where there are no rules loaded. So
-		 * in the future, behave more like pf and only flush
-		 * the ruleset when the new ruleset is 100% ready to
-		 * be activated.
-		 */
-
-		flush_rules(req->td);
 
 		handle_add_rule(req->td, &cmd, &reply);
 		break;

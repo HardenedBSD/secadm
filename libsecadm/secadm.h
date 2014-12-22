@@ -79,10 +79,10 @@ typedef struct secadm_rule {
 	size_t			 sr_pathlen;
 	char 			*sr_path;
 	size_t			 sr_nfeatures;
-	secadm_feature_t		*sr_features;
-	struct secadm_rule	*sr_next;
+	secadm_feature_t	*sr_features;
 	char			*sr_prison;
 	void			*sr_kernel;
+	struct secadm_rule	*sr_next;
 } secadm_rule_t;
 
 #define SPS_FLAG_VIEW	0x1
@@ -146,6 +146,7 @@ typedef struct secadm_kernel_data {
 
 typedef struct secadm_kernel_metadata {
 	struct prison		*skm_owner;
+	secadm_prison_list_t	*skm_parent;
 } secadm_kernel_metadata_t;
 
 extern secadm_kernel_t kernel_data;
@@ -175,7 +176,8 @@ int secadm_vnode_check_unlink(struct ucred *, struct vnode *,
     struct label *, struct vnode *, struct label *,
     struct componentname *);
 
-int validate_rule(struct thread *, secadm_rule_t *, secadm_rule_t *);
+int pre_validate_rule(struct thread *, secadm_rule_t *);
+int validate_ruleset(struct thread *, secadm_rule_t *);
 void free_rule(secadm_rule_t *, int);
 secadm_prison_list_t *get_prison_list_entry(const char *, int);
 secadm_rule_t *get_first_rule(struct thread *);
