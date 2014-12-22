@@ -1,5 +1,5 @@
 SUBDIR+=	kmod \
-		libsecfw \
-		secfw
+		libsecadm \
+		secadm
 
 .include <bsd.subdir.mk>

@@ -26,20 +26,20 @@
  * $FreeBSD$
  */
 
-#ifndef _LIBSECFW_H
-#define _LIBSECFW_H
+#ifndef _LIBSECADM_H
+#define _LIBSECADM_H
 
-#include "secfw.h"
+#include "secadm.h"
 
-int secfw_sysctl(secfw_command_t *, secfw_reply_t *);
-unsigned long secfw_kernel_version(void);
-unsigned int secfw_add_rules(secfw_rule_t *);
-int secfw_parse_path(secfw_rule_t *, const char *);
-void secfw_debug_print_rule(secfw_rule_t *rule);
-void secfw_debug_print_rules(secfw_rule_t *rules);
-size_t secfw_get_kernel_rule_size(size_t id);
-size_t secfw_get_num_kernel_rules(void);
-secfw_rule_t *secfw_get_kernel_rule(size_t id);
-unsigned int secfw_flush_all_rules(void);
+int secadm_sysctl(secadm_command_t *, secadm_reply_t *);
+unsigned long secadm_kernel_version(void);
+unsigned int secadm_add_rules(secadm_rule_t *);
+int secadm_parse_path(secadm_rule_t *, const char *);
+void secadm_debug_print_rule(secadm_rule_t *rule);
+void secadm_debug_print_rules(secadm_rule_t *rules);
+size_t secadm_get_kernel_rule_size(size_t id);
+size_t secadm_get_num_kernel_rules(void);
+secadm_rule_t *secadm_get_kernel_rule(size_t id);
+unsigned int secadm_flush_all_rules(void);
 
 #endif

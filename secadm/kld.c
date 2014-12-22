@@ -44,8 +44,8 @@
 #include <sys/queue.h>
 
 #include "ucl.h"
-#include "libsecfw.h"
-#include "secfw_internal.h"
+#include "libsecadm.h"
+#include "secadm_internal.h"
 
 int
 kldcheck(void)
@@ -62,7 +62,7 @@ kldcheck(void)
 			return 1;
 		}
 
-		if (!strcmp("secfw.ko", kfs.name))
+		if (!strcmp("secadm.ko", kfs.name))
 			return 0;
 	}
 

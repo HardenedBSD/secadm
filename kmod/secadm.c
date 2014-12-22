@@ -43,16 +43,16 @@
 
 #include <security/mac/mac_policy.h>
 
-#include "secfw.h"
+#include "secadm.h"
 
-MALLOC_DEFINE(M_SECFW, "secfw", "secfw rule data");
+MALLOC_DEFINE(M_SECADM, "secadm", "secadm rule data");
 
-secfw_kernel_t kernel_data;
+secadm_kernel_t kernel_data;
 
-secfw_prison_list_t *
+secadm_prison_list_t *
 get_prison_list_entry(const char *name, int create)
 {
-	secfw_prison_list_t *list, *entry;
+	secadm_prison_list_t *list, *entry;
 	struct rm_priotracker tracker;
 
 	rm_rlock(&(kernel_data.skd_prisons_lock), &tracker);
@@ -67,10 +67,10 @@ get_prison_list_entry(const char *name, int create)
 	rm_runlock(&(kernel_data.skd_prisons_lock), &tracker);
 
 	if (create) {
-		list = malloc(sizeof(secfw_prison_list_t), M_SECFW, M_WAITOK | M_ZERO);
+		list = malloc(sizeof(secadm_prison_list_t), M_SECADM, M_WAITOK | M_ZERO);
 
-		rm_init(&(list->spl_lock), "secfw per-prison lock");
-		list->spl_prison = malloc(strlen(name)+1, M_SECFW, M_WAITOK | M_ZERO);
+		rm_init(&(list->spl_lock), "secadm per-prison lock");
+		list->spl_prison = malloc(strlen(name)+1, M_SECADM, M_WAITOK | M_ZERO);
 		strlcpy(list->spl_prison, name, strlen(name)+1);
 
 		rm_wlock(&(kernel_data.skd_prisons_lock));
@@ -92,7 +92,7 @@ get_prison_list_entry(const char *name, int create)
 }
 
 int
-validate_rule(struct thread *td, secfw_rule_t *head, secfw_rule_t *rule)
+validate_rule(struct thread *td, secadm_rule_t *head, secadm_rule_t *rule)
 {
 	KASSERT(rule != NULL, ("validate_rule: rule cannot be null!"));
 
@@ -103,39 +103,39 @@ validate_rule(struct thread *td, secfw_rule_t *head, secfw_rule_t *rule)
 }
 
 void
-free_rule(secfw_rule_t *rule, int freerule)
+free_rule(secadm_rule_t *rule, int freerule)
 {
 	size_t i;
 	
 	if (rule->sr_path)
-		free(rule->sr_path, M_SECFW);
+		free(rule->sr_path, M_SECADM);
 
 	for (i=0; i < rule->sr_nfeatures; i++)
 		if (rule->sr_features[i].metadata)
-			free(rule->sr_features[i].metadata, M_SECFW);
+			free(rule->sr_features[i].metadata, M_SECADM);
 
 	if (rule->sr_features)
-		free(rule->sr_features, M_SECFW);
+		free(rule->sr_features, M_SECADM);
 
-	free(rule->sr_prison, M_SECFW);
-	free(rule->sr_kernel, M_SECFW);
+	free(rule->sr_prison, M_SECADM);
+	free(rule->sr_kernel, M_SECADM);
 
 	if (freerule)
-		free(rule, M_SECFW);
+		free(rule, M_SECADM);
 }
 
-secfw_rule_t *
+secadm_rule_t *
 get_first_rule(struct thread *td)
 {
 
 	return (get_first_prison_rule(td->td_ucred->cr_prison));
 }
 
-secfw_rule_t *
+secadm_rule_t *
 get_first_prison_rule(struct prison *pr)
 {
-	secfw_prison_list_t *list;
-	secfw_rule_t *rule=NULL;
+	secadm_prison_list_t *list;
+	secadm_rule_t *rule=NULL;
 	struct rm_priotracker prisons_tracker, rule_tracker;
 
 	rm_rlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
@@ -156,9 +156,9 @@ get_first_prison_rule(struct prison *pr)
 }
 
 void
-cleanup_jail_rules(secfw_prison_list_t *list)
+cleanup_jail_rules(secadm_prison_list_t *list)
 {
-	secfw_rule_t *rule, *next;
+	secadm_rule_t *rule, *next;
 
 	rm_wlock(&(list->spl_lock));
 
@@ -181,15 +181,15 @@ cleanup_jail_rules(secfw_prison_list_t *list)
 
 	rm_destroy(&(list->spl_lock));
 
-	free(list->spl_prison, M_SECFW);
-	free(list, M_SECFW);
+	free(list->spl_prison, M_SECADM);
+	free(list, M_SECADM);
 }
 
 void
 flush_rules(struct thread *td)
 {
-	secfw_prison_list_t *list;
-	secfw_rule_t *rule, *next;
+	secadm_prison_list_t *list;
+	secadm_rule_t *rule, *next;
 
 	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
 	if (list == NULL)
@@ -212,29 +212,29 @@ flush_rules(struct thread *td)
 /* XXX This is more of a PoC. This needs to be cleaned up for
  * production use */
 int
-read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
+read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 {
-	secfw_feature_t *features;
-	secfw_kernel_metadata_t *kernel_metadata;
+	secadm_feature_t *features;
+	secadm_kernel_metadata_t *kernel_metadata;
 	size_t i;
 	int err = 0;
 	char *path;
 
 	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
-	    || rule->sr_nfeatures > SECFW_MAX_FEATURES) {
+	    || rule->sr_nfeatures > SECADM_MAX_FEATURES) {
 		return (-1);
 	}
 
 	if (rule->sr_pathlen > MNAMELEN)
 		return (-1);
 
-	features = malloc(sizeof(secfw_feature_t) *
-	    rule->sr_nfeatures, M_SECFW, M_WAITOK);
+	features = malloc(sizeof(secadm_feature_t) *
+	    rule->sr_nfeatures, M_SECADM, M_WAITOK);
 
 	err = copyin(rule->sr_features, features,
-	    sizeof(secfw_feature_t) * rule->sr_nfeatures);
+	    sizeof(secadm_feature_t) * rule->sr_nfeatures);
 	if (err) {
-		free(features, M_SECFW);
+		free(features, M_SECADM);
 		return (-1);
 	}
 
@@ -247,7 +247,7 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 	rule->sr_features = features;
 
 	if (rule->sr_path && rule->sr_pathlen) {
-		path = malloc(rule->sr_pathlen+1, M_SECFW, M_WAITOK | M_ZERO);
+		path = malloc(rule->sr_pathlen+1, M_SECADM, M_WAITOK | M_ZERO);
 		err = copyin(rule->sr_path, path, rule->sr_pathlen);
 		if (err) {
 			rule->sr_path = NULL;
@@ -261,11 +261,11 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 		rule->sr_pathlen = 0;
 	}
 
-	kernel_metadata = malloc(sizeof(secfw_kernel_metadata_t), M_SECFW, M_WAITOK);
+	kernel_metadata = malloc(sizeof(secadm_kernel_metadata_t), M_SECADM, M_WAITOK);
 	kernel_metadata->skm_owner = td->td_ucred->cr_prison;
 	rule->sr_kernel = kernel_metadata;
 	rule->sr_prison = malloc(strlen(kernel_metadata->skm_owner->pr_name)+1,
-	    M_SECFW, M_WAITOK | M_ZERO);
+	    M_SECADM, M_WAITOK | M_ZERO);
 	strcpy(rule->sr_prison, kernel_metadata->skm_owner->pr_name);
 
 #if 0
@@ -278,10 +278,10 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 	return 0;
 }
 
-secfw_rule_t
+secadm_rule_t
 *get_rule_by_id(struct thread *td, size_t id)
 {
-	secfw_rule_t *rule;
+	secadm_rule_t *rule;
 
 	rule = get_first_rule(td);
 	if (rule == NULL)
@@ -297,7 +297,7 @@ secfw_rule_t
 size_t
 get_rule_size(struct thread *td, size_t id)
 {
-	secfw_rule_t *rule;
+	secadm_rule_t *rule;
 	size_t size, i;
 
 	size = 0;
@@ -305,9 +305,9 @@ get_rule_size(struct thread *td, size_t id)
 	if (rule == NULL)
 		goto end;
 
-	size += sizeof(secfw_rule_t);
+	size += sizeof(secadm_rule_t);
 	size += rule->sr_pathlen+1;
-	size += sizeof(secfw_feature_t) * rule->sr_nfeatures;
+	size += sizeof(secadm_feature_t) * rule->sr_nfeatures;
 	size += strlen(rule->sr_prison)+1;
 
 	for (i=0; i < rule->sr_nfeatures; i++)
@@ -318,7 +318,7 @@ end:
 }
 
 int
-handle_get_rule_size(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
+handle_get_rule_size(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
 	size_t id, size;
 	int err;
@@ -338,9 +338,9 @@ handle_get_rule_size(struct thread *td, secfw_command_t *cmd, secfw_reply_t *rep
 }
 
 int
-get_num_rules(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
+get_num_rules(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
-	secfw_prison_list_t *list;
+	secadm_prison_list_t *list;
 	size_t nrules;
 	int err;
 
@@ -357,10 +357,10 @@ get_num_rules(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 }
 
 int
-handle_get_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
+handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
-	secfw_rule_t *rule, *newrule;
-	secfw_feature_t *newrule_features;
+	secadm_rule_t *rule, *newrule;
+	secadm_feature_t *newrule_features;
 	size_t id, size, written, i;
 	char *buf, *path;
 	int err;
@@ -387,22 +387,22 @@ handle_get_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 		return (EOVERFLOW);
 
 	written=0;
-	buf = malloc(size, M_SECFW, M_WAITOK);
+	buf = malloc(size, M_SECADM, M_WAITOK);
 
-	memcpy(buf, rule, sizeof(secfw_rule_t));
-	newrule = (secfw_rule_t *)buf;
-	written += sizeof(secfw_rule_t);
+	memcpy(buf, rule, sizeof(secadm_rule_t));
+	newrule = (secadm_rule_t *)buf;
+	written += sizeof(secadm_rule_t);
 
 	/* Sanitize sensitive data */
 	newrule->sr_next = NULL;
 	newrule->sr_kernel = NULL;
 
-	newrule->sr_features = (secfw_feature_t *)(buf+written);
-	newrule_features = (secfw_feature_t *)((char *)(reply->sr_metadata) + written);
-	written += sizeof(secfw_feature_t) * rule->sr_nfeatures;
+	newrule->sr_features = (secadm_feature_t *)(buf+written);
+	newrule_features = (secadm_feature_t *)((char *)(reply->sr_metadata) + written);
+	written += sizeof(secadm_feature_t) * rule->sr_nfeatures;
 
 	for (i=0; i < rule->sr_nfeatures; i++)
-		memcpy(&(newrule->sr_features[i]), &rule->sr_features[i], sizeof(secfw_feature_t));
+		memcpy(&(newrule->sr_features[i]), &rule->sr_features[i], sizeof(secadm_feature_t));
 
 	newrule->sr_features = newrule_features;
 
@@ -419,7 +419,7 @@ handle_get_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 
 	copyout(newrule, reply->sr_metadata, size);
 
-	free(buf, M_SECFW);
+	free(buf, M_SECADM);
 
 	return 0;
 }

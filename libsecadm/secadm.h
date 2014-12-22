@@ -1,0 +1,195 @@
+/*-
+ * Copyright (c) 2014 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * $FreeBSD$
+ */
+
+#ifndef _SYS_SECURITY_SECADM_H
+#define _SYS_SECURITY_SECADM_H
+
+#define SECADM_VERSION			20141217001UL
+
+/* These flags are unused right now */
+#define SECADM_RULE_FLAGS_NONE		0x00000000
+#define SECADM_RULE_FLAGS_UID_DEFINED	0x00000001
+#define SECADM_RULE_FLAGS_GID_DEFINED	0x00000002
+#define SECADM_RULE_FLAGS_INODE_DEFINED	0x00000004
+
+#define SECADM_MAX_FEATURES	4
+
+typedef enum secadm_feature_type {
+	secadm_invalid=0,
+	pageexec_enabled,
+	pageexec_disabled,
+	mprotect_enabled,
+	mprotect_disabled,
+	segvguard_disabled,
+	segvguard_enabled,
+	aslr_disabled,
+	aslr_enabled
+} secadm_feature_type_t;
+
+typedef enum secadm_command_type {
+	secadm_get_version=0,
+	secadm_get_rules,
+	secadm_set_rules,
+	secadm_flush_rules,
+	secadm_get_admins,
+	secadm_get_views,
+	secadm_set_admins,
+	secadm_set_views,
+	secadm_get_rule_size,
+	secadm_get_num_rules,
+	secadm_get_rule
+} secadm_command_type_t;
+
+typedef struct secadm_feature {
+	secadm_feature_type_t	 type;
+	size_t			 metadatasz;
+	void			*metadata;
+} secadm_feature_t;
+
+typedef struct secadm_rule {
+	size_t			 sr_id;
+	unsigned int		 sr_flags;
+	char			 sr_mount[MNAMELEN];
+	ino_t			 sr_inode;
+	size_t			 sr_pathlen;
+	char 			*sr_path;
+	size_t			 sr_nfeatures;
+	secadm_feature_t		*sr_features;
+	struct secadm_rule	*sr_next;
+	char			*sr_prison;
+	void			*sr_kernel;
+} secadm_rule_t;
+
+#define SPS_FLAG_VIEW	0x1
+#define SPS_FLAG_ADMIN	0x2
+
+typedef struct secadm_prison_spec {
+	char		*sps_name;
+	unsigned long	 sps_flags;
+} secadm_prison_spec_t;
+
+typedef struct secadm_command {
+	unsigned long		 sc_version;
+	size_t			 sc_id;
+	secadm_command_type_t	 sc_type;
+	void			*sc_metadata;
+	size_t			 sc_size;
+	void			*sc_buf;
+	size_t			 sc_bufsize;
+} secadm_command_t;
+
+typedef struct secadm_reply {
+	unsigned long		 sr_version;
+	size_t			 sr_id;
+	unsigned int		 sr_code;
+	void			*sr_metadata;
+	size_t			 sr_size;
+} secadm_reply_t;
+
+#ifdef _KERNEL
+
+MALLOC_DECLARE(M_SECADM);
+
+typedef struct secadm_prison_list {
+	struct rmlock			 spl_lock;
+	secadm_rule_t			*spl_rules;
+	char				*spl_prison;
+	size_t				 spl_max_id;
+
+	struct secadm_prison_list	*spl_prev;
+	struct secadm_prison_list	*spl_next;
+} secadm_prison_list_t;
+
+typedef struct secadm_kernel_data {
+	secadm_prison_list_t	*skd_prisons;
+
+	struct rmlock		 skd_prisons_lock;
+
+#if 0
+	/* These are planned, but not currently used */
+	secadm_prison_spec_t	*skd_admins;
+	secadm_prison_spec_t	*skd_views;
+	struct rmlock		 skd_admins_lock;
+	struct rmlock		 skd_views_lock;
+	struct rm_priotracker	 skd_admins_tracker;
+	struct rm_priotracker	 skd_views_tracker;
+
+	size_t			 skd_nadmins;
+	size_t			 skd_nviews;
+#endif
+} secadm_kernel_t;
+
+typedef struct secadm_kernel_metadata {
+	struct prison		*skm_owner;
+} secadm_kernel_metadata_t;
+
+extern secadm_kernel_t kernel_data;
+
+void secadm_lock_init(void);
+void secadm_lock_destroy(void);
+void secadm_rules_lock_read(void);
+void secadm_rules_unlock_read(void);
+void secadm_rules_lock_write(void);
+void secadm_rules_unlock_write(void);
+void secadm_admins_lock_read(void);
+void secadm_admins_unlock_read(void);
+void secadm_admins_lock_write(void);
+void secadm_admins_unlock_write(void);
+void secadm_views_lock_read(void);
+void secadm_views_unlock_read(void);
+void secadm_views_lock_write(void);
+void secadm_views_unlock_write(void);
+
+int secadm_check_prison(secadm_rule_t *, struct prison *);
+
+int secadm_vnode_check_exec(struct ucred *, struct vnode *,
+    struct label *, struct image_params *,
+    struct label *);
+
+int secadm_vnode_check_unlink(struct ucred *, struct vnode *,
+    struct label *, struct vnode *, struct label *,
+    struct componentname *);
+
+int validate_rule(struct thread *, secadm_rule_t *, secadm_rule_t *);
+void free_rule(secadm_rule_t *, int);
+secadm_prison_list_t *get_prison_list_entry(const char *, int);
+secadm_rule_t *get_first_rule(struct thread *);
+secadm_rule_t *get_first_prison_rule(struct prison *);
+void flush_rules(struct thread *);
+int read_rule_from_userland(struct thread *, secadm_rule_t *);
+secadm_rule_t *get_rule_by_id(struct thread *, size_t);
+size_t get_rule_size(struct thread *, size_t);
+int handle_get_rule_size(struct thread *, secadm_command_t *, secadm_reply_t *);
+int get_num_rules(struct thread *, secadm_command_t *, secadm_reply_t *);
+int handle_get_rule(struct thread *, secadm_command_t *, secadm_reply_t *);
+void cleanup_jail_rules(secadm_prison_list_t *);
+void log_location(const char *, int);
+
+#endif /* _KERNEL */
+
+#endif /* _SECADM_H */

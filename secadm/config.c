@@ -47,14 +47,14 @@
 #include <sys/queue.h>
 
 #include "ucl.h"
-#include "libsecfw.h"
-#include "secfw_internal.h"
+#include "libsecadm.h"
+#include "secadm_internal.h"
 
-secfw_rule_t *
+secadm_rule_t *
 load_config(const char *config)
 {
 	struct ucl_parser *parser=NULL;
-	secfw_rule_t *rules, *rule;
+	secadm_rule_t *rules, *rule;
 	unsigned char *map;
 	size_t sz;
 	int fd;
@@ -109,10 +109,10 @@ load_config(const char *config)
 	return rules;
 }
 
-secfw_rule_t *
+secadm_rule_t *
 parse_object(struct ucl_parser *parser)
 {
-	secfw_rule_t *rules=NULL, *newrules, *rule;
+	secadm_rule_t *rules=NULL, *newrules, *rule;
 	ucl_object_t *obj;
 	const ucl_object_t *curobj;
 	ucl_object_iter_t it=NULL;
@@ -146,18 +146,18 @@ parse_object(struct ucl_parser *parser)
 }
 
 void
-add_feature(secfw_rule_t *rule, const ucl_object_t *obj, secfw_feature_type_t feature)
+add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t feature)
 {
 	void *f;
 
 	f = reallocarray(rule->sr_features, rule->sr_nfeatures + 1,
-	    sizeof(secfw_feature_t));
+	    sizeof(secadm_feature_t));
 	if (f == NULL)
 		return;
 	rule->sr_features = f;
 
 	memset(&(rule->sr_features[rule->sr_nfeatures]), 0x00,
-	    sizeof(secfw_feature_t));
+	    sizeof(secadm_feature_t));
 
 	switch (feature) {
 	case pageexec_enabled:
@@ -177,18 +177,18 @@ add_feature(secfw_rule_t *rule, const ucl_object_t *obj, secfw_feature_type_t fe
 	rule->sr_nfeatures++;
 }
 
-secfw_rule_t *
+secadm_rule_t *
 parse_applications_object(const ucl_object_t *obj)
 {
 	const ucl_object_t *appindex, *ucl_feature, *appdata, *ucl_jails,
 	    *ucl_jail;
 	ucl_object_iter_t it=NULL, jailit=NULL;
-	secfw_rule_t *head=NULL, *apprule;
+	secadm_rule_t *head=NULL, *apprule;
 	const char *path, *datakey, *key;
 	bool enabled;
 
 	while ((appindex = ucl_iterate_object(obj, &it, 1))) {
-		apprule = calloc(1, sizeof(secfw_rule_t));
+		apprule = calloc(1, sizeof(secadm_rule_t));
 		if (!(apprule))
 			return head;
 
@@ -205,7 +205,7 @@ parse_applications_object(const ucl_object_t *obj)
 			continue;
 		}
 
-		if (secfw_parse_path(apprule, path)) {
+		if (secadm_parse_path(apprule, path)) {
 			fprintf(stderr, "Could not set the rule's path!\n");
 			free(apprule);
 			continue;

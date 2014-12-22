@@ -44,20 +44,20 @@
 
 #include <security/mac/mac_policy.h>
 
-#include "secfw.h"
+#include "secadm.h"
 
-static void handle_version_command(secfw_command_t *cmd, secfw_reply_t *reply);
+static void handle_version_command(secadm_command_t *cmd, secadm_reply_t *reply);
 static int sysctl_control(SYSCTL_HANDLER_ARGS);
 
-SYSCTL_NODE(_hardening, OID_AUTO, secfw, CTLFLAG_RD, 0,
+SYSCTL_NODE(_hardening, OID_AUTO, secadm, CTLFLAG_RD, 0,
     "HardenedBSD Security Firewall");
 
-SYSCTL_NODE(_hardening_secfw, OID_AUTO, control,
+SYSCTL_NODE(_hardening_secadm, OID_AUTO, control,
     CTLFLAG_MPSAFE | CTLFLAG_RW | CTLFLAG_PRISON, sysctl_control,
-    "secfw management interface");
+    "secadm management interface");
 
 static void
-handle_version_command(secfw_command_t *cmd, secfw_reply_t *reply)
+handle_version_command(secadm_command_t *cmd, secadm_reply_t *reply)
 {
 	reply->sr_metadata = cmd->sc_buf;
 	reply->sr_size = sizeof(unsigned long);
@@ -68,16 +68,16 @@ handle_version_command(secfw_command_t *cmd, secfw_reply_t *reply)
 }
 
 static unsigned int
-handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
+handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
-	secfw_rule_t *rule, *next, *tail;
-	secfw_prison_list_t *list;
+	secadm_rule_t *rule, *next, *tail;
+	secadm_prison_list_t *list;
 	size_t maxid=0;
 	unsigned int res=0;
 	int err;
 
-	rule = malloc(sizeof(secfw_rule_t), M_SECFW, M_WAITOK);
-	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secfw_rule_t))) != 0) {
+	rule = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
+	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secadm_rule_t))) != 0) {
 		res = EFAULT;
 		goto err;
 	}
@@ -91,8 +91,8 @@ handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 
 	tail = rule;
 	while (tail->sr_next != NULL) {
-		next = malloc(sizeof(secfw_rule_t), M_SECFW, M_WAITOK);
-		if ((err = copyin(tail->sr_next, next, sizeof(secfw_rule_t))) != 0) {
+		next = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
+		if ((err = copyin(tail->sr_next, next, sizeof(secadm_rule_t))) != 0) {
 			res = EFAULT;
 			goto err;
 		}
@@ -130,39 +130,39 @@ err:
 static int
 sysctl_control(SYSCTL_HANDLER_ARGS)
 {
-	secfw_command_t cmd;
-	secfw_reply_t reply;
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	int err;
 
-	if (!(req->newptr) || (req->newlen != sizeof(secfw_command_t)))
+	if (!(req->newptr) || (req->newlen != sizeof(secadm_command_t)))
 		return (EINVAL);
 
-	if (!(req->oldptr) || (req->oldlen) != sizeof(secfw_reply_t))
+	if (!(req->oldptr) || (req->oldlen) != sizeof(secadm_reply_t))
 		return (EINVAL);
 
-	err = SYSCTL_IN(req, &cmd, sizeof(secfw_command_t));
+	err = SYSCTL_IN(req, &cmd, sizeof(secadm_command_t));
 	if (err)
 		return (err);
 
-	if (cmd.sc_version < SECFW_VERSION)
+	if (cmd.sc_version < SECADM_VERSION)
 		return (EINVAL);
 
 	memset(&reply, 0x00, sizeof(reply));
 	if (copyin(req->oldptr, &reply, sizeof(reply)))
 		return (EFAULT);
 
-	reply.sr_version = SECFW_VERSION;
+	reply.sr_version = SECADM_VERSION;
 	reply.sr_id = cmd.sc_id;
 
 	switch (cmd.sc_type) {
-	case  secfw_get_version:
+	case  secadm_get_version:
 		if (cmd.sc_bufsize < sizeof(unsigned long))
 			return (EINVAL);
 
 		handle_version_command(&cmd, &reply);
 		break;
-	case secfw_set_rules:
-		if (cmd.sc_size != sizeof(secfw_rule_t)) {
+	case secadm_set_rules:
+		if (cmd.sc_size != sizeof(secadm_rule_t)) {
 			printf("Size mismatch\n");
 			uprintf("Size mismatch\n");
 			return (EINVAL);
@@ -181,30 +181,30 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 
 		handle_add_rule(req->td, &cmd, &reply);
 		break;
-	case secfw_flush_rules:
+	case secadm_flush_rules:
 		flush_rules(req->td);
 		break;
-	case secfw_get_rule_size:
+	case secadm_get_rule_size:
 		reply.sr_code = handle_get_rule_size(req->td, &cmd, &reply);
 		break;
-	case secfw_get_num_rules:
+	case secadm_get_num_rules:
 		reply.sr_code = (unsigned int)get_num_rules(req->td, &cmd,
 		    &reply);
 		break;
-	case secfw_get_rule:
+	case secadm_get_rule:
 		reply.sr_code = (unsigned int)handle_get_rule(req->td, &cmd,
 		    &reply);
 		break;
-	case secfw_get_rules:
-	case secfw_get_admins:
-	case secfw_set_admins:
-	case secfw_get_views:
-	case secfw_set_views:
+	case secadm_get_rules:
+	case secadm_get_admins:
+	case secadm_set_admins:
+	case secadm_get_views:
+	case secadm_set_views:
 		return (ENOTSUP);
 	default:
 		return (EINVAL);
 	}
 
-	err = SYSCTL_OUT(req, &reply, sizeof(secfw_reply_t));
+	err = SYSCTL_OUT(req, &reply, sizeof(secadm_reply_t));
 	return (err);
 }

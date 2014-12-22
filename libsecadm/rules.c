@@ -47,10 +47,10 @@
 
 #include <fcntl.h>
 
-#include "secfw.h"
+#include "secadm.h"
 
 int
-secfw_parse_path(secfw_rule_t *rule, const char *path)
+secadm_parse_path(secadm_rule_t *rule, const char *path)
 {
 	struct stat sb;
 	struct statfs fsb;

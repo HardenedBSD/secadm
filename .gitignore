@@ -6,5 +6,5 @@
 *.So*
 *.un~
 *.conf
-secfw/secfw
+secadm/secadm
 kmod/vnode_if*

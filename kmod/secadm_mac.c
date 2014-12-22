@@ -43,19 +43,19 @@
 
 #include <security/mac/mac_policy.h>
 
-#include "secfw.h"
+#include "secadm.h"
 
 static void
-secfw_init(struct mac_policy_conf *mpc)
+secadm_init(struct mac_policy_conf *mpc)
 {
 
-	memset(&kernel_data, 0x00, sizeof(secfw_kernel_t));
+	memset(&kernel_data, 0x00, sizeof(secadm_kernel_t));
 
-	rm_init(&(kernel_data.skd_prisons_lock), "Main secfw lock");
+	rm_init(&(kernel_data.skd_prisons_lock), "Main secadm lock");
 }
 
 static void
-secfw_destroy(struct mac_policy_conf *mpc)
+secadm_destroy(struct mac_policy_conf *mpc)
 {
 
 	rm_wlock(&(kernel_data.skd_prisons_lock));
@@ -70,9 +70,9 @@ secfw_destroy(struct mac_policy_conf *mpc)
 }
 
 static void
-secfw_jail_destroy(struct prison *pr)
+secadm_jail_destroy(struct prison *pr)
 {
-	secfw_prison_list_t *list;
+	secadm_prison_list_t *list;
 
 	list = get_prison_list_entry(pr->pr_name, 0);
 
@@ -83,14 +83,14 @@ secfw_jail_destroy(struct prison *pr)
 	}
 }
 
-static struct mac_policy_ops secfw_ops =
+static struct mac_policy_ops secadm_ops =
 {
-	.mpo_destroy		= secfw_destroy,
-	.mpo_init		= secfw_init,
-	.mpo_vnode_check_exec	= secfw_vnode_check_exec,
-	.mpo_vnode_check_unlink	= secfw_vnode_check_unlink,
-	.mpo_prison_destroy	= secfw_jail_destroy
+	.mpo_destroy		= secadm_destroy,
+	.mpo_init		= secadm_init,
+	.mpo_vnode_check_exec	= secadm_vnode_check_exec,
+	.mpo_vnode_check_unlink	= secadm_vnode_check_unlink,
+	.mpo_prison_destroy	= secadm_jail_destroy
 };
 
-MAC_POLICY_SET(&secfw_ops, secfw, "HardenedBSD Security Firewall",
+MAC_POLICY_SET(&secadm_ops, secadm, "HardenedBSD Security Firewall",
     MPC_LOADTIME_FLAG_UNLOADOK, NULL);

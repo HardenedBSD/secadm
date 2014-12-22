@@ -1,7 +1,7 @@
-LIB=	secfw
+LIB=	secadm
 SHLIB_MAJOR=	0
-SRCS=	libsecfw.c rules.c
-INCS=	secfw.h libsecfw.h
+SRCS=	libsecadm.c rules.c
+INCS=	secadm.h libsecadm.h
 
 CFLAGS+=	-g -O0
 

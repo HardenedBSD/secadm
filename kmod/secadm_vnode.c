@@ -48,10 +48,10 @@
 
 #include <security/mac/mac_policy.h>
 
-#include "secfw.h"
+#include "secadm.h"
 
 int
-secfw_check_prison(secfw_rule_t *rule, struct prison *pr)
+secadm_check_prison(secadm_rule_t *rule, struct prison *pr)
 {
 	if (!strcmp(rule->sr_prison, pr->pr_name))
 		return 1;
@@ -60,13 +60,13 @@ secfw_check_prison(secfw_rule_t *rule, struct prison *pr)
 }
 
 int
-secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
+secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,
     struct label *execlabel)
 {
 	struct rm_priotracker tracker;
-	secfw_prison_list_t *list;
-	secfw_rule_t *rule;
+	secadm_prison_list_t *list;
+	secadm_rule_t *rule;
 	struct vattr vap;
 	size_t i;
 	int err, flags=0;
@@ -86,7 +86,7 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		if (vap.va_fileid != rule->sr_inode)
 			continue;
 
-		if (secfw_check_prison(rule, ucred->cr_prison) == 0)
+		if (secadm_check_prison(rule, ucred->cr_prison) == 0)
 			continue;
 
 		if (strcmp(imgp->vp->v_mount->mnt_stat.f_mntonname,
@@ -139,7 +139,7 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 }
 
 int
-secfw_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
+secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
     struct label *dvplabel, struct vnode *vp, struct label *vplabel,
     struct componentname *cnp)
 {

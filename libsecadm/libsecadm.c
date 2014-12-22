@@ -45,18 +45,18 @@
 #include <sys/queue.h>
 #include <sys/sysctl.h>
 
-#include "secfw.h"
+#include "secadm.h"
 
 int
-secfw_sysctl(secfw_command_t *cmd, secfw_reply_t *reply)
+secadm_sysctl(secadm_command_t *cmd, secadm_reply_t *reply)
 {
 	int err;
 	size_t cmdsz, replysz;
 
-	cmdsz = sizeof(secfw_command_t);
-	replysz = sizeof(secfw_reply_t);
+	cmdsz = sizeof(secadm_command_t);
+	replysz = sizeof(secadm_reply_t);
 
-	err = sysctlbyname("hardening.secfw.control", reply, &replysz, cmd,
+	err = sysctlbyname("hardening.secadm.control", reply, &replysz, cmd,
 	    cmdsz);
 
 	if (err) {
@@ -73,23 +73,23 @@ secfw_sysctl(secfw_command_t *cmd, secfw_reply_t *reply)
 }
 
 unsigned long
-secfw_kernel_version(void)
+secadm_kernel_version(void)
 {
-	secfw_command_t cmd;
-	secfw_reply_t reply;
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	int err;
 	unsigned long version=0;
 
-	memset(&cmd, 0x00, sizeof(secfw_command_t));
-	cmd.sc_version = SECFW_VERSION;
-	cmd.sc_type = secfw_get_version;
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_get_version;
 	cmd.sc_buf = calloc(1, sizeof(unsigned long));
 	if (!(cmd.sc_buf))
 		return 0;
 
 	cmd.sc_bufsize = sizeof(unsigned long);
 
-	err = secfw_sysctl(&cmd, &reply);
+	err = secadm_sysctl(&cmd, &reply);
 	if (err == 0) {
 		version = *((unsigned long *)(reply.sr_metadata));
 	} else {
@@ -106,21 +106,21 @@ error:
 }
 
 unsigned int
-secfw_add_rules(secfw_rule_t *rule)
+secadm_add_rules(secadm_rule_t *rule)
 {
-	secfw_command_t cmd;
-	secfw_reply_t reply;
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	int err=0;
 
-	memset(&cmd, 0x00, sizeof(secfw_command_t));
-	memset(&reply, 0x00, sizeof(secfw_reply_t));
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
-	cmd.sc_version = SECFW_VERSION;
-	cmd.sc_type = secfw_set_rules;
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_set_rules;
 	cmd.sc_metadata = rule;
-	cmd.sc_size = sizeof(secfw_rule_t);
+	cmd.sc_size = sizeof(secadm_rule_t);
 
-	if ((err = secfw_sysctl(&cmd, &reply))) {
+	if ((err = secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "[-] Control channel received an error code: %d\n",
 		    err);
 	}
@@ -129,19 +129,19 @@ secfw_add_rules(secfw_rule_t *rule)
 }
 
 unsigned int
-secfw_flush_all_rules(void)
+secadm_flush_all_rules(void)
 {
-	secfw_command_t cmd;
-	secfw_reply_t reply;
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	int err=0;
 
-	memset(&cmd, 0x00, sizeof(secfw_command_t));
-	memset(&reply, 0x00, sizeof(secfw_reply_t));
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
-	cmd.sc_version = SECFW_VERSION;
-	cmd.sc_type = secfw_flush_rules;
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_flush_rules;
 
-	if ((err = secfw_sysctl(&cmd, &reply))) {
+	if ((err = secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "[-] Could not flush rules. Error code: %d\n",
 		    err);
 	}
@@ -150,9 +150,9 @@ secfw_flush_all_rules(void)
 }
 
 void
-secfw_debug_print_rule(secfw_rule_t *rule)
+secadm_debug_print_rule(secadm_rule_t *rule)
 {
-	secfw_feature_t *feature;
+	secadm_feature_t *feature;
 	size_t i;
 
 	fprintf(stderr, "[*] Rule %zu\n", rule->sr_id);
@@ -194,34 +194,34 @@ secfw_debug_print_rule(secfw_rule_t *rule)
 }
 
 void
-secfw_debug_print_rules(secfw_rule_t *rules)
+secadm_debug_print_rules(secadm_rule_t *rules)
 {
-	secfw_rule_t *rule;
+	secadm_rule_t *rule;
 
 	for (rule = rules; rule != NULL; rule = rule->sr_next)
-		secfw_debug_print_rule(rule);
+		secadm_debug_print_rule(rule);
 }
 
 size_t
-secfw_get_kernel_rule_size(size_t id)
+secadm_get_kernel_rule_size(size_t id)
 {
-	secfw_command_t cmd;
-	secfw_reply_t reply;
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	size_t size;
 	int err;
 
-	memset(&cmd, 0x00, sizeof(secfw_command_t));
-	memset(&reply, 0x00, sizeof(secfw_reply_t));
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
-	cmd.sc_version = SECFW_VERSION;
-	cmd.sc_type = secfw_get_rule_size;
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_get_rule_size;
 	cmd.sc_buf = &id;
 	cmd.sc_bufsize = sizeof(size_t);
 
 	reply.sr_metadata = &size;
 	reply.sr_size = sizeof(size_t);
 
-	if ((err = secfw_sysctl(&cmd, &reply))) {
+	if ((err = secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "[-] Could not get rule size for id %zu: %s\n",
 		    id, strerror(err));
 		return (0);
@@ -231,23 +231,23 @@ secfw_get_kernel_rule_size(size_t id)
 }
 
 size_t
-secfw_get_num_kernel_rules(void)
+secadm_get_num_kernel_rules(void)
 {
-	secfw_command_t cmd;
-	secfw_reply_t reply;
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	size_t size;
 	int err;
 
-	memset(&cmd, 0x00, sizeof(secfw_command_t));
-	memset(&reply, 0x00, sizeof(secfw_reply_t));
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
-	cmd.sc_version = SECFW_VERSION;
-	cmd.sc_type = secfw_get_num_rules;
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_get_num_rules;
 
 	reply.sr_metadata = &size;
 	reply.sr_size = sizeof(size_t);
 
-	if ((err = secfw_sysctl(&cmd, &reply))) {
+	if ((err = secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "[-] Could not get number of kernel rules: %s\n",
 		    strerror(err));
 		return (0);
@@ -257,16 +257,16 @@ secfw_get_num_kernel_rules(void)
 
 }
 
-secfw_rule_t *
-secfw_get_kernel_rule(size_t id)
+secadm_rule_t *
+secadm_get_kernel_rule(size_t id)
 {
-	secfw_command_t cmd;
-	secfw_reply_t reply;
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	void *buf;
 	size_t size;
 	int err;
 
-	size = secfw_get_kernel_rule_size(id);
+	size = secadm_get_kernel_rule_size(id);
 	if (size == 0)
 		return NULL;
 
@@ -274,23 +274,23 @@ secfw_get_kernel_rule(size_t id)
 	if (buf == NULL)
 		return NULL;
 
-	memset(&cmd, 0x00, sizeof(secfw_command_t));
-	memset(&reply, 0x00, sizeof(secfw_reply_t));
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
-	cmd.sc_version = SECFW_VERSION;
-	cmd.sc_type = secfw_get_rule;
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_get_rule;
 	cmd.sc_buf = &id;
 	cmd.sc_bufsize = sizeof(size_t);
 
 	reply.sr_metadata = buf;
 	reply.sr_size = size;
 
-	if ((err = secfw_sysctl(&cmd, &reply))) {
+	if ((err = secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "[-] Could not get rule %zu: %s\n", id,
 		    strerror(err));
 		free(buf);
 		return NULL;
 	}
 
-	return ((secfw_rule_t *)buf);
+	return ((secadm_rule_t *)buf);
 }

@@ -46,8 +46,8 @@
 #include <sys/sysctl.h>
 
 #include "ucl.h"
-#include "libsecfw.h"
-#include "secfw_internal.h"
+#include "libsecadm.h"
+#include "secadm_internal.h"
 
 typedef int (*action_t)(int, char **);
 
@@ -106,9 +106,9 @@ get_version(void)
 {
 	unsigned long version;
 
-	version = secfw_kernel_version();
+	version = secadm_kernel_version();
 	if (version)
-		fprintf(stderr, "[+] secfw kernel module version: %lu\n",
+		fprintf(stderr, "[+] secadm kernel module version: %lu\n",
 		    version);
 
 	exit(0);
@@ -117,19 +117,19 @@ get_version(void)
 static int
 listact(int argc, char *argv[])
 {
-	secfw_rule_t *rule;
+	secadm_rule_t *rule;
 	size_t nrules, i;
 
-	nrules = secfw_get_num_kernel_rules();
+	nrules = secadm_get_num_kernel_rules();
 	for (i=0; i < nrules; i++) {
-		rule = secfw_get_kernel_rule(i);
+		rule = secadm_get_kernel_rule(i);
 		if (!(rule)) {
 			fprintf(stderr, "[-] Could not get rule %zu from the kernel.\n", i);
 			free(rule);
 			return 1;
 		}
 
-		secfw_debug_print_rule(rule);
+		secadm_debug_print_rule(rule);
 		free(rule);
 	}
 
@@ -139,7 +139,7 @@ listact(int argc, char *argv[])
 static int
 setact(int argc, char *argv[])
 {
-	secfw_rule_t *rules;
+	secadm_rule_t *rules;
 
 	if (!(configpath))
 		usage(name);
@@ -150,7 +150,7 @@ setact(int argc, char *argv[])
 		return 1;
 	}
 
-	if (secfw_add_rules(rules)) {
+	if (secadm_add_rules(rules)) {
 		fprintf(stderr, "[-] Could not load the rules\n");
 		return 1;
 	}
@@ -163,13 +163,13 @@ static int
 flushact(int argc, char *argv[])
 {
 
-	return ((int)secfw_flush_all_rules());
+	return ((int)secadm_flush_all_rules());
 }
 
 int
 main(int argc, char *argv[])
 {
-	secfw_rule_t *rules, *rule;
+	secadm_rule_t *rules, *rule;
 	size_t nrules, rulesize, i;
 	int ch;
 
@@ -178,7 +178,7 @@ main(int argc, char *argv[])
 	check_bsd();
 
 	if (kldcheck()) {
-		fprintf(stderr, "[-] secfw module not loaded\n");
+		fprintf(stderr, "[-] secadm module not loaded\n");
 		return 1;
 	}
 
