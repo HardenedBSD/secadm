@@ -220,6 +220,8 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 	int err = 0;
 	char *path;
 
+	rule->sr_mount[MNAMELEN-1] = '\0';
+
 	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
 	    || rule->sr_nfeatures > SECADM_MAX_FEATURES) {
 		return (-1);
@@ -255,6 +257,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 			return (-1);
 		}
 
+		path[rule->sr_pathlen] = '\0';
 		rule->sr_path = path;
 	} else {
 		rule->sr_path = NULL;
