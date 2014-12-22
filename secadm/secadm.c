@@ -83,7 +83,14 @@ struct _action {
 static void
 usage(const char *name)
 {
+	size_t i;
+
 	fprintf(stderr, "USAGE: %s <-c config> <action> <options>\n", name);
+	fprintf(stderr, "Available Actions:\n");
+
+	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++)
+		fprintf(stderr, "    %s\n", actions[i].action);
+
 	exit(1);
 }
 

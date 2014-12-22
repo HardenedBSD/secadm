@@ -1,6 +1,11 @@
 secadm
 ======
 Author: Shawn Webb <shawn.webb@hardenedbsd.org>
+Copyright (c) 2014 Shawn Webb
+License: 2-Clause BSD License
+
+Introduction
+============
 
 secadm is a project to replace the mac_bsdextended(4)/ugidfw(8)
 integration the HardenedBSD project has done for ASLR, SEGVGUARD, and
@@ -32,3 +37,29 @@ updated via a web service API.
 
 secadm will initially support toggling ASLR, SEGVGUARD, and PTrace
 hardening. It will work on a per-jail and per-file basis.
+
+Requirements
+============
+
+* HardenedBSD version 9 or greater:
+  - `sysctl hardening.version` should show 9
+* textproc/libucl
+
+Installation And Usage
+======================
+
+# make
+# make install
+
+Edit your rules:
+# vi secadm/config.conf.sample
+
+Activate them. Please note that setting a new ruleset will flush your
+previously-loaded rules.
+# secadm -c secadm/config.conf.sample set
+
+To verify that your ruleset loaded successfully:
+# secadm list
+
+To flush rules:
+# secadm flush
