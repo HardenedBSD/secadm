@@ -38,6 +38,7 @@
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
+#include <sys/rmlock.h>
 #include <sys/sysctl.h>
 #include <sys/uio.h>
 
@@ -69,9 +70,11 @@ handle_version_command(secfw_command_t *cmd, secfw_reply_t *reply)
 static unsigned int
 handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 {
+	secfw_rule_t *rule, *next, *tail;
+	secfw_prison_list_t *list;
+	size_t maxid=0;
 	unsigned int res=0;
 	int err;
-	secfw_rule_t *rule, *tail;
 
 	rule = malloc(sizeof(secfw_rule_t), M_SECFW, M_WAITOK);
 	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secfw_rule_t))) != 0) {
@@ -84,20 +87,41 @@ handle_add_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 		goto err;
 	}
 
-	secfw_rules_lock_write();
+	rule->sr_id = maxid++;
 
-	if (rules.rules == NULL) {
-		rules.rules = rule;
-	} else {
-		for (tail = rules.rules; tail->sr_next != NULL; tail = tail->sr_next) {
-			printf("Passing through rule %zu for jail %s\n", tail->sr_id, tail->sr_prison);
-			uprintf("Passing through rule %zu for jail %s\n", tail->sr_id, tail->sr_prison);
+	tail = rule;
+	while (tail->sr_next != NULL) {
+		next = malloc(sizeof(secfw_rule_t), M_SECFW, M_WAITOK);
+		if ((err = copyin(tail->sr_next, next, sizeof(secfw_rule_t))) != 0) {
+			res = EFAULT;
+			goto err;
 		}
+
+		if (read_rule_from_userland(td, next)) {
+			res=1;
+			goto err;
+		}
+
+		next->sr_id = maxid++;
+
+		tail->sr_next = next;
+		tail = next;
+	}
+
+	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 1);
+
+	rm_wlock(&(list->spl_lock));
+	if (list->spl_rules == NULL) {
+		list->spl_rules = rule;
+	} else {
+		for (tail = list->spl_rules; tail->sr_next != NULL; tail = tail->sr_next)
+			;
 
 		tail->sr_next = rule;
 	}
 
-	secfw_rules_unlock_write();
+	list->spl_max_id = maxid;
+	rm_wunlock(&(list->spl_lock));
 err:
 	reply->sr_code = res;
 	return (res);
@@ -153,33 +177,23 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		 * be activated.
 		 */
 
-		secfw_rules_lock_write();
 		flush_rules(req->td);
-		secfw_rules_unlock_write();
 
 		handle_add_rule(req->td, &cmd, &reply);
 		break;
 	case secfw_flush_rules:
-		secfw_rules_lock_write();
 		flush_rules(req->td);
-		secfw_rules_unlock_write();
 		break;
 	case secfw_get_rule_size:
-		secfw_rules_lock_read();
 		reply.sr_code = handle_get_rule_size(req->td, &cmd, &reply);
-		secfw_rules_unlock_read();
 		break;
 	case secfw_get_num_rules:
-		secfw_rules_lock_read();
 		reply.sr_code = (unsigned int)get_num_rules(req->td, &cmd,
 		    &reply);
-		secfw_rules_unlock_read();
 		break;
 	case secfw_get_rule:
-		secfw_rules_lock_read();
 		reply.sr_code = (unsigned int)handle_get_rule(req->td, &cmd,
 		    &reply);
-		secfw_rules_unlock_read();
 		break;
 	case secfw_get_rules:
 	case secfw_get_admins:

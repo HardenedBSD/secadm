@@ -47,97 +47,48 @@
 
 MALLOC_DEFINE(M_SECFW, "secfw", "secfw rule data");
 
-secfw_kernel_t rules;
+secfw_kernel_t kernel_data;
 
-void
-secfw_lock_init(void)
+secfw_prison_list_t *
+get_prison_list_entry(const char *name, int create)
 {
-	rm_init(&(rules.rules_lock), "mac_secfw rules lock");
-	rm_init(&(rules.admins_lock), "mac_secfw admins lock");
-	rm_init(&(rules.views_lock), "mac_secfw views lock");
-	memset(&(rules.rules_tracker), 0x00, sizeof(struct rm_priotracker));
-	memset(&(rules.admins_tracker), 0x00, sizeof(struct rm_priotracker));
-	memset(&(rules.views_tracker), 0x00, sizeof(struct rm_priotracker));
-}
+	secfw_prison_list_t *list, *entry;
+	struct rm_priotracker tracker;
 
-void
-secfw_lock_destroy(void)
-{
-	rm_destroy(&(rules.rules_lock));
-	rm_destroy(&(rules.admins_lock));
-	rm_destroy(&(rules.views_lock));
-}
+	rm_rlock(&(kernel_data.skd_prisons_lock), &tracker);
 
-void
-secfw_rules_lock_read(void)
-{
-	rm_rlock(&(rules.rules_lock), &(rules.rules_tracker));
-}
+	for (list = kernel_data.skd_prisons; list != NULL; list = list->spl_next) {
+		if (!strcmp(list->spl_prison, name)) {
+			rm_runlock(&(kernel_data.skd_prisons_lock), &tracker);
+			return (list);
+		}
+	}
 
-void
-secfw_rules_unlock_read(void)
-{
-	rm_runlock(&(rules.rules_lock), &(rules.rules_tracker));
-}
+	rm_runlock(&(kernel_data.skd_prisons_lock), &tracker);
 
-void
-secfw_rules_lock_write(void)
-{
-	rm_wlock(&(rules.rules_lock));
-}
+	if (create) {
+		list = malloc(sizeof(secfw_prison_list_t), M_SECFW, M_WAITOK | M_ZERO);
 
-void
-secfw_rules_unlock_write(void)
-{
-	rm_wunlock(&(rules.rules_lock));
-}
+		rm_init(&(list->spl_lock), "secfw per-prison lock");
+		list->spl_prison = malloc(strlen(name)+1, M_SECFW, M_WAITOK | M_ZERO);
+		strlcpy(list->spl_prison, name, strlen(name)+1);
 
-void
-secfw_admins_lock_read(void)
-{
-	rm_rlock(&(rules.admins_lock), &(rules.admins_tracker));
-}
+		rm_wlock(&(kernel_data.skd_prisons_lock));
 
-void
-secfw_admins_unlock_read(void)
-{
-	rm_runlock(&(rules.admins_lock), &(rules.admins_tracker));
-}
+		if (kernel_data.skd_prisons == NULL) {
+			kernel_data.skd_prisons = list;
+		} else {
+			for (entry = kernel_data.skd_prisons; entry->spl_next != NULL; entry = entry->spl_next)
+				;
 
-void
-secfw_admins_lock_write(void)
-{
-	rm_wlock(&(rules.admins_lock));
-}
+			entry->spl_next = list;
+			list->spl_prev = entry;
+		}
 
-void
-secfw_admins_unlock_write(void)
-{
-	rm_wunlock(&(rules.admins_lock));
-}
+		rm_wunlock(&(kernel_data.skd_prisons_lock));
+	}
 
-void
-secfw_views_lock_read(void)
-{
-	rm_rlock(&(rules.views_lock), &(rules.views_tracker));
-}
-
-void
-secfw_views_unlock_read(void)
-{
-	rm_runlock(&(rules.views_lock), &(rules.views_tracker));
-}
-
-void
-secfw_views_lock_write(void)
-{
-	rm_wlock(&(rules.views_lock));
-}
-
-void
-secfw_views_unlock_write(void)
-{
-	rm_wunlock(&(rules.views_lock));
+	return (list);
 }
 
 int
@@ -176,66 +127,86 @@ free_rule(secfw_rule_t *rule, int freerule)
 secfw_rule_t *
 get_first_rule(struct thread *td)
 {
-	secfw_rule_t *rule;
 
-	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
-		if (td == NULL || !strcmp(rule->sr_prison,
-		    td->td_ucred->cr_prison->pr_name))
-			return rule;
-
-	return NULL;
+	return (get_first_prison_rule(td->td_ucred->cr_prison));
 }
 
 secfw_rule_t *
 get_first_prison_rule(struct prison *pr)
 {
-	secfw_rule_t *rule;
+	secfw_prison_list_t *list;
+	secfw_rule_t *rule=NULL;
+	struct rm_priotracker prisons_tracker, rule_tracker;
 
-	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
-		if (!strcmp(rule->sr_prison, pr->pr_name))
-			return rule;
+	rm_rlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
 
-	return NULL;
+	for (list = kernel_data.skd_prisons; list != NULL; list = list->spl_next)
+		if (!strcmp(list->spl_prison, pr->pr_name))
+			break;
+
+	if (list != NULL) {
+		rm_rlock(&(list->spl_lock), &rule_tracker);
+		rule = list->spl_rules;
+		rm_runlock(&(list->spl_lock), &rule_tracker);
+	}
+
+	rm_runlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
+
+	return rule;
 }
 
 void
-cleanup_jail_rules(struct prison *pr)
+cleanup_jail_rules(secfw_prison_list_t *list)
 {
-	secfw_rule_t *prev, *rule;
+	secfw_rule_t *rule, *next;
 
-	while ((rule = get_first_prison_rule(pr)) != NULL) {
-		if (rule == rules.rules) {
-			rules.rules = rule->sr_next;
-			free_rule(rule, 1);
-		} else {
-			prev = rules.rules;
-			while (prev->sr_next != rule)
-				prev = prev->sr_next;
+	rm_wlock(&(list->spl_lock));
 
-			prev->sr_next = rule->sr_next;
-			free_rule(rule, 1);
-		}
+	if (list == kernel_data.skd_prisons)
+		kernel_data.skd_prisons = list->spl_next;
+
+	if (list->spl_prev != NULL)
+		list->spl_prev->spl_next = list->spl_next;
+	if (list->spl_next != NULL)
+		list->spl_next->spl_prev = list->spl_prev;
+
+	rule = list->spl_rules;
+	while (rule != NULL) {
+		next = rule->sr_next;
+		free_rule(rule, 1);
+		rule = next;
 	}
+
+	rm_wunlock(&(list->spl_lock));
+
+	rm_destroy(&(list->spl_lock));
+
+	free(list->spl_prison, M_SECFW);
+	free(list, M_SECFW);
 }
 
 void
 flush_rules(struct thread *td)
 {
-	secfw_rule_t *prev, *rule;
+	secfw_prison_list_t *list;
+	secfw_rule_t *rule, *next;
 
-	while ((rule = get_first_rule(td)) != NULL) {
-		if (rule == rules.rules) {
-			rules.rules = rule->sr_next;
-			free_rule(rule, 1);
-		} else {
-			prev = rules.rules;
-			while (prev->sr_next != rule)
-				prev = prev->sr_next;
+	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
+	if (list == NULL)
+		return;
 
-			prev->sr_next = rule->sr_next;
-			free_rule(rule, 1);
-		}
+	rm_wlock(&(list->spl_lock));
+
+	rule = list->spl_rules;
+	while (rule != NULL) {
+		next = rule->sr_next;
+		free_rule(rule, 1);
+		rule = next;
 	}
+
+	list->spl_rules = NULL;
+
+	rm_wunlock(&(list->spl_lock));
 }
 
 /* XXX This is more of a PoC. This needs to be cleaned up for
@@ -243,17 +214,19 @@ flush_rules(struct thread *td)
 int
 read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 {
-	secfw_rule_t *newrule, *next;
 	secfw_feature_t *features;
 	secfw_kernel_metadata_t *kernel_metadata;
-	void *metadata;
-	size_t i, j;
+	size_t i;
 	int err = 0;
 	char *path;
 
-	if (rule->sr_features == NULL || rule->sr_nfeatures == 0) {
+	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
+	    || rule->sr_nfeatures > SECFW_MAX_FEATURES) {
 		return (-1);
 	}
+
+	if (rule->sr_pathlen > MNAMELEN)
+		return (-1);
 
 	features = malloc(sizeof(secfw_feature_t) *
 	    rule->sr_nfeatures, M_SECFW, M_WAITOK);
@@ -266,25 +239,9 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 	}
 
 	for (i=0; i<rule->sr_nfeatures; i++) {
-		if (features[i].metadata && features[i].metadatasz) {
-			metadata = malloc(features[i].metadatasz,
-			    M_SECFW, M_WAITOK | M_ZERO);
-
-			err = copyin(features[i].metadata, metadata,
-			    features[i].metadatasz);
-			if (err) {
-				for (j=0; j < i; j++) {
-					free(features[j].metadata,
-					    M_SECFW);
-				}
-
-				free(features, M_SECFW);
-				return (-1);
-			}
-		} else {
-			features[i].metadata = NULL;
-			features[i].metadatasz = 0;
-		}
+		/* We have no features that require extra metadata */
+		features[i].metadata = NULL;
+		features[i].metadatasz = 0;
 	}
 
 	rule->sr_features = features;
@@ -311,29 +268,12 @@ read_rule_from_userland(struct thread *td, secfw_rule_t *rule)
 	    M_SECFW, M_WAITOK | M_ZERO);
 	strcpy(rule->sr_prison, kernel_metadata->skm_owner->pr_name);
 
-	if (validate_rule(td, rules.rules, rule)) {
+#if 0
+	if (validate_rule(td, kernel_data.rules, rule)) {
 		free_rule(rule, 0);
 		return (EINVAL);
 	}
-
-	next = rule->sr_next;
-	if (next) {
-		newrule = malloc(sizeof(secfw_rule_t), M_SECFW, M_WAITOK);
-		err = copyin(next, newrule, sizeof(secfw_rule_t));
-		if (err) {
-			free(newrule, M_SECFW);
-			rule->sr_next = NULL;
-			return 0;
-		}
-
-		if (read_rule_from_userland(td, newrule)) {
-			free(newrule, M_SECFW);
-			rule->sr_next = NULL;
-			return 0;
-		}
-
-		rule->sr_next = newrule;
-	}
+#endif
 
 	return 0;
 }
@@ -343,13 +283,15 @@ secfw_rule_t
 {
 	secfw_rule_t *rule;
 
-	for (rule = rules.rules; rule != NULL; rule = rule->sr_next)
-		if (rule->sr_id == id)
-			if (!strcmp(rule->sr_prison,
-			    td->td_ucred->cr_prison->pr_name))
-				return rule;
+	rule = get_first_rule(td);
+	if (rule == NULL)
+		return (NULL);
 
-	return NULL;
+	for ( ; rule != NULL; rule = rule->sr_next)
+		if (rule->sr_id == id)
+			return (rule);
+
+	return (NULL);
 }
 
 size_t
@@ -398,18 +340,15 @@ handle_get_rule_size(struct thread *td, secfw_command_t *cmd, secfw_reply_t *rep
 int
 get_num_rules(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 {
-	secfw_rule_t *rule;
+	secfw_prison_list_t *list;
 	size_t nrules;
 	int err;
 
 	if (reply->sr_size < sizeof(size_t))
 		return (EINVAL);
 
-	nrules=0;
-	for (rule = rules.rules; rule != NULL; rule = rule->sr_next) {
-		if (!strcmp(rule->sr_prison, td->td_ucred->cr_prison->pr_name))
-			nrules++;
-	}
+	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
+	nrules = (list != NULL) ? list->spl_max_id : 0;
 
 	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;
@@ -483,4 +422,10 @@ handle_get_rule(struct thread *td, secfw_command_t *cmd, secfw_reply_t *reply)
 	free(buf, M_SECFW);
 
 	return 0;
+}
+
+void log_location(const char *name, int line)
+{
+	printf("Here: %s : %d\n", name, line);
+	uprintf("Here: %s : %d\n", name, line);
 }

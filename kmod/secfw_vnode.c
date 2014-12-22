@@ -39,6 +39,7 @@
 #include <sys/pax.h>
 #include <sys/priv.h>
 #include <sys/proc.h>
+#include <sys/rmlock.h>
 #include <sys/systm.h>
 #include <sys/vnode.h>
 #include <sys/sysctl.h>
@@ -63,18 +64,25 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,
     struct label *execlabel)
 {
+	struct rm_priotracker tracker;
+	secfw_prison_list_t *list;
 	secfw_rule_t *rule;
 	struct vattr vap;
 	size_t i;
 	int err, flags=0;
 
+	list = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
+
+	if (list == NULL)
+		return (0);
+
 	err = VOP_GETATTR(imgp->vp, &vap, ucred);
 	if (err)
 		return (err);
 
-	secfw_rules_lock_read();
+	rm_rlock(&(list->spl_lock), &tracker);
 
-	for (rule = rules.rules; rule != NULL; rule = rule->sr_next) {
+	for (rule = list->spl_rules; rule != NULL; rule = rule->sr_next) {
 		if (vap.va_fileid != rule->sr_inode)
 			continue;
 
@@ -123,7 +131,7 @@ secfw_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		break;
 	}
 
-	secfw_rules_unlock_read();
+	rm_runlock(&(list->spl_lock), &tracker);
 
 	err = pax_elf(imgp, flags);
 

@@ -37,6 +37,8 @@
 #define SECFW_RULE_FLAGS_GID_DEFINED	0x00000002
 #define SECFW_RULE_FLAGS_INODE_DEFINED	0x00000004
 
+#define SECFW_MAX_FEATURES	4
+
 typedef enum secfw_feature_type {
 	secfw_invalid=0,
 	pageexec_enabled,
@@ -113,27 +115,40 @@ typedef struct secfw_reply {
 
 MALLOC_DECLARE(M_SECFW);
 
+typedef struct secfw_prison_list {
+	struct rmlock			 spl_lock;
+	secfw_rule_t			*spl_rules;
+	char				*spl_prison;
+	size_t				 spl_max_id;
+
+	struct secfw_prison_list	*spl_prev;
+	struct secfw_prison_list	*spl_next;
+} secfw_prison_list_t;
+
 typedef struct secfw_kernel_data {
-	secfw_rule_t	 	*rules;
-	secfw_prison_spec_t	*admins;
-	secfw_prison_spec_t	*views;
+	secfw_prison_list_t	*skd_prisons;
 
-	size_t			 nadmins;
-	size_t			 nviews;
+	struct rmlock		 skd_prisons_lock;
 
-	struct rmlock		 rules_lock;
-	struct rmlock		 admins_lock;
-	struct rmlock		 views_lock;
-	struct rm_priotracker	 rules_tracker;
-	struct rm_priotracker	 admins_tracker;
-	struct rm_priotracker	 views_tracker;
+#if 0
+	/* These are planned, but not currently used */
+	secfw_prison_spec_t	*skd_admins;
+	secfw_prison_spec_t	*skd_views;
+	struct rmlock		 skd_admins_lock;
+	struct rmlock		 skd_views_lock;
+	struct rm_priotracker	 skd_admins_tracker;
+	struct rm_priotracker	 skd_views_tracker;
+
+	size_t			 skd_nadmins;
+	size_t			 skd_nviews;
+#endif
 } secfw_kernel_t;
 
 typedef struct secfw_kernel_metadata {
 	struct prison		*skm_owner;
 } secfw_kernel_metadata_t;
 
-extern secfw_kernel_t rules;
+extern secfw_kernel_t kernel_data;
 
 void secfw_lock_init(void);
 void secfw_lock_destroy(void);
@@ -162,6 +177,7 @@ int secfw_vnode_check_unlink(struct ucred *, struct vnode *,
 
 int validate_rule(struct thread *, secfw_rule_t *, secfw_rule_t *);
 void free_rule(secfw_rule_t *, int);
+secfw_prison_list_t *get_prison_list_entry(const char *, int);
 secfw_rule_t *get_first_rule(struct thread *);
 secfw_rule_t *get_first_prison_rule(struct prison *);
 void flush_rules(struct thread *);
@@ -171,7 +187,8 @@ size_t get_rule_size(struct thread *, size_t);
 int handle_get_rule_size(struct thread *, secfw_command_t *, secfw_reply_t *);
 int get_num_rules(struct thread *, secfw_command_t *, secfw_reply_t *);
 int handle_get_rule(struct thread *, secfw_command_t *, secfw_reply_t *);
-void cleanup_jail_rules(struct prison *pr);
+void cleanup_jail_rules(secfw_prison_list_t *);
+void log_location(const char *, int);
 
 #endif /* _KERNEL */
 

@@ -38,6 +38,7 @@
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
+#include <sys/rmlock.h>
 #include <sys/uio.h>
 
 #include <security/mac/mac_policy.h>
@@ -48,32 +49,38 @@ static void
 secfw_init(struct mac_policy_conf *mpc)
 {
 
-	memset(&rules, 0x00, sizeof(secfw_kernel_t));
+	memset(&kernel_data, 0x00, sizeof(secfw_kernel_t));
 
-	secfw_lock_init();
+	rm_init(&(kernel_data.skd_prisons_lock), "Main secfw lock");
 }
 
 static void
 secfw_destroy(struct mac_policy_conf *mpc)
 {
 
-	secfw_rules_lock_write();
+	rm_wlock(&(kernel_data.skd_prisons_lock));
 
-	flush_rules(NULL);
 
-	secfw_rules_unlock_write();
+	while (kernel_data.skd_prisons != NULL)
+		cleanup_jail_rules(kernel_data.skd_prisons);
 
-	secfw_lock_destroy();
+	rm_wunlock(&(kernel_data.skd_prisons_lock));
+
+	rm_destroy(&(kernel_data.skd_prisons_lock));
 }
 
 static void
 secfw_jail_destroy(struct prison *pr)
 {
-	secfw_rules_lock_write();
+	secfw_prison_list_t *list;
 
-	cleanup_jail_rules(pr);
+	list = get_prison_list_entry(pr->pr_name, 0);
 
-	secfw_rules_unlock_write();
+	if (list != NULL) {
+		rm_wlock(&(kernel_data.skd_prisons_lock));
+		cleanup_jail_rules(list);
+		rm_wunlock(&(kernel_data.skd_prisons_lock));
+	}
 }
 
 static struct mac_policy_ops secfw_ops =
