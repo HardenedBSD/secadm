@@ -80,13 +80,15 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 	rule = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
 	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secadm_rule_t))) != 0) {
-		res = EFAULT;
-		goto err;
+		free(rule, M_SECADM);
+		reply->sr_code = EFAULT;
+		return ((unsigned int)err);
 	}
 
 	if (read_rule_from_userland(td, rule)) {
 		res=1;
-		goto err;
+		rule->sr_next = NULL;
+		goto error;
 	}
 
 	rule->sr_id = maxid++;
@@ -96,12 +98,16 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 		next = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
 		if ((err = copyin(tail->sr_next, next, sizeof(secadm_rule_t))) != 0) {
 			res = EFAULT;
-			goto err;
+			free(next, M_SECADM);
+			tail->sr_next = NULL;
+			goto error;
 		}
 
 		if (read_rule_from_userland(td, next)) {
 			res=1;
-			goto err;
+			free_rule(next, 1);
+			tail->sr_next = NULL;
+			goto error;
 		}
 
 		next->sr_id = maxid++;
@@ -111,13 +117,8 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	}
 
 	if (validate_ruleset(td, rule)) {
-		while (rule) {
-			next = rule->sr_next;
-			free_rule(rule, 1);
-			rule = next;
-			res = EINVAL;
-			goto err;
-		}
+		res = EINVAL;
+		goto error;
 	}
 
 	flush_rules(td);
@@ -126,7 +127,17 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	list->spl_rules = rule;
 	list->spl_max_id = maxid;
 	rm_wunlock(&(list->spl_lock));
-err:
+
+	reply->sr_code = res;
+	return (res);
+
+error:
+	while (rule != NULL) {
+		next = rule->sr_next;
+		free_rule(rule, 1);
+		rule = next;
+	}
+
 	reply->sr_code = res;
 	return (res);
 }

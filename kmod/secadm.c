@@ -145,8 +145,11 @@ free_rule(secadm_rule_t *rule, int freerule)
 	if (rule->sr_features)
 		free(rule->sr_features, M_SECADM);
 
-	free(rule->sr_prison, M_SECADM);
-	free(rule->sr_kernel, M_SECADM);
+	if (rule->sr_prison != NULL)
+		free(rule->sr_prison, M_SECADM);
+
+	if (rule->sr_kernel != NULL)
+		free(rule->sr_kernel, M_SECADM);
 
 	if (freerule)
 		free(rule, M_SECADM);
@@ -180,7 +183,7 @@ get_first_prison_rule(struct prison *pr)
 
 	rm_runlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
 
-	return rule;
+	return (rule);
 }
 
 void
@@ -237,8 +240,6 @@ flush_rules(struct thread *td)
 	rm_wunlock(&(list->spl_lock));
 }
 
-/* XXX This is more of a PoC. This needs to be cleaned up for
- * production use */
 int
 read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 {
@@ -251,7 +252,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 	rule->sr_mount[MNAMELEN-1] = '\0';
 
 	if (pre_validate_rule(td, rule))
-		return (-1);
+		goto error;
 
 	features = malloc(sizeof(secadm_feature_t) *
 	    rule->sr_nfeatures, M_SECADM, M_WAITOK);
@@ -260,7 +261,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 	    sizeof(secadm_feature_t) * rule->sr_nfeatures);
 	if (err) {
 		free(features, M_SECADM);
-		return (-1);
+		goto error;
 	}
 
 	for (i=0; i<rule->sr_nfeatures; i++) {
@@ -275,9 +276,8 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 		path = malloc(rule->sr_pathlen+1, M_SECADM, M_WAITOK | M_ZERO);
 		err = copyin(rule->sr_path, path, rule->sr_pathlen);
 		if (err) {
-			rule->sr_path = NULL;
-			free_rule(rule, 0);
-			return (-1);
+			free(path, M_SECADM);
+			goto error;
 		}
 
 		path[rule->sr_pathlen] = '\0';
@@ -294,14 +294,16 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 	    M_SECADM, M_WAITOK | M_ZERO);
 	strcpy(rule->sr_prison, kernel_metadata->skm_owner->pr_name);
 
-#if 0
-	if (validate_rule(td, kernel_data.rules, rule)) {
-		free_rule(rule, 0);
-		return (EINVAL);
-	}
-#endif
+	return (0);
 
-	return 0;
+error:
+	rule->sr_path = NULL;
+	rule->sr_pathlen = 0;
+	rule->sr_features = NULL;
+	rule->sr_nfeatures = 0;
+	rule->sr_prison = NULL;
+	rule->sr_kernel = NULL;
+	return (-1);
 }
 
 secadm_rule_t
