@@ -88,3 +88,84 @@ secadm_parse_path(secadm_rule_t *rule, const char *path)
 
 	return (0);
 }
+
+int
+secadm_validate_rule(secadm_rule_t *rule)
+{
+	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
+	    || rule->sr_nfeatures > SECADM_MAX_FEATURES)
+		return (-1);
+
+	if (rule->sr_path != NULL && rule->sr_pathlen > MNAMELEN)
+		return (-1);
+
+	if (!strlen(rule->sr_mount))
+		return (-1);
+
+	/*
+	 * Perform extra validation for rules in userland. Since these
+	 * fields get overwritten in kernel, they should not be used
+	 * in userland.
+	 */
+
+	if (rule->sr_kernel != NULL)
+		return (-1);
+
+	if (rule->sr_prison != NULL)
+		return (-1);
+
+	return (0);
+}
+
+int
+secadm_validate_ruleset(secadm_rule_t *rules)
+{
+	secadm_rule_t *rule;
+	size_t nrules, maxid;
+
+	nrules = maxid = 0;
+	for (rule = rules; rule != NULL; rule = rule->sr_next) {
+		if (secadm_validate_rule(rule))
+			return (-1);
+
+		if (rule->sr_id > maxid)
+			maxid = rule->sr_id;
+
+		nrules++;
+	}
+
+	if (maxid > nrules)
+		return (-1);
+
+	return (0);
+}
+
+void
+secadm_free_rule(secadm_rule_t *rule, int freerule)
+{
+	size_t i;
+
+	if (rule->sr_path)
+		free(rule->sr_path);
+
+	for (i=0; i < rule->sr_nfeatures; i++)
+		if (rule->sr_features[i].metadata)
+			free(rule->sr_features[i].metadata);
+
+	if (rule->sr_features)
+		free(rule->sr_features);
+
+	if (freerule)
+		free(rule);
+}
+
+void
+secadm_free_rulset(secadm_rule_t *rules)
+{
+	secadm_rule_t *rule, *next;
+
+	for (rule = rules; rule != NULL; rule = next) {
+		next = rule->sr_next;
+		secadm_free_rule(rule, 1);
+	}
+}

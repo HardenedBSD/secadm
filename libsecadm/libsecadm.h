@@ -41,5 +41,9 @@ size_t secadm_get_kernel_rule_size(size_t id);
 size_t secadm_get_num_kernel_rules(void);
 secadm_rule_t *secadm_get_kernel_rule(size_t id);
 unsigned int secadm_flush_all_rules(void);
+int secadm_validate_rule(secadm_rule_t *rule);
+int secadm_validate_ruleset(secadm_rule_t *rules);
+void secadm_free_rule(secadm_rule_t *rule, int freerule);
+void secadm_free_ruleset(secadm_rule_t *rules);
 
 #endif

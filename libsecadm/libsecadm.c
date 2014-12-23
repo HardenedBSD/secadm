@@ -46,6 +46,7 @@
 #include <sys/sysctl.h>
 
 #include "secadm.h"
+#include "libsecadm.h"
 
 int
 secadm_sysctl(secadm_command_t *cmd, secadm_reply_t *reply)
@@ -112,6 +113,9 @@ secadm_add_rules(secadm_rule_t *rule)
 	secadm_reply_t reply;
 	int err=0;
 
+	if (secadm_validate_ruleset(rule))
+		return ((unsigned int)EINVAL);
+
 	memset(&cmd, 0x00, sizeof(secadm_command_t));
 	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
@@ -125,7 +129,7 @@ secadm_add_rules(secadm_rule_t *rule)
 		    err);
 	}
 
-	return (unsigned int)err;
+	return ((unsigned int)err);
 }
 
 unsigned int
@@ -146,7 +150,7 @@ secadm_flush_all_rules(void)
 		    err);
 	}
 
-	return (unsigned int)err;
+	return ((unsigned int)err);
 }
 
 void
