@@ -59,11 +59,11 @@ kldcheck(void)
 
 		if (kldstat(id, &kfs) < 0) {
 			perror("kldstat");
-			return 1;
+			return (1);
 		}
 
 		if (!strcmp("secadm.ko", kfs.name))
-			return 0;
+			return (0);
 	}
 
 	if (id < 0)
@@ -73,5 +73,5 @@ kldcheck(void)
 		/* TODO: Attempt to load module */
 	}
 
-	return 1;
+	return (1);
 }

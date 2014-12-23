@@ -166,8 +166,6 @@ void secadm_views_unlock_read(void);
 void secadm_views_lock_write(void);
 void secadm_views_unlock_write(void);
 
-int secadm_check_prison(secadm_rule_t *, struct prison *);
-
 int secadm_vnode_check_exec(struct ucred *, struct vnode *,
     struct label *, struct image_params *,
     struct label *);

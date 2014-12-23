@@ -375,7 +375,7 @@ handle_get_rule_size(struct thread *td, secadm_command_t *cmd, secadm_reply_t *r
 	if ((err = copyout(&size, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;
 
-	return 0;
+	return (0);
 }
 
 int
@@ -394,7 +394,7 @@ get_num_rules(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;
 
-	return 0;
+	return (0);
 }
 
 int
@@ -462,7 +462,7 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 	free(buf, M_SECADM);
 
-	return 0;
+	return (0);
 }
 
 void log_location(const char *name, int line)

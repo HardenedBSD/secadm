@@ -51,15 +51,6 @@
 #include "secadm.h"
 
 int
-secadm_check_prison(secadm_rule_t *rule, struct prison *pr)
-{
-	if (!strcmp(rule->sr_prison, pr->pr_name))
-		return 1;
-
-	return 0;
-}
-
-int
 secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,
     struct label *execlabel)
@@ -72,7 +63,6 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	int err, flags=0;
 
 	list = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
-
 	if (list == NULL)
 		return (0);
 
@@ -84,9 +74,6 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 
 	for (rule = list->spl_rules; rule != NULL; rule = rule->sr_next) {
 		if (vap.va_fileid != rule->sr_inode)
-			continue;
-
-		if (secadm_check_prison(rule, ucred->cr_prison) == 0)
 			continue;
 
 		if (strcmp(imgp->vp->v_mount->mnt_stat.f_mntonname,

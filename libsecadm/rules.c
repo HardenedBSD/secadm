@@ -60,20 +60,20 @@ secadm_parse_path(secadm_rule_t *rule, const char *path)
 	if (fd < 0) {
 		fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n",
 		    path);
-		return -1;
+		return (-1);
 	}
 
 	if (fstat(fd, &sb)) {
 		perror("fstat");
 		close(fd);
-		return -1;
+		return (-1);
 	}
 
 	memset(&fsb, 0x00, sizeof(struct statfs));
 	if (fstatfs(fd, &fsb)) {
 		perror("fstatfs");
 		close(fd);
-		return -1;
+		return (-1);
 	}
 
 	close(fd);
@@ -86,5 +86,5 @@ secadm_parse_path(secadm_rule_t *rule, const char *path)
 	else
 		rule->sr_pathlen = 0;
 
-	return 0;
+	return (0);
 }

@@ -64,7 +64,7 @@ load_config(const char *config)
 	parser = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
 	if (!(parser)) {
 		fprintf(stderr, "[-] Could not create new parser\n");
-		return NULL;
+		return (NULL);
 	}
 
 	fd = open(config, O_RDONLY);
@@ -72,14 +72,14 @@ load_config(const char *config)
 		perror("[-] open");
 		fprintf(stderr, "config is %s\n", config);
 		ucl_parser_free(parser);
-		return NULL;
+		return (NULL);
 	}
 
 	if (fstat(fd, &sb)) {
 		perror("[-] fstat");
 		close(fd);
 		ucl_parser_free(parser);
-		return NULL;
+		return (NULL);
 	}
 
 	map = mmap(NULL, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
@@ -87,7 +87,7 @@ load_config(const char *config)
 		perror("[-] mmap");
 		close(fd);
 		ucl_parser_free(parser);
-		return NULL;
+		return (NULL);
 	}
 
 	ucl_parser_add_chunk(parser, map, sb.st_size);
@@ -98,7 +98,7 @@ load_config(const char *config)
 	if (ucl_parser_get_error(parser)) {
 		fprintf(stderr, "[-] The parser had an error: %s\n",
 		    ucl_parser_get_error(parser));
-		return NULL;
+		return (NULL);
 	}
 
 	rules = parse_object(parser);
@@ -106,7 +106,7 @@ load_config(const char *config)
 	for (rule = rules; rule != NULL; rule = rule->sr_next)
 		rule->sr_id = id++;
 
-	return rules;
+	return (rules);
 }
 
 secadm_rule_t *
@@ -124,9 +124,8 @@ parse_object(struct ucl_parser *parser)
 		key = ucl_object_key(curobj);
 		newrules=NULL;
 
-		if (!strcmp(key, "applications")) {
+		if (!strcmp(key, "applications"))
 			newrules = parse_applications_object(curobj);
-		}
 
 		if (newrules != NULL) {
 			if (rules != NULL) {
@@ -142,7 +141,7 @@ parse_object(struct ucl_parser *parser)
 	}
 
 	ucl_object_unref(obj);
-	return rules;
+	return (rules);
 }
 
 void
@@ -190,7 +189,7 @@ parse_applications_object(const ucl_object_t *obj)
 	while ((appindex = ucl_iterate_object(obj, &it, 1))) {
 		apprule = calloc(1, sizeof(secadm_rule_t));
 		if (!(apprule))
-			return head;
+			return (head);
 
 		appdata = ucl_lookup_path(appindex, "path");
 		if (!(appdata)) {
@@ -254,5 +253,5 @@ parse_applications_object(const ucl_object_t *obj)
 		}
 	}
 
-	return head;
+	return (head);
 }
