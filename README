@@ -22,7 +22,7 @@ toggling ASLR or SEGVGUARD. Each jail manages its own rules. Rules
 applied in one jail do not interact or impact other jails.
 
 The shared library will be named libsecadm and will simply act as a
-communication layer between userland applications and the /dev entry.
+communication layer between userland applications and the systl.
 The shared library will perform the same sanitization and sanity
 checking on all rule changes, including the removal of rules, that the
 MAC module performs.
