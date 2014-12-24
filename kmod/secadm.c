@@ -97,11 +97,11 @@ pre_validate_rule(struct thread *td, secadm_rule_t *rule)
 
 	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
 	    || rule->sr_nfeatures > SECADM_MAX_FEATURES) {
-		return (-1);
+		return (1);
 	}
 
 	if (rule->sr_path != NULL && rule->sr_pathlen > MNAMELEN)
-		return (-1);
+		return (1);
 
 	return (0);
 }
@@ -115,7 +115,7 @@ validate_ruleset(struct thread *td, secadm_rule_t *head)
 	nrules = maxid = 0;
 	for (rule = head; rule != NULL; rule = rule->sr_next) {
 		if (pre_validate_rule(td, rule))
-			return (-1);
+			return (1);
 
 		if (rule->sr_id > maxid)
 			maxid = rule->sr_id;
@@ -124,7 +124,7 @@ validate_ruleset(struct thread *td, secadm_rule_t *head)
 	}
 
 	if (maxid > nrules)
-		return (-1);
+		return (1);
 
 	return (0);
 }
@@ -300,7 +300,7 @@ error:
 	rule->sr_nfeatures = 0;
 	rule->sr_prison = NULL;
 	rule->sr_kernel = NULL;
-	return (-1);
+	return (1);
 }
 
 secadm_rule_t
@@ -362,13 +362,18 @@ handle_get_rule_size(struct thread *td, secadm_command_t *cmd, secadm_reply_t *r
 	if (reply->sr_size < sizeof(size_t) || cmd->sc_bufsize != sizeof(size_t))
 		return (EINVAL);
 
-	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t))))
+	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t)))) {
+		reply->sr_code = secadm_fail;
+		reply->sr_errno = err;
 		return (err);
+	}
 
 	size = get_rule_size(td, id);
 
-	if ((err = copyout(&size, reply->sr_metadata, sizeof(size_t))))
-		reply->sr_code = err;
+	if ((err = copyout(&size, reply->sr_metadata, sizeof(size_t)))) {
+		reply->sr_code = secadm_fail;
+		reply->sr_errno = err;
+	}
 
 	return (0);
 }
@@ -393,8 +398,10 @@ get_num_rules(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	} else
 		nrules = 0;
 
-	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t))))
-		reply->sr_code = err;
+	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t)))) {
+		reply->sr_code = secadm_fail;
+		reply->sr_errno = err;
+	}
 
 	return (0);
 }
@@ -415,19 +422,31 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	 * Get the requested rule ID and ensure the userland buffer
 	 * can hold the rule
 	 */
-	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t))))
+	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t)))) {
+		reply->sr_code = secadm_fail;
+		reply->sr_errno = err;
 		return (err);
+	}
 
 	rule = get_rule_by_id(td, id);
-	if (rule == NULL)
-		return (ENOENT);
+	if (rule == NULL) {
+		reply->sr_code = secadm_fail;
+		reply->sr_errno = ENOENT;
+		return (1);
+	}
 
 	size = get_rule_size(td, id);
-	if (size == 0)
-		return (ENOENT);
+	if (size == 0) {
+		reply->sr_code = secadm_fail;
+		reply->sr_errno = ENOENT;
+		return (1);
+	}
 
-	if (reply->sr_size < size)
-		return (EOVERFLOW);
+	if (reply->sr_size < size) {
+		reply->sr_code = secadm_fail;
+		reply->sr_errno = EOVERFLOW;
+		return (1);
+	}
 
 	written=0;
 	buf = malloc(size, M_SECADM, M_WAITOK);
@@ -463,6 +482,9 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	copyout(newrule, reply->sr_metadata, size);
 
 	free(buf, M_SECADM);
+
+	reply->sr_code = secadm_success;
+	reply->sr_errno = 0;
 
 	return (0);
 }

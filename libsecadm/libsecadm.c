@@ -65,9 +65,9 @@ secadm_sysctl(secadm_command_t *cmd, secadm_reply_t *reply)
 		return (err);
 	}
 
-	if (reply->sr_code) {
-		fprintf(stderr, "[-] Control channel returned error code %u\n", reply->sr_code);
-		return (reply->sr_code);
+	if (reply->sr_code != secadm_success) {
+		fprintf(stderr, "[-] Control channel returned error code %u\n", reply->sr_errno);
+		return (reply->sr_errno);
 	}
 
 	return (0);

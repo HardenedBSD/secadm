@@ -62,19 +62,19 @@ handle_version_command(secadm_command_t *cmd, secadm_reply_t *reply)
 {
 	reply->sr_metadata = cmd->sc_buf;
 	reply->sr_size = sizeof(unsigned long);
-	if (copyout(&(reply->sr_version), cmd->sc_buf, sizeof(unsigned long)))
-		reply->sr_code = EFAULT;
+	if ((reply->sr_errno = copyout(&(reply->sr_version), cmd->sc_buf, sizeof(unsigned long))))
+		reply->sr_code = secadm_fail;
 	else
-		reply->sr_code = 0;
+		reply->sr_code = secadm_success;
 }
 
-static unsigned int
+static secadm_error_t
 handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
 	secadm_rule_t *rule, *next, *tail;
 	struct secadm_prison_entry *entry;
 	size_t maxid=0;
-	unsigned int res=0;
+	secadm_error_t res=secadm_success;
 	int err;
 
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 1);
@@ -82,12 +82,13 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	rule = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
 	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secadm_rule_t))) != 0) {
 		free(rule, M_SECADM);
-		reply->sr_code = EFAULT;
-		return ((unsigned int)err);
+		reply->sr_code = secadm_fail;
+		reply->sr_errno = err;
+		return secadm_fail;
 	}
 
 	if (read_rule_from_userland(td, rule)) {
-		res=1;
+		reply->sr_errno = EINVAL;
 		rule->sr_next = NULL;
 		goto error;
 	}
@@ -98,14 +99,15 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	while (tail->sr_next != NULL) {
 		next = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
 		if ((err = copyin(tail->sr_next, next, sizeof(secadm_rule_t))) != 0) {
-			res = EFAULT;
+			reply->sr_errno = err;
 			free(next, M_SECADM);
 			tail->sr_next = NULL;
 			goto error;
 		}
 
 		if (read_rule_from_userland(td, next)) {
-			res=1;
+			res=secadm_fail;
+			reply->sr_errno = EINVAL;
 			free_rule(next, 1);
 			tail->sr_next = NULL;
 			goto error;
@@ -118,7 +120,8 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	}
 
 	if (validate_ruleset(td, rule)) {
-		res = EINVAL;
+		res = secadm_fail;
+		reply->sr_errno = EINVAL;
 		goto error;
 	}
 
@@ -129,9 +132,10 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	entry->spl_max_id = maxid;
 	SPL_WUNLOCK(entry);
 
-	reply->sr_code = res;
+	reply->sr_code = secadm_success;
+	reply->sr_errno = 0;
 
-	return (res);
+	return (0);
 
 error:
 	while (rule != NULL) {
@@ -140,7 +144,7 @@ error:
 		rule = next;
 	}
 
-	reply->sr_code = res;
+	reply->sr_code = secadm_fail;
 
 	return (res);
 }
@@ -166,8 +170,8 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		return (EINVAL);
 
 	memset(&reply, 0x00, sizeof(reply));
-	if (copyin(req->oldptr, &reply, sizeof(reply)))
-		return (EFAULT);
+	if ((err = copyin(req->oldptr, &reply, sizeof(reply))))
+		return (err);
 
 	reply.sr_version = SECADM_VERSION;
 	reply.sr_id = cmd.sc_id;
@@ -180,11 +184,8 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		handle_version_command(&cmd, &reply);
 		break;
 	case secadm_set_rules:
-		if (cmd.sc_size != sizeof(secadm_rule_t)) {
-			printf("Size mismatch\n");
-			uprintf("Size mismatch\n");
+		if (cmd.sc_size != sizeof(secadm_rule_t))
 			return (EINVAL);
-		}
 
 		handle_add_rule(req->td, &cmd, &reply);
 		break;
@@ -192,15 +193,13 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		flush_rules(req->td);
 		break;
 	case secadm_get_rule_size:
-		reply.sr_code = handle_get_rule_size(req->td, &cmd, &reply);
+		handle_get_rule_size(req->td, &cmd, &reply);
 		break;
 	case secadm_get_num_rules:
-		reply.sr_code = (unsigned int)get_num_rules(req->td, &cmd,
-		    &reply);
+		get_num_rules(req->td, &cmd, &reply);
 		break;
 	case secadm_get_rule:
-		reply.sr_code = (unsigned int)handle_get_rule(req->td, &cmd,
-		    &reply);
+		handle_get_rule(req->td, &cmd, &reply);
 		break;
 	case secadm_get_rules:
 	case secadm_get_admins:

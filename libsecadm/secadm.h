@@ -29,7 +29,7 @@
 #ifndef _SYS_SECURITY_SECADM_H
 #define _SYS_SECURITY_SECADM_H
 
-#define SECADM_VERSION			20141217001UL
+#define SECADM_VERSION			20141224001UL
 
 /* These flags are unused right now */
 #define SECADM_RULE_FLAGS_NONE		0x00000000
@@ -103,10 +103,16 @@ typedef struct secadm_command {
 	size_t			 sc_bufsize;
 } secadm_command_t;
 
+typedef enum secadm_error {
+	secadm_success = 0,
+	secadm_fail = 1
+} secadm_error_t;
+
 typedef struct secadm_reply {
 	unsigned long		 sr_version;
 	size_t			 sr_id;
-	unsigned int		 sr_code;
+	secadm_error_t		 sr_code;
+	int			 sr_errno;
 	void			*sr_metadata;
 	size_t			 sr_size;
 } secadm_reply_t;
