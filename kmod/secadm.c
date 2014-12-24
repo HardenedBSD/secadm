@@ -386,14 +386,19 @@ get_num_rules(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	struct secadm_prison_entry *entry;
 	size_t nrules;
 	int err;
+	struct rm_priotracker tracker;
 
 	if (reply->sr_size < sizeof(size_t))
 		return (EINVAL);
 
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
-	// XXLOCKING?
 	nrules = (entry != NULL) ? entry->spl_max_id : 0;
-	// XXUNLOCKING?
+	if (entry != NULL) {
+		SPL_RLOCK(entry, tracker);
+		nrules = entry->spl_max_id;
+		SPL_RUNLOCK(entry, tracker);
+	} else
+		nrules = 0;
 
 	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;
