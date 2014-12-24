@@ -50,7 +50,6 @@ MALLOC_DEFINE(M_SECADM, "secadm", "secadm rule data");
 
 secadm_kernel_t kernel_data;
 
-// XXQUEUED
 struct secadm_prison_entry *
 get_prison_list_entry(const char *name, int create)
 {
@@ -162,7 +161,6 @@ get_first_rule(struct thread *td)
 	return (get_first_prison_rule(td->td_ucred->cr_prison));
 }
 
-// XXQUEUED
 secadm_rule_t *
 get_first_prison_rule(struct prison *pr)
 {
@@ -187,7 +185,6 @@ get_first_prison_rule(struct prison *pr)
 	return (rule);
 }
 
-// XXQUEUED
 void
 cleanup_jail_rules(struct secadm_prison_entry *entry)
 {
@@ -218,7 +215,6 @@ cleanup_jail_rules(struct secadm_prison_entry *entry)
 	free(tmp, M_SECADM);
 }
 
-// XXQUEUED
 void
 flush_rules(struct thread *td)
 {
@@ -307,8 +303,6 @@ error:
 	return (-1);
 }
 
-// XXQUEUED
-// XXMASTERLOCK_NEEDED?
 secadm_rule_t
 *get_rule_by_id(struct thread *td, size_t id)
 {
@@ -379,7 +373,6 @@ handle_get_rule_size(struct thread *td, secadm_command_t *cmd, secadm_reply_t *r
 	return (0);
 }
 
-// XXQUEUED
 int
 get_num_rules(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
