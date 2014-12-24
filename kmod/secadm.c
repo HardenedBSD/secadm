@@ -51,43 +51,33 @@ MALLOC_DEFINE(M_SECADM, "secadm", "secadm rule data");
 secadm_kernel_t kernel_data;
 
 // XXQUEUED
-static void
-secadm_sysinit(void *data __unused)
-{
-
-	SLIST_INIT(&(kernel_data.skd_prisons));
-	rm_init(&(kernel_data.skd_prisons_lock), "secadm master lock");
-}
-SYSINIT(secadm_bootstrap, SI_SUB_PAX, SI_ORDER_ANY, secadm_sysinit, NULL);
-
-// XXQUEUED
 struct secadm_prison_entry *
 get_prison_list_entry(const char *name, int create)
 {
 	struct secadm_prison_entry *entry;
 	struct rm_priotracker tracker;
 
-	rm_rlock(&(kernel_data.skd_prisons_lock), &tracker);
+	SKD_RLOCK(tracker);
 	SLIST_FOREACH(entry, &(kernel_data.skd_prisons), spl_entries) {
 		if (!strcmp(entry->spl_prison, name)) {
-			rm_runlock(&(kernel_data.skd_prisons_lock), &tracker);
+			SKD_RUNLOCK(tracker);
 			return (entry);
 		}
 	}
-	rm_runlock(&(kernel_data.skd_prisons_lock), &tracker);
+	SKD_RUNLOCK(tracker);
 
 	if (create) {
 		entry = malloc(sizeof(struct secadm_prison_entry),
 		    M_SECADM, M_WAITOK | M_ZERO);
 
-		rm_init(&(entry->spl_lock), "secadm per-prison lock");
+		SPL_INIT(entry, "secadm per-prison lock");
 
 		entry->spl_prison = malloc(strlen(name)+1,
 		    M_SECADM, M_WAITOK | M_ZERO);
 		strlcpy(entry->spl_prison, name, strlen(name)+1);
 
-		rm_wlock(&(kernel_data.skd_prisons_lock));
 
+		SKD_WLOCK();
 		/*
 		 * this inserts to list's head, rather then the
 		 * list tail, as in previous implementation
@@ -95,7 +85,7 @@ get_prison_list_entry(const char *name, int create)
 		SLIST_INSERT_HEAD(&(kernel_data.skd_prisons), entry,
 		    spl_entries);
 
-		rm_wunlock(&(kernel_data.skd_prisons_lock));
+		SKD_WUNLOCK();
 	}
 
 	return (entry);
@@ -182,17 +172,17 @@ get_first_prison_rule(struct prison *pr)
 
 	rule = NULL;
 
-	rm_rlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
+	SKD_RLOCK(prisons_tracker);
 	SLIST_FOREACH(entry, &(kernel_data.skd_prisons), spl_entries)
 		if (!strcmp(entry->spl_prison, pr->pr_name))
 			break;
 
 	if (entry != NULL) {
-		rm_rlock(&(entry->spl_lock), &rule_tracker);
+		SPL_RLOCK(entry, rule_tracker);
 		rule = entry->spl_rules;
-		rm_runlock(&(entry->spl_lock), &rule_tracker);
+		SPL_RUNLOCK(entry, rule_tracker);
 	}
-	rm_runlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
+	SKD_RUNLOCK(prisons_tracker);
 
 	return (rule);
 }
@@ -204,16 +194,16 @@ cleanup_jail_rules(struct secadm_prison_entry *entry)
 	secadm_rule_t *rule, *next;
 	struct secadm_prison_entry *tmp;
 
-	rm_wlock(&(kernel_data.skd_prisons_lock));
+	SKD_WLOCK();
 	tmp = SLIST_FIRST(&(kernel_data.skd_prisons));
 	if (entry == tmp)
 		SLIST_REMOVE_HEAD(&(kernel_data.skd_prisons), spl_entries);
 	else
 		SLIST_REMOVE(&(kernel_data.skd_prisons), tmp,
 		    secadm_prison_entry, spl_entries);
-	rm_wunlock(&(kernel_data.skd_prisons_lock));
+	SKD_WUNLOCK();
 
-	rm_wlock(&(tmp->spl_lock));
+	SPL_WLOCK(tmp);
 	// XXXOP: queue macros in rules too?
 	rule = entry->spl_rules;
 	while (rule != NULL) {
@@ -221,8 +211,8 @@ cleanup_jail_rules(struct secadm_prison_entry *entry)
 		free_rule(rule, 1);
 		rule = next;
 	}
-	rm_wunlock(&(tmp->spl_lock));
-	rm_destroy(&(tmp->spl_lock));
+	SPL_WUNLOCK(tmp);
+	SPL_DESTROY(tmp);
 
 	free(tmp->spl_prison, M_SECADM);
 	free(tmp, M_SECADM);
@@ -239,7 +229,7 @@ flush_rules(struct thread *td)
 	if (entry == NULL)
 		return;
 
-	rm_wlock(&(entry->spl_lock));
+	SPL_WLOCK(entry);
 	rule = entry->spl_rules;
 	while (rule != NULL) {
 		next = rule->sr_next;
@@ -248,8 +238,7 @@ flush_rules(struct thread *td)
 	}
 
 	entry->spl_rules = NULL;
-
-	rm_wunlock(&(entry->spl_lock));
+	SPL_WUNLOCK(entry);
 }
 
 int
@@ -335,16 +324,14 @@ secadm_rule_t
 	if (entry == NULL)
 		return (NULL);
 
-	rm_rlock(&(entry->spl_lock), &tracker);
-
+	SPL_RLOCK(entry, tracker);
 	for ( ; rule != NULL; rule = rule->sr_next) {
 		if (rule->sr_id == id) {
-			rm_runlock(&(entry->spl_lock), &tracker);
+			SPL_RUNLOCK(entry, tracker);
 			return (rule);
 		}
 	}
-
-	rm_runlock(&(entry->spl_lock), &tracker);
+	SPL_RUNLOCK(entry, tracker);
 
 	return (NULL);
 }

@@ -115,6 +115,13 @@ typedef struct secadm_reply {
 
 MALLOC_DECLARE(M_SECADM);
 
+#define	SPL_INIT(L, T)		rm_init(&((L)->spl_lock), T)
+#define	SPL_RLOCK(L, T)		rm_rlock(&((L)->spl_lock), &(T))
+#define	SPL_RUNLOCK(L, T)	rm_runlock(&((L)->spl_lock), &(T))
+#define	SPL_WLOCK(L)		rm_wlock(&((L)->spl_lock))
+#define	SPL_WUNLOCK(L)		rm_wunlock(&((L)->spl_lock))
+#define	SPL_DESTROY(L)		rm_destroy(&((L)->spl_lock))
+
 struct secadm_prison_entry {
 	struct rmlock			 spl_lock;
 	secadm_rule_t			*spl_rules;
@@ -122,6 +129,13 @@ struct secadm_prison_entry {
 	size_t				 spl_max_id;
 	SLIST_ENTRY(secadm_prison_entry) spl_entries;
 };
+
+#define SKD_INIT(T)	rm_init(&(kernel_data.skd_prisons_lock), T)
+#define SKD_RLOCK(T)	rm_rlock(&(kernel_data.skd_prisons_lock), &(T))
+#define SKD_RUNLOCK(T)	rm_runlock(&(kernel_data.skd_prisons_lock), &(T))
+#define SKD_WLOCK()	rm_wlock(&(kernel_data.skd_prisons_lock))
+#define SKD_WUNLOCK()	rm_wunlock(&(kernel_data.skd_prisons_lock))
+#define SKD_DESTROY()	rm_destroy(&(kernel_data.skd_prisons_lock))
 
 typedef struct secadm_kernel_data {
 	SLIST_HEAD(secadm_prison_list, secadm_prison_entry)	 skd_prisons;

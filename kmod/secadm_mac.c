@@ -52,7 +52,8 @@ secadm_init(struct mac_policy_conf *mpc)
 
 	memset(&kernel_data, 0x00, sizeof(secadm_kernel_t));
 
-	rm_init(&(kernel_data.skd_prisons_lock), "Main secadm lock");
+	SKD_INIT("Main secadm lock");
+	SLIST_INIT(&(kernel_data.skd_prisons));
 }
 
 static void
@@ -60,15 +61,14 @@ secadm_destroy(struct mac_policy_conf *mpc)
 {
 	struct secadm_prison_entry	*entry;
 
-	rm_wlock(&(kernel_data.skd_prisons_lock));
-
+	SKD_WLOCK();
 	while (!SLIST_EMPTY(&(kernel_data.skd_prisons))) {
 		entry = SLIST_FIRST(&(kernel_data.skd_prisons));
 		cleanup_jail_rules(entry);
 	}
+	SKD_WUNLOCK();
 
-	rm_wunlock(&(kernel_data.skd_prisons_lock));
-	rm_destroy(&(kernel_data.skd_prisons_lock));
+	SKD_DESTROY();
 }
 
 static void
@@ -79,9 +79,9 @@ secadm_jail_destroy(struct prison *pr)
 	entry = get_prison_list_entry(pr->pr_name, 0);
 
 	if (entry != NULL) {
-		rm_wlock(&(kernel_data.skd_prisons_lock));
+		SKD_WLOCK();
 		cleanup_jail_rules(entry);
-		rm_wunlock(&(kernel_data.skd_prisons_lock));
+		SKD_WUNLOCK();
 	}
 }
 

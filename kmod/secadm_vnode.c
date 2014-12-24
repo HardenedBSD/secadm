@@ -71,8 +71,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	if (err)
 		return (err);
 
-	rm_rlock(&(entry->spl_lock), &tracker);
-
+	SPL_RLOCK(entry, tracker);
 	for (rule = entry->spl_rules; rule != NULL; rule = rule->sr_next) {
 		if (vap.va_fileid != rule->sr_inode)
 			continue;
@@ -119,7 +118,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		break;
 	}
 
-	rm_runlock(&(entry->spl_lock), &tracker);
+	SPL_RUNLOCK(entry, tracker);
 
 	err = pax_elf(imgp, flags);
 

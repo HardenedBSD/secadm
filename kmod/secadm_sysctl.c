@@ -124,10 +124,10 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 	flush_rules(td);
 
-	rm_wlock(&(entry->spl_lock));
+	SPL_WLOCK(entry);
 	entry->spl_rules = rule;
 	entry->spl_max_id = maxid;
-	rm_wunlock(&(entry->spl_lock));
+	SPL_WUNLOCK(entry);
 
 	reply->sr_code = res;
 
