@@ -115,20 +115,17 @@ typedef struct secadm_reply {
 
 MALLOC_DECLARE(M_SECADM);
 
-typedef struct secadm_prison_list {
+struct secadm_prison_entry {
 	struct rmlock			 spl_lock;
 	secadm_rule_t			*spl_rules;
 	char				*spl_prison;
 	size_t				 spl_max_id;
-
-	struct secadm_prison_list	*spl_prev;
-	struct secadm_prison_list	*spl_next;
-} secadm_prison_list_t;
+	SLIST_ENTRY(secadm_prison_entry) spl_entries;
+};
 
 typedef struct secadm_kernel_data {
-	secadm_prison_list_t	*skd_prisons;
-
-	struct rmlock		 skd_prisons_lock;
+	SLIST_HEAD(secadm_prison_list, secadm_prison_entry)	 skd_prisons;
+	struct rmlock		 		 skd_prisons_lock;
 
 #if 0
 	/* These are planned, but not currently used */
@@ -145,8 +142,8 @@ typedef struct secadm_kernel_data {
 } secadm_kernel_t;
 
 typedef struct secadm_kernel_metadata {
-	struct prison		*skm_owner;
-	secadm_prison_list_t	*skm_parent;
+	struct prison			*skm_owner;
+	struct secadm_prison_list	*skm_parent;
 } secadm_kernel_metadata_t;
 
 extern secadm_kernel_t kernel_data;
@@ -177,7 +174,7 @@ int secadm_vnode_check_unlink(struct ucred *, struct vnode *,
 int pre_validate_rule(struct thread *, secadm_rule_t *);
 int validate_ruleset(struct thread *, secadm_rule_t *);
 void free_rule(secadm_rule_t *, int);
-secadm_prison_list_t *get_prison_list_entry(const char *, int);
+struct secadm_prison_entry *get_prison_list_entry(const char *, int);
 secadm_rule_t *get_first_rule(struct thread *);
 secadm_rule_t *get_first_prison_rule(struct prison *);
 void flush_rules(struct thread *);
@@ -187,7 +184,7 @@ size_t get_rule_size(struct thread *, size_t);
 int handle_get_rule_size(struct thread *, secadm_command_t *, secadm_reply_t *);
 int get_num_rules(struct thread *, secadm_command_t *, secadm_reply_t *);
 int handle_get_rule(struct thread *, secadm_command_t *, secadm_reply_t *);
-void cleanup_jail_rules(secadm_prison_list_t *);
+void cleanup_jail_rules(struct secadm_prison_entry *);
 void log_location(const char *, int);
 
 #endif /* _KERNEL */

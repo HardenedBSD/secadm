@@ -38,6 +38,7 @@
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
+#include <sys/queue.h>
 #include <sys/rmlock.h>
 #include <sys/sysctl.h>
 #include <sys/uio.h>
@@ -71,12 +72,12 @@ static unsigned int
 handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
 	secadm_rule_t *rule, *next, *tail;
-	secadm_prison_list_t *list;
+	struct secadm_prison_entry *entry;
 	size_t maxid=0;
 	unsigned int res=0;
 	int err;
 
-	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 1);
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 1);
 
 	rule = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
 	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secadm_rule_t))) != 0) {
@@ -123,12 +124,13 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 	flush_rules(td);
 
-	rm_wlock(&(list->spl_lock));
-	list->spl_rules = rule;
-	list->spl_max_id = maxid;
-	rm_wunlock(&(list->spl_lock));
+	rm_wlock(&(entry->spl_lock));
+	entry->spl_rules = rule;
+	entry->spl_max_id = maxid;
+	rm_wunlock(&(entry->spl_lock));
 
 	reply->sr_code = res;
+
 	return (res);
 
 error:
@@ -139,6 +141,7 @@ error:
 	}
 
 	reply->sr_code = res;
+
 	return (res);
 }
 

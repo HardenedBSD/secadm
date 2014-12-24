@@ -39,6 +39,7 @@
 #include <sys/pax.h>
 #include <sys/priv.h>
 #include <sys/proc.h>
+#include <sys/queue.h>
 #include <sys/rmlock.h>
 #include <sys/systm.h>
 #include <sys/vnode.h>
@@ -56,23 +57,23 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *execlabel)
 {
 	struct rm_priotracker tracker;
-	secadm_prison_list_t *list;
+	struct secadm_prison_entry *entry;
 	secadm_rule_t *rule;
 	struct vattr vap;
 	size_t i;
 	int err, flags=0;
 
-	list = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
-	if (list == NULL)
+	entry = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
+	if (entry == NULL)
 		return (0);
 
 	err = VOP_GETATTR(imgp->vp, &vap, ucred);
 	if (err)
 		return (err);
 
-	rm_rlock(&(list->spl_lock), &tracker);
+	rm_rlock(&(entry->spl_lock), &tracker);
 
-	for (rule = list->spl_rules; rule != NULL; rule = rule->sr_next) {
+	for (rule = entry->spl_rules; rule != NULL; rule = rule->sr_next) {
 		if (vap.va_fileid != rule->sr_inode)
 			continue;
 
@@ -118,7 +119,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		break;
 	}
 
-	rm_runlock(&(list->spl_lock), &tracker);
+	rm_runlock(&(entry->spl_lock), &tracker);
 
 	err = pax_elf(imgp, flags);
 

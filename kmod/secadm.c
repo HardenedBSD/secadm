@@ -38,6 +38,7 @@
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
+#include <sys/queue.h>
 #include <sys/rmlock.h>
 #include <sys/uio.h>
 
@@ -49,46 +50,55 @@ MALLOC_DEFINE(M_SECADM, "secadm", "secadm rule data");
 
 secadm_kernel_t kernel_data;
 
-secadm_prison_list_t *
+// XXQUEUED
+static void
+secadm_sysinit(void *data __unused)
+{
+
+	SLIST_INIT(&(kernel_data.skd_prisons));
+	rm_init(&(kernel_data.skd_prisons_lock), "secadm master lock");
+}
+SYSINIT(secadm_bootstrap, SI_SUB_PAX, SI_ORDER_ANY, secadm_sysinit, NULL);
+
+// XXQUEUED
+struct secadm_prison_entry *
 get_prison_list_entry(const char *name, int create)
 {
-	secadm_prison_list_t *list, *entry;
+	struct secadm_prison_entry *entry;
 	struct rm_priotracker tracker;
 
 	rm_rlock(&(kernel_data.skd_prisons_lock), &tracker);
-
-	for (list = kernel_data.skd_prisons; list != NULL; list = list->spl_next) {
-		if (!strcmp(list->spl_prison, name)) {
+	SLIST_FOREACH(entry, &(kernel_data.skd_prisons), spl_entries) {
+		if (!strcmp(entry->spl_prison, name)) {
 			rm_runlock(&(kernel_data.skd_prisons_lock), &tracker);
-			return (list);
+			return (entry);
 		}
 	}
-
 	rm_runlock(&(kernel_data.skd_prisons_lock), &tracker);
 
 	if (create) {
-		list = malloc(sizeof(secadm_prison_list_t), M_SECADM, M_WAITOK | M_ZERO);
+		entry = malloc(sizeof(struct secadm_prison_entry),
+		    M_SECADM, M_WAITOK | M_ZERO);
 
-		rm_init(&(list->spl_lock), "secadm per-prison lock");
-		list->spl_prison = malloc(strlen(name)+1, M_SECADM, M_WAITOK | M_ZERO);
-		strlcpy(list->spl_prison, name, strlen(name)+1);
+		rm_init(&(entry->spl_lock), "secadm per-prison lock");
+
+		entry->spl_prison = malloc(strlen(name)+1,
+		    M_SECADM, M_WAITOK | M_ZERO);
+		strlcpy(entry->spl_prison, name, strlen(name)+1);
 
 		rm_wlock(&(kernel_data.skd_prisons_lock));
 
-		if (kernel_data.skd_prisons == NULL) {
-			kernel_data.skd_prisons = list;
-		} else {
-			for (entry = kernel_data.skd_prisons; entry->spl_next != NULL; entry = entry->spl_next)
-				;
-
-			entry->spl_next = list;
-			list->spl_prev = entry;
-		}
+		/*
+		 * this inserts to list's head, rather then the
+		 * list tail, as in previous implementation
+		 */
+		SLIST_INSERT_HEAD(&(kernel_data.skd_prisons), entry,
+		    spl_entries);
 
 		rm_wunlock(&(kernel_data.skd_prisons_lock));
 	}
 
-	return (list);
+	return (entry);
 }
 
 int
@@ -162,82 +172,84 @@ get_first_rule(struct thread *td)
 	return (get_first_prison_rule(td->td_ucred->cr_prison));
 }
 
+// XXQUEUED
 secadm_rule_t *
 get_first_prison_rule(struct prison *pr)
 {
-	secadm_prison_list_t *list;
-	secadm_rule_t *rule=NULL;
+	struct secadm_prison_entry *entry;
+	secadm_rule_t *rule;
 	struct rm_priotracker prisons_tracker, rule_tracker;
 
-	rm_rlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
+	rule = NULL;
 
-	for (list = kernel_data.skd_prisons; list != NULL; list = list->spl_next)
-		if (!strcmp(list->spl_prison, pr->pr_name))
+	rm_rlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
+	SLIST_FOREACH(entry, &(kernel_data.skd_prisons), spl_entries)
+		if (!strcmp(entry->spl_prison, pr->pr_name))
 			break;
 
-	if (list != NULL) {
-		rm_rlock(&(list->spl_lock), &rule_tracker);
-		rule = list->spl_rules;
-		rm_runlock(&(list->spl_lock), &rule_tracker);
+	if (entry != NULL) {
+		rm_rlock(&(entry->spl_lock), &rule_tracker);
+		rule = entry->spl_rules;
+		rm_runlock(&(entry->spl_lock), &rule_tracker);
 	}
-
 	rm_runlock(&(kernel_data.skd_prisons_lock), &prisons_tracker);
 
 	return (rule);
 }
 
+// XXQUEUED
 void
-cleanup_jail_rules(secadm_prison_list_t *list)
+cleanup_jail_rules(struct secadm_prison_entry *entry)
 {
 	secadm_rule_t *rule, *next;
+	struct secadm_prison_entry *tmp;
 
-	rm_wlock(&(list->spl_lock));
+	rm_wlock(&(kernel_data.skd_prisons_lock));
+	tmp = SLIST_FIRST(&(kernel_data.skd_prisons));
+	if (entry == tmp)
+		SLIST_REMOVE_HEAD(&(kernel_data.skd_prisons), spl_entries);
+	else
+		SLIST_REMOVE(&(kernel_data.skd_prisons), tmp,
+		    secadm_prison_entry, spl_entries);
+	rm_wunlock(&(kernel_data.skd_prisons_lock));
 
-	if (list == kernel_data.skd_prisons)
-		kernel_data.skd_prisons = list->spl_next;
-
-	if (list->spl_prev != NULL)
-		list->spl_prev->spl_next = list->spl_next;
-	if (list->spl_next != NULL)
-		list->spl_next->spl_prev = list->spl_prev;
-
-	rule = list->spl_rules;
+	rm_wlock(&(tmp->spl_lock));
+	// XXXOP: queue macros in rules too?
+	rule = entry->spl_rules;
 	while (rule != NULL) {
 		next = rule->sr_next;
 		free_rule(rule, 1);
 		rule = next;
 	}
+	rm_wunlock(&(tmp->spl_lock));
+	rm_destroy(&(tmp->spl_lock));
 
-	rm_wunlock(&(list->spl_lock));
-
-	rm_destroy(&(list->spl_lock));
-
-	free(list->spl_prison, M_SECADM);
-	free(list, M_SECADM);
+	free(tmp->spl_prison, M_SECADM);
+	free(tmp, M_SECADM);
 }
 
+// XXQUEUED
 void
 flush_rules(struct thread *td)
 {
-	secadm_prison_list_t *list;
+	struct secadm_prison_entry *entry;
 	secadm_rule_t *rule, *next;
 
-	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
-	if (list == NULL)
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
+	if (entry == NULL)
 		return;
 
-	rm_wlock(&(list->spl_lock));
-
-	rule = list->spl_rules;
+	rm_wlock(&(entry->spl_lock));
+	rule = entry->spl_rules;
 	while (rule != NULL) {
 		next = rule->sr_next;
 		free_rule(rule, 1);
 		rule = next;
 	}
 
-	list->spl_rules = NULL;
+	entry->spl_rules = NULL;
 
-	rm_wunlock(&(list->spl_lock));
+	rm_wunlock(&(entry->spl_lock));
 }
 
 int
@@ -306,31 +318,33 @@ error:
 	return (-1);
 }
 
+// XXQUEUED
+// XXMASTERLOCK_NEEDED?
 secadm_rule_t
 *get_rule_by_id(struct thread *td, size_t id)
 {
 	struct rm_priotracker tracker;
-	secadm_prison_list_t *list;
+	struct secadm_prison_entry *entry;
 	secadm_rule_t *rule;
 
 	rule = get_first_rule(td);
 	if (rule == NULL)
 		return (NULL);
 
-	list = get_prison_list_entry(rule->sr_prison, 0);
-	if (list == NULL)
+	entry = get_prison_list_entry(rule->sr_prison, 0);
+	if (entry == NULL)
 		return (NULL);
 
-	rm_rlock(&(list->spl_lock), &tracker);
+	rm_rlock(&(entry->spl_lock), &tracker);
 
 	for ( ; rule != NULL; rule = rule->sr_next) {
 		if (rule->sr_id == id) {
-			rm_runlock(&(list->spl_lock), &tracker);
+			rm_runlock(&(entry->spl_lock), &tracker);
 			return (rule);
 		}
 	}
 
-	rm_runlock(&(list->spl_lock), &tracker);
+	rm_runlock(&(entry->spl_lock), &tracker);
 
 	return (NULL);
 }
@@ -378,18 +392,21 @@ handle_get_rule_size(struct thread *td, secadm_command_t *cmd, secadm_reply_t *r
 	return (0);
 }
 
+// XXQUEUED
 int
 get_num_rules(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
-	secadm_prison_list_t *list;
+	struct secadm_prison_entry *entry;
 	size_t nrules;
 	int err;
 
 	if (reply->sr_size < sizeof(size_t))
 		return (EINVAL);
 
-	list = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
-	nrules = (list != NULL) ? list->spl_max_id : 0;
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
+	// XXLOCKING?
+	nrules = (entry != NULL) ? entry->spl_max_id : 0;
+	// XXUNLOCKING?
 
 	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t))))
 		reply->sr_code = err;

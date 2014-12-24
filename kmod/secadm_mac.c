@@ -38,6 +38,7 @@
 #include <sys/mutex.h>
 #include <sys/pax.h>
 #include <sys/proc.h>
+#include <sys/queue.h>
 #include <sys/rmlock.h>
 #include <sys/uio.h>
 
@@ -57,27 +58,29 @@ secadm_init(struct mac_policy_conf *mpc)
 static void
 secadm_destroy(struct mac_policy_conf *mpc)
 {
+	struct secadm_prison_entry	*entry;
 
 	rm_wlock(&(kernel_data.skd_prisons_lock));
 
-	while (kernel_data.skd_prisons != NULL)
-		cleanup_jail_rules(kernel_data.skd_prisons);
+	while (!SLIST_EMPTY(&(kernel_data.skd_prisons))) {
+		entry = SLIST_FIRST(&(kernel_data.skd_prisons));
+		cleanup_jail_rules(entry);
+	}
 
 	rm_wunlock(&(kernel_data.skd_prisons_lock));
-
 	rm_destroy(&(kernel_data.skd_prisons_lock));
 }
 
 static void
 secadm_jail_destroy(struct prison *pr)
 {
-	secadm_prison_list_t *list;
+	struct secadm_prison_entry *entry;
 
-	list = get_prison_list_entry(pr->pr_name, 0);
+	entry = get_prison_list_entry(pr->pr_name, 0);
 
-	if (list != NULL) {
+	if (entry != NULL) {
 		rm_wlock(&(kernel_data.skd_prisons_lock));
-		cleanup_jail_rules(list);
+		cleanup_jail_rules(entry);
 		rm_wunlock(&(kernel_data.skd_prisons_lock));
 	}
 }
