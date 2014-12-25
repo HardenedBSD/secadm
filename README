@@ -63,3 +63,56 @@ To verify that your ruleset loaded successfully:
 
 To flush rules:
 # secadm flush
+
+Writing Application Rules
+=========================
+
+secadm currently supports toggling ASLR, SEGVGUARD, mprotect(exec)
+hardening, and on certain HardenedBSD builds, PAGEEXEC hardening. In
+the secadm directory, you will find config.conf.sample, which shows
+how to write rules.
+
+secadm uses libucl for parsing its config file. As it stands right
+now, the order of the rules do not matter, but that could change with
+time as we add new features. The sample config file is in a relaxed
+JSON format, though libucl supports different syntaxes. Please refer
+to libucl's documentation for help in learning the different possible
+syntaxes.
+
+In the root object, secadm expects an applications array. Each entry
+in the applications array must be an object. That object must have the
+following fields:
+
+	1. path (string): The fully-qualified path of the program
+	2. features (object): An object that describes each of the
+	   features we are toggling. Supported features:
+	   a. aslr (boolean): toggles ASLR
+	   b. segvguard (boolean): toggles SEGVGUARD
+	   c. mprotect (boolean): toggles mprotect(exec) hardening
+	   d. pageexec (boolean): toggles PAGEEXEC
+
+When you combine that all together, you should get the following
+example. Let's say we want to force ASLR and SEGVGUARD off with
+/bin/ls and force mprotect(exec) hardening and PAGEEXEC on with
+/bin/pwd. This is what you would write:
+
+==== Start of Example ====
+{
+	"applications": [
+		{
+			"path": "/bin/ls",
+			"features": {
+				"aslr": false,
+				"segvguard": false
+			}
+		},
+		{
+			"path": "/bin/pwd",
+			"features": {
+				"mprotect": true,
+				"pageexec": true
+			}
+		}
+	]
+}
+==== End of Example ====
