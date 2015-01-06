@@ -191,14 +191,14 @@ cleanup_jail_rules(struct secadm_prison_entry *entry)
 	secadm_rule_t *rule, *next;
 	struct secadm_prison_entry *tmp;
 
-	SKD_WLOCK();
+	SKD_ASSERT(RA_WLOCKED);
+
 	tmp = SLIST_FIRST(&(kernel_data.skd_prisons));
 	if (entry == tmp)
 		SLIST_REMOVE_HEAD(&(kernel_data.skd_prisons), spl_entries);
 	else
 		SLIST_REMOVE(&(kernel_data.skd_prisons), tmp,
 		    secadm_prison_entry, spl_entries);
-	SKD_WUNLOCK();
 
 	SPL_WLOCK(tmp);
 	// XXXOP: queue macros in rules too?

@@ -136,6 +136,7 @@ struct secadm_prison_entry {
 	SLIST_ENTRY(secadm_prison_entry) spl_entries;
 };
 
+#define SKD_ASSERT(W)	rm_assert(&(kernel_data.skd_prisons_lock), W)
 #define SKD_INIT(T)	rm_init(&(kernel_data.skd_prisons_lock), T)
 #define SKD_RLOCK(T)	rm_rlock(&(kernel_data.skd_prisons_lock), &(T))
 #define SKD_RUNLOCK(T)	rm_runlock(&(kernel_data.skd_prisons_lock), &(T))
