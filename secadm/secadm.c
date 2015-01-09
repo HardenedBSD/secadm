@@ -42,6 +42,7 @@
 #include <sys/param.h>
 #include <sys/linker.h>
 #include <sys/mount.h>
+#include <sys/pax.h>
 #include <sys/queue.h>
 #include <sys/sysctl.h>
 
@@ -127,20 +128,33 @@ listact(int argc, char *argv[])
 	secadm_rule_t *rule;
 	size_t nrules, i;
 
-	nrules = secadm_get_num_kernel_rules();
-	for (i=0; i < nrules; i++) {
-		rule = secadm_get_kernel_rule(i);
-		if (!(rule)) {
-			fprintf(stderr, "[-] Could not get rule %zu from the kernel.\n", i);
-			free(rule);
-			return 1;
-		}
+	if (argc == 1 || !strcmp(argv[1], "rules")) {
+		nrules = secadm_get_num_kernel_rules();
+		for (i=0; i < nrules; i++) {
+			rule = secadm_get_kernel_rule(i);
+			if (!(rule)) {
+				fprintf(stderr, "[-] Could not get rule %zu from the kernel.\n", i);
+				free(rule);
+				return 1;
+			}
 
-		secadm_debug_print_rule(rule);
-		free(rule);
+			secadm_debug_print_rule(rule);
+			free(rule);
+		}
 	}
 
-	return 0;
+	if (argc == 1)
+		return (1);
+
+	if (!strcmp(argv[1], "features")) {
+		printf("Available features\n");
+		printf("    aslr:\t(bool) - Opt an application in to or out of ASLR\n");
+		printf("    segvguard:\t(bool) - Opt an application in to or out of SEGVGUARD\n");
+		printf("    pageexec:\t(bool) - Opt an application in to or out of PAGEEXEC\n");
+		printf("    mprotect:\t(bool) - Opt an application in to or out of MPROTECT restrictions\n");
+	}
+
+	return (0);
 }
 
 static int

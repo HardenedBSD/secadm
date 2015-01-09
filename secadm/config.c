@@ -40,6 +40,7 @@
 #include <fcntl.h>
 #include <sys/pax.h>
 #include <sys/stat.h>
+#include <sys/pax.h>
 #include <sys/param.h>
 #include <sys/linker.h>
 #include <sys/mman.h>
@@ -210,21 +211,17 @@ parse_applications_object(const ucl_object_t *obj)
 			continue;
 		}
 
-#ifdef PAX_NOTE_PAGEEXEC
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.pageexec")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
 				add_feature(apprule, ucl_feature,
 				    enabled ? pageexec_enabled : pageexec_disabled);
 		}
-#endif
 
-#ifdef PAX_NOTE_MPROTECT
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.mprotect")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
 				add_feature(apprule, ucl_feature,
 				    enabled ? mprotect_enabled : mprotect_disabled);
 		}
-#endif
 
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.segvguard")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
