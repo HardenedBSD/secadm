@@ -65,18 +65,22 @@ const char *name;
 
 struct _action {
 	const char *action;
+	int needkld;
 	action_t op;
 } actions[] = {
 	{
 		"list",
+		0,
 		listact
 	},
 	{
 		"set",
+		1,
 		setact
 	},
 	{
 		"flush",
+		1,
 		flushact
 	},
 };
@@ -129,6 +133,11 @@ listact(int argc, char *argv[])
 	size_t nrules, i;
 
 	if (argc == 1 || !strcmp(argv[1], "rules")) {
+		if (kldcheck()) {
+			fprintf(stderr, "[-] secadm module not loaded\n");
+			return 1;
+		}
+
 		nrules = secadm_get_num_kernel_rules();
 		for (i=0; i < nrules; i++) {
 			rule = secadm_get_kernel_rule(i);
@@ -141,6 +150,8 @@ listact(int argc, char *argv[])
 			secadm_debug_print_rule(rule);
 			free(rule);
 		}
+
+		return (0);
 	}
 
 	if (argc == 1)
@@ -200,11 +211,6 @@ main(int argc, char *argv[])
 
 	check_bsd();
 
-	if (kldcheck()) {
-		fprintf(stderr, "[-] secadm module not loaded\n");
-		return 1;
-	}
-
 	while ((ch = getopt(argc, argv, "c:hv?")) != -1) {
 		switch (ch) {
 		case 'c':
@@ -223,9 +229,16 @@ main(int argc, char *argv[])
 	if (argc < 1)
 		usage(name);
 
-	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++)
-		if (!strcmp(argv[0], actions[i].action))
+	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++) {
+		if (!strcmp(argv[0], actions[i].action)) {
+			if (actions[i].needkld && kldcheck()) {
+				fprintf(stderr, "[-] secadm module not loaded\n");
+				return 1;
+			}
+
 			return (actions[i].op(argc, argv));
+		}
+	}
 
 	usage(name);
 

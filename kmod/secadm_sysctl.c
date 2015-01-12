@@ -54,7 +54,7 @@ SYSCTL_NODE(_hardening, OID_AUTO, secadm, CTLFLAG_RD, 0,
     "HardenedBSD Security Firewall");
 
 SYSCTL_NODE(_hardening_secadm, OID_AUTO, control,
-    CTLFLAG_MPSAFE | CTLFLAG_RW | CTLFLAG_PRISON, sysctl_control,
+    CTLFLAG_MPSAFE | CTLFLAG_RW | CTLFLAG_PRISON | CTLFLAG_ANYBODY, sysctl_control,
     "secadm management interface");
 
 static void
@@ -166,6 +166,16 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 	if (err)
 		return (err);
 
+	/* Access control comes first */
+	switch (cmd.sc_type) {
+	case secadm_flush_rules:
+	case secadm_set_rules:
+		if (req->td->td_ucred->cr_uid != 0)
+			return (EPERM);
+	default:
+		break;
+	}
+
 	if (cmd.sc_version < SECADM_VERSION)
 		return (EINVAL);
 
@@ -184,6 +194,9 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		handle_version_command(&cmd, &reply);
 		break;
 	case secadm_set_rules:
+		if (req->td->td_ucred->cr_uid != 0)
+			return (EPERM);
+
 		if (cmd.sc_size != sizeof(secadm_rule_t))
 			return (EINVAL);
 
