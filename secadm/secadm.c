@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014, Shawn Webb
+ * Copyright (c) 2014,2015 Shawn Webb <shawn.webb@hardenedbsd.org>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
