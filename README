@@ -3,6 +3,7 @@ secadm
 Author: Shawn Webb <shawn.webb@hardenedbsd.org>
 Copyright (c) 2014 Shawn Webb
 License: 2-Clause BSD License
+https://github.com/HardenedBSD/secadm
 
 Introduction
 ============
@@ -49,7 +50,13 @@ Installation And Usage
 ======================
 
 # make
-# make install
+# make depend all install
+
+To list which per-applicatin features your version of secadm supports:
+# secadm list features
+
+To load the secadm kernel module:
+# kldload secadm
 
 Edit your rules:
 # vi secadm/config.conf.sample
@@ -116,3 +123,14 @@ example. Let's say we want to force ASLR and SEGVGUARD off with
 	]
 }
 ==== End of Example ====
+
+Note About libsecadm
+====================
+
+libsecadm is under heavy development. Though care has been taken to
+keep future changes and features in minde, the API and ABI are not
+stable and may change from release to release. If you plan to develop
+third-party applications that consume libsecadm, please do so at your
+own risk. If you feel you need added features or a change to an
+existing feature, please file a bug report at secadm's issue tracker
+on github.
