@@ -1,0 +1,41 @@
+{
+	/* security section not supported, yet */
+	"security": {
+		"jails": {
+			/* 
+ 			 * admin array means jails that are allowed to
+			 * administer the in-kernel ruleset
+			 */
+			"admin": [ "test-jail-01" ],
+
+			/* 
+ 			 * view array means jails that are only
+			 * allowed to view their own ruleset.
+			 */
+			"view": [ "test-jail-02" ],
+		}
+	},
+	"applications": [
+		{
+			"path": "/usr/local/lib/firefox/firefox-bin",
+			"features": {
+				"mprotect": false,
+				"aslr": false,
+			}
+		}
+		{
+			"path": "/usr/local/lib/firefox/firefox",
+			"features": {
+				"mprotect": false,
+				"aslr": false,
+			}
+		}
+		{
+			"path": "/usr/local/bin/firefox",
+			"features": {
+				"mprotect": false,
+				"aslr": false,
+			}
+		}
+	]
+}

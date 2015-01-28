@@ -1,4 +1,5 @@
-SUBDIR+=	kmod \
+SUBDIR+=	etc \
+		kmod \
 		libsecadm \
 		secadm
 
