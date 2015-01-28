@@ -1,6 +1,5 @@
 PROG=	secadm
 SRCS=	config.c \
-	kld.c \
 	secadm.c
 BINDIR?=	/usr/sbin
 

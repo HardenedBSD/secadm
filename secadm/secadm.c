@@ -133,7 +133,7 @@ listact(int argc, char *argv[])
 	size_t nrules, i;
 
 	if (argc == 1 || !strcmp(argv[1], "rules")) {
-		if (kldcheck()) {
+		if (kldfind(SECADM_KLDNAME) == -1) {
 			fprintf(stderr, "[-] secadm module not loaded\n");
 			return 1;
 		}
@@ -231,9 +231,11 @@ main(int argc, char *argv[])
 
 	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++) {
 		if (!strcmp(argv[0], actions[i].action)) {
-			if (actions[i].needkld && kldcheck()) {
-				fprintf(stderr, "[-] secadm module not loaded\n");
-				return 1;
+			if (actions[i].needkld && kldfind(SECADM_KLDNAME) == -1) {
+			       	if (kldload(SECADM_KLDNAME) == -1) {
+					fprintf(stderr, "[-] secadm module not loaded\n");
+					return 1;
+				}
 			}
 
 			return (actions[i].op(argc, argv));

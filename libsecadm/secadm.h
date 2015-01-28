@@ -31,6 +31,8 @@
 
 #define SECADM_VERSION			20141224001UL
 
+#define SECADM_KLDNAME			"secadm"
+
 /* These flags are unused right now */
 #define SECADM_RULE_FLAGS_NONE		0x00000000
 #define SECADM_RULE_FLAGS_UID_DEFINED	0x00000001
