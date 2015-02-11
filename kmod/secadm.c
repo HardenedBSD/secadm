@@ -234,6 +234,7 @@ flush_rules(struct thread *td)
 	}
 
 	entry->spl_rules = NULL;
+	entry->spl_max_id = 0;
 	SPL_WUNLOCK(entry);
 }
 
@@ -390,7 +391,6 @@ get_num_rules(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 		return (EINVAL);
 
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
-	nrules = (entry != NULL) ? entry->spl_max_id : 0;
 	if (entry != NULL) {
 		SPL_RLOCK(entry, tracker);
 		nrules = entry->spl_max_id;
