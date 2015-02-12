@@ -36,6 +36,8 @@ rcvar="secadm_enable"
 stop_cmd="secadm_stop"
 start_cmd="secadm_start"
 
+: ${secadm_enable:="NO"}
+
 list_secadm()
 {
 	/usr/sbin/secadm list
