@@ -128,7 +128,7 @@ Note About libsecadm
 ====================
 
 libsecadm is under heavy development. Though care has been taken to
-keep future changes and features in minde, the API and ABI are not
+keep future changes and features in mind, the API and ABI are not
 stable and may change from release to release. If you plan to develop
 third-party applications that consume libsecadm, please do so at your
 own risk. If you feel you need added features or a change to an
