@@ -488,9 +488,3 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 	return (0);
 }
-
-void log_location(const char *name, int line)
-{
-	printf("Here: %s : %d\n", name, line);
-	uprintf("Here: %s : %d\n", name, line);
-}
