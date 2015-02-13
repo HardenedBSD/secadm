@@ -86,7 +86,7 @@ secadm_kernel_version(void)
 	cmd.sc_type = secadm_get_version;
 	cmd.sc_buf = calloc(1, sizeof(unsigned long));
 	if (!(cmd.sc_buf))
-		return 0;
+		return (0);
 
 	cmd.sc_bufsize = sizeof(unsigned long);
 
@@ -103,7 +103,7 @@ error:
 	if (cmd.sc_buf != NULL)
 		free(cmd.sc_buf);
 
-	return version;
+	return (version);
 }
 
 unsigned int
@@ -272,11 +272,11 @@ secadm_get_kernel_rule(size_t id)
 
 	size = secadm_get_kernel_rule_size(id);
 	if (size == 0)
-		return NULL;
+		return (NULL);
 
 	buf = calloc(1, size);
 	if (buf == NULL)
-		return NULL;
+		return (NULL);
 
 	memset(&cmd, 0x00, sizeof(secadm_command_t));
 	memset(&reply, 0x00, sizeof(secadm_reply_t));
@@ -293,7 +293,7 @@ secadm_get_kernel_rule(size_t id)
 		fprintf(stderr, "[-] Could not get rule %zu: %s\n", id,
 		    strerror(err));
 		free(buf);
-		return NULL;
+		return (NULL);
 	}
 
 	return ((secadm_rule_t *)buf);

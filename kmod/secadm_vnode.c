@@ -118,7 +118,8 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 
 	SPL_RUNLOCK(entry, tracker);
 
-	err = pax_elf(imgp, flags);
+	if (flags)
+		err = pax_elf(imgp, flags);
 
 	return (err);
 }

@@ -77,10 +77,6 @@ get_prison_list_entry(const char *name, int create)
 
 
 		SKD_WLOCK();
-		/*
-		 * this inserts to list's head, rather then the
-		 * list tail, as in previous implementation
-		 */
 		SLIST_INSERT_HEAD(&(kernel_data.skd_prisons), entry,
 		    spl_entries);
 

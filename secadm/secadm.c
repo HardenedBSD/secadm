@@ -135,7 +135,7 @@ listact(int argc, char *argv[])
 	if (argc == 1 || !strcmp(argv[1], "rules")) {
 		if (kldfind(SECADM_KLDNAME) == -1) {
 			fprintf(stderr, "[-] secadm module not loaded\n");
-			return 1;
+			return (1);
 		}
 
 		nrules = secadm_get_num_kernel_rules();
@@ -244,5 +244,5 @@ main(int argc, char *argv[])
 
 	usage(name);
 
-	return 1;
+	return (1);
 }

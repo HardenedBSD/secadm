@@ -84,7 +84,7 @@ handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 		free(rule, M_SECADM);
 		reply->sr_code = secadm_fail;
 		reply->sr_errno = err;
-		return secadm_fail;
+		return (secadm_fail);
 	}
 
 	if (read_rule_from_userland(td, rule)) {
@@ -170,12 +170,15 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 	switch (cmd.sc_type) {
 	case secadm_flush_rules:
 	case secadm_set_rules:
+		/* XXX Should we cache the ucred for local use in the
+		 * sysctl lifecycle? */
 		if (req->td->td_ucred->cr_uid != 0)
 			return (EPERM);
 	default:
 		break;
 	}
 
+	/* XXX We should relax this check once we get stable releases. */
 	if (cmd.sc_version < SECADM_VERSION)
 		return (EINVAL);
 
