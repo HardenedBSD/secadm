@@ -124,13 +124,13 @@ example. Let's say we want to force ASLR and SEGVGUARD off with
 }
 ==== End of Example ====
 
-Note About libsecadm
-====================
+Note About ABI and API Stability
+================================
 
-libsecadm is under heavy development. Though care has been taken to
-keep future changes and features in mind, the API and ABI are not
-stable and may change from release to release. If you plan to develop
-third-party applications that consume libsecadm, please do so at your
-own risk. If you feel you need added features or a change to an
-existing feature, please file a bug report at secadm's issue tracker
-on github.
+Both the userland and kernel ABI and API are under heavy development.
+Though care has been taken to keep future changes and features in
+mind, the API and ABI are not stable and may change from release to
+release. If you plan to develop third-party applications that consume
+libsecadm, please do so at your own risk. If you feel you need added
+features or a change to an existing feature, please file a bug report
+at secadm's issue tracker on github.
