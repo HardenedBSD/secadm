@@ -160,7 +160,7 @@ secadm_free_rule(secadm_rule_t *rule, int freerule)
 }
 
 void
-secadm_free_rulset(secadm_rule_t *rules)
+secadm_free_ruleset(secadm_rule_t *rules)
 {
 	secadm_rule_t *rule, *next;
 
