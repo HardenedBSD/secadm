@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014,2015 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * Copyright (c) 2015 Shawn Webb <shawn.webb@hardenedbsd.org>
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -31,16 +31,55 @@
  * POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef _SECADM_INTERNAL_H
-#define _SECADM_INTERNAL_H
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <errno.h>
 
-int kldcheck(void);
-secadm_rule_t *load_config(const char *);
-secadm_rule_t *parse_object(struct ucl_parser *);
-void add_feature(secadm_rule_t *, const ucl_object_t *,
-    secadm_feature_type_t);
-secadm_rule_t *parse_applications_object(secadm_rule_t *,
-    const ucl_object_t *);
-secadm_rule_t *parse_integriforce(const ucl_object_t *);
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/param.h>
+#include <sys/linker.h>
+#include <sys/mount.h>
+#include <sys/queue.h>
+#include <sys/sysctl.h>
 
-#endif
+#include <sha.h>
+#include <sha256.h>
+
+#include "secadm.h"
+#include "libsecadm.h"
+
+int
+secadm_verify_file(secadm_hash_type_t type, const char *path, char *digest)
+{
+	char *hash;
+	size_t hashsz;
+	int res;
+
+	res = 0;
+	switch (type) {
+	case md5:
+		return (1);
+	case sha1:
+		hashsz=20;
+		hash = SHA1_File(path, NULL);
+		if (hash == NULL)
+			return (1);
+		break;
+	case sha256:
+		hashsz=32;
+		hash = SHA256_File(path, NULL);
+		if (hash == NULL)
+			return (1);
+		break;
+	default:
+		return (1);
+	}
+
+	res = (memcmp(hash, digest, hashsz) != 0);
+	free(hash);
+
+	return (res);
+}

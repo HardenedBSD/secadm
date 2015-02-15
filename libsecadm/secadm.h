@@ -50,8 +50,21 @@ typedef enum secadm_feature_type {
 	segvguard_disabled,
 	segvguard_enabled,
 	aslr_disabled,
-	aslr_enabled
+	aslr_enabled,
+	integriforce
 } secadm_feature_type_t;
+
+typedef enum secadm_hash_type {
+	invalid=0,
+	md5,
+	sha1,
+	sha256
+} secadm_hash_type_t;
+
+typedef enum secadm_integriforce_mode {
+	soft=0,
+	hard=1
+} secadm_integriforce_mode_t;
 
 typedef enum secadm_command_type {
 	secadm_get_version=0,
@@ -72,6 +85,12 @@ typedef struct secadm_feature {
 	size_t			 metadatasz;
 	void			*metadata;
 } secadm_feature_t;
+
+typedef struct secadm_integriforce {
+	secadm_integriforce_mode_t	 si_mode;
+	secadm_hash_type_t		 si_hashtype;
+	const char			*si_hash;
+} secadm_integriforce_t;
 
 typedef struct secadm_rule {
 	size_t			 sr_id;

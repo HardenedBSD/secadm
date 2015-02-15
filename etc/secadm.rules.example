@@ -17,25 +17,22 @@
 	},
 	"applications": [
 		{
-			"path": "/usr/local/lib/firefox/firefox-bin",
+			"path": "/bin/ls",
 			"features": {
 				"mprotect": false,
 				"aslr": false,
 			}
 		}
-		{
-			"path": "/usr/local/lib/firefox/firefox",
-			"features": {
-				"mprotect": false,
-				"aslr": false,
+	],
+	"integriforce": {
+		"enforcing": "soft",
+		"files": [
+			{
+				"path": "/bin/ls",
+				"hash":
+"ae39487665421d9e0ea877918a39da0c173d6674143023c3ccccc18c586f6739",
+				"hash_type": "sha256"
 			}
-		}
-		{
-			"path": "/usr/local/bin/firefox",
-			"features": {
-				"mprotect": false,
-				"aslr": false,
-			}
-		}
-	]
+		]
+	}
 }

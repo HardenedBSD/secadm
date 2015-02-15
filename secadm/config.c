@@ -51,6 +51,9 @@
 #include "libsecadm.h"
 #include "secadm_internal.h"
 
+static secadm_rule_t * find_rule(secadm_rule_t *head,
+    const char *path);
+
 secadm_rule_t *
 load_config(const char *config)
 {
@@ -121,24 +124,26 @@ parse_object(struct ucl_parser *parser)
 
 	obj = ucl_parser_get_object(parser);
 
-	while ((curobj = ucl_iterate_object(obj, &it, 1))) {
-		key = ucl_object_key(curobj);
-		newrules=NULL;
+	curobj = ucl_lookup_path(obj, "integriforce");
+	if (curobj != NULL) {
+		rules = parse_integriforce(curobj);
+#if 0
+		if (rules == NULL)
+			return (NULL);
+#endif
+	}
 
-		if (!strcmp(key, "applications"))
-			newrules = parse_applications_object(curobj);
+	curobj = ucl_lookup_path(obj, "applications");
+	if (curobj != NULL) {
+		newrules = parse_applications_object(rules, curobj);
+		if (newrules == NULL) {
+			if (rules != NULL)
+				secadm_free_ruleset(rules);
 
-		if (newrules != NULL) {
-			if (rules != NULL) {
-				for (rule = rules; rule->sr_next != NULL;
-				    rule = rule->sr_next)
-					;
-
-				rule->sr_next = newrules;
-			} else {
-				rules = newrules;
-			}
+			return (NULL);
 		}
+
+		rules = newrules;
 	}
 
 	ucl_object_unref(obj);
@@ -178,20 +183,16 @@ add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t 
 }
 
 secadm_rule_t *
-parse_applications_object(const ucl_object_t *obj)
+parse_applications_object(secadm_rule_t *head, const ucl_object_t *obj)
 {
 	const ucl_object_t *appindex, *ucl_feature, *appdata, *ucl_jails,
 	    *ucl_jail;
 	ucl_object_iter_t it=NULL, jailit=NULL;
-	secadm_rule_t *head=NULL, *apprule;
+	secadm_rule_t *apprule;
 	const char *path, *datakey, *key;
 	bool enabled;
 
 	while ((appindex = ucl_iterate_object(obj, &it, 1))) {
-		apprule = calloc(1, sizeof(secadm_rule_t));
-		if (!(apprule))
-			return (head);
-
 		appdata = ucl_lookup_path(appindex, "path");
 		if (!(appdata)) {
 			free(apprule);
@@ -205,10 +206,24 @@ parse_applications_object(const ucl_object_t *obj)
 			continue;
 		}
 
-		if (secadm_parse_path(apprule, path)) {
-			fprintf(stderr, "Could not set the rule's path!\n");
-			free(apprule);
-			continue;
+		apprule = find_rule(head, path);
+		if (apprule == NULL) {
+			apprule = calloc(1, sizeof(secadm_rule_t));
+			if (apprule == NULL)
+				return (head);
+
+			if (secadm_parse_path(apprule, path)) {
+				fprintf(stderr, "Could not set the rule's path!\n");
+				free(apprule);
+				continue;
+			}
+
+			if (head) {
+				apprule->sr_next = head->sr_next;
+				head->sr_next = apprule;
+			} else {
+				head = apprule;
+			}
 		}
 
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.pageexec")) != NULL) {
@@ -234,21 +249,25 @@ parse_applications_object(const ucl_object_t *obj)
 				add_feature(apprule, ucl_feature,
 				    enabled ? aslr_enabled : aslr_disabled);
 		}
-
-		if (apprule->sr_nfeatures == 0) {
-			fprintf(stderr, "Application %s has no features. Skipping application rule.\n",
-			    apprule->sr_path);
-			free(apprule);
-			continue;
-		}
-
-		if (head) {
-			apprule->sr_next = head->sr_next;
-			head->sr_next = apprule;
-		} else {
-			head = apprule;
-		}
 	}
 
 	return (head);
+}
+
+secadm_rule_t *
+parse_integriforce(const ucl_object_t *integriforce)
+{
+	return (NULL);
+}
+
+static secadm_rule_t *
+find_rule(secadm_rule_t *head, const char *path)
+{
+	secadm_rule_t *rule;
+
+	for (rule = head; rule != NULL; rule = rule->sr_next)
+		if (!strcmp(rule->sr_path, path))
+			break;
+
+	return (rule);
 }

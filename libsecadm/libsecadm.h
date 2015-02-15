@@ -46,4 +46,6 @@ int secadm_validate_ruleset(secadm_rule_t *rules);
 void secadm_free_rule(secadm_rule_t *rule, int freerule);
 void secadm_free_ruleset(secadm_rule_t *rules);
 
+int secadm_verify_file(secadm_hash_type_t type, const char *path, char *digest);
+
 #endif
