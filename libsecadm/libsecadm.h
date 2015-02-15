@@ -50,5 +50,6 @@ int secadm_verify_file(secadm_hash_type_t type, const char *path,
     char *digest);
 secadm_integriforce_mode_t convert_to_integriforce_mode(const char *mode);
 secadm_hash_type_t convert_to_hash_type(const char *type);
+const char *convert_from_integriforce_mode(secadm_integriforce_mode_t mode);
 
 #endif

@@ -59,6 +59,7 @@ static void get_version(void);
 static int listact(int, char **);
 static int setact(int, char **);
 static int flushact(int, char **);
+static int validateact(int, char **);
 
 const char *configpath=NULL;
 const char *name;
@@ -83,6 +84,11 @@ struct _action {
 		1,
 		flushact
 	},
+	{
+		"validate",
+		0,
+		validateact
+	}
 };
 
 static void
@@ -194,6 +200,33 @@ setact(int argc, char *argv[])
 }
 
 static int
+validateact(int argc, char *argv[])
+{
+	secadm_rule_t *rules;
+	int ch;
+
+	if (!(configpath))
+		usage(name);
+
+	rules = load_config(configpath);
+	if (rules == NULL) {
+		fprintf(stderr, "[-] Could not load the config file\n");
+		return 1;
+	}
+
+	while ((ch = getopt(argc-1, argv+1, "v")) != -1) {
+		switch (ch) {
+		case 'v':
+			secadm_debug_print_rules(rules);
+			break;
+		}
+	}
+
+	return (secadm_validate_ruleset(rules));
+
+}
+
+static int
 flushact(int argc, char *argv[])
 {
 
@@ -225,6 +258,7 @@ main(int argc, char *argv[])
 
 	argc -= optind;
 	argv += optind;
+	optind=0;
 
 	if (argc < 1)
 		usage(name);

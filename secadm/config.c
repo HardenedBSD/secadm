@@ -261,7 +261,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 	ucl_object_iter_t it=NULL;
 	secadm_rule_t *head=NULL, *rule;
 	secadm_integriforce_mode_t defmode;
-	secadm_feature_t *feature;
+	secadm_feature_t *features, *feature;
 	secadm_integriforce_t *metadata;
 	const char *path, *data;
 
@@ -356,7 +356,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			if (ucl_object_tostring_safe(ucldata, &data))
 				metadata->si_mode = convert_to_integriforce_mode(data);
 
-		feature = calloc(1, sizeof(secadm_feature_t));
+		feature = reallocarray(NULL, 1, sizeof(secadm_feature_t));
 		if (feature == NULL) {
 			free(rule);
 			free(metadata);
@@ -368,7 +368,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		feature->metadatasz = sizeof(secadm_integriforce_t);
 
 		rule->sr_features = feature;
-		rule->sr_nfeatures++;
+		rule->sr_nfeatures = 1;
 
 		if (head) {
 			rule->sr_next = head->sr_next;
@@ -378,7 +378,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		}
 	}
 
-	return (NULL);
+	return (head);
 }
 
 static secadm_rule_t *

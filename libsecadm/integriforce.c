@@ -105,3 +105,16 @@ convert_to_hash_type(const char *type)
 
 	return (invalid_hash);
 }
+
+const char *
+convert_from_integriforce_mode(secadm_integriforce_mode_t mode)
+{
+	switch (mode) {
+	case soft:
+		return ("soft");
+	case hard:
+		return ("hard");
+	default:
+		return ("unknown");
+	}
+}

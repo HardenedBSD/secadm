@@ -157,6 +157,7 @@ void
 secadm_debug_print_rule(secadm_rule_t *rule)
 {
 	secadm_feature_t *feature;
+	secadm_integriforce_t *metadata;
 	size_t i;
 
 	fprintf(stderr, "[*] Rule %zu\n", rule->sr_id);
@@ -186,6 +187,17 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 			break;
 		case aslr_enabled:
 			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
+			break;
+		case integriforce:
+			if (rule->sr_features[i].metadata == NULL) {
+				fprintf(stderr, "    - Integriforce enabled, but NULL\n");
+				break;
+			}
+
+			metadata = (secadm_integriforce_t *)(rule->sr_features[i].metadata);
+			fprintf(stderr, "     - Integriforce:\n");
+			fprintf(stderr, "       + Enforcing mode: %s\n",
+			    convert_from_integriforce_mode(metadata->si_mode));
 			break;
 		default:
 			fprintf(stderr, "    - Feature %d unknown\n",
