@@ -55,7 +55,7 @@ typedef enum secadm_feature_type {
 } secadm_feature_type_t;
 
 typedef enum secadm_hash_type {
-	invalid=0,
+	invalid_hash=0,
 	md5,
 	sha1,
 	sha256
@@ -65,6 +65,8 @@ typedef enum secadm_integriforce_mode {
 	soft=0,
 	hard=1
 } secadm_integriforce_mode_t;
+
+#define DEFAULT_MODE	hard
 
 typedef enum secadm_command_type {
 	secadm_get_version=0,

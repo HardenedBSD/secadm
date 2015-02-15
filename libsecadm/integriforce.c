@@ -83,3 +83,25 @@ secadm_verify_file(secadm_hash_type_t type, const char *path, char *digest)
 
 	return (res);
 }
+
+secadm_integriforce_mode_t
+convert_to_integriforce_mode(const char *mode)
+{
+	if (!strcasecmp(mode, "soft"))
+		return (soft);
+
+	return (hard);
+}
+
+secadm_hash_type_t
+convert_to_hash_type(const char *type)
+{
+	if (!strcasecmp(type, "md5"))
+		return (md5);
+	if (!strcasecmp(type, "sha1"))
+		return (sha1);
+	if (!strcasecmp(type, "sha256"))
+		return (sha256);
+
+	return (invalid_hash);
+}

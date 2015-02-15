@@ -255,8 +255,129 @@ parse_applications_object(secadm_rule_t *head, const ucl_object_t *obj)
 }
 
 secadm_rule_t *
-parse_integriforce(const ucl_object_t *integriforce)
+parse_integriforce(const ucl_object_t *uclintegriforce)
 {
+	const ucl_object_t *index, *ucldata, *files;
+	ucl_object_iter_t it=NULL;
+	secadm_rule_t *head=NULL, *rule;
+	secadm_integriforce_mode_t defmode;
+	secadm_feature_t *feature;
+	secadm_integriforce_t *metadata;
+	const char *path, *data;
+
+	defmode = DEFAULT_MODE;
+	ucldata = ucl_lookup_path(uclintegriforce, "enforcing");
+	if (ucldata != NULL) {
+		if (ucl_object_tostring_safe(ucldata, &data) == false) {
+			fprintf(stderr, "Eforcing mode must be a string.\n");
+			return (NULL);
+		}
+
+		defmode = convert_to_integriforce_mode(data);
+	}
+
+	files = ucl_lookup_path(uclintegriforce, "files");
+
+	while ((index = ucl_iterate_object(files, &it, 1))) {
+		ucldata = ucl_lookup_path(index, "path");
+		if (!(ucldata)) {
+			fprintf(stderr, "Object does not have a path!\n");
+			continue;
+		}
+
+		if (ucl_object_tostring_safe(ucldata, &path) == false) {
+			fprintf(stderr, "Object's path is not a string!\n");
+			continue;
+		}
+
+		rule = calloc(1, sizeof(secadm_rule_t));
+		if (rule == NULL)
+			return (head);
+
+		if (secadm_parse_path(rule, path)) {
+			fprintf(stderr, "Could not set the rule's path!\n");
+			free(rule);
+			continue;
+		}
+
+		metadata = calloc(1, sizeof(secadm_integriforce_t));
+		if (metadata == NULL)
+			return (head);
+
+		ucldata = ucl_lookup_path(index, "hash_type");
+		if (ucldata == NULL) {
+			free(rule);
+			free(metadata);
+			fprintf(stderr, "hash_type (md5, sha1, sha256) not specified for integriforce path %s\n",
+			    path);
+			continue;
+		}
+
+		if (ucl_object_tostring_safe(ucldata, &data) == false) {
+			free(rule);
+			free(metadata);
+			fprintf(stderr, "hash_type must be a string.\n");
+			continue;
+		}
+
+		metadata->si_hashtype = convert_to_hash_type(data);
+		if (metadata->si_hashtype == invalid_hash) {
+			free(rule);
+			free(metadata);
+			fprintf(stderr, "Invalid hash type\n");
+			continue;
+		}
+
+		ucldata = ucl_lookup_path(index, "hash");
+		if (ucldata == NULL) {
+			free(rule);
+			free(metadata);
+			fprintf(stderr, "No hash specified\n");
+			continue;
+		}
+
+		if (ucl_object_tostring_safe(ucldata, &data) == false) {
+			free(rule);
+			free(metadata);
+			fprintf(stderr, "hash must be a string\n");
+			continue;
+		}
+
+		metadata->si_hash = strdup(data);
+		if (!(metadata->si_hash)) {
+			free(rule);
+			free(metadata);
+			return (head);
+		}
+
+		metadata->si_mode = defmode;
+		ucldata = ucl_lookup_path(index, "enforcing");
+		if (ucldata != NULL)
+			if (ucl_object_tostring_safe(ucldata, &data))
+				metadata->si_mode = convert_to_integriforce_mode(data);
+
+		feature = calloc(1, sizeof(secadm_feature_t));
+		if (feature == NULL) {
+			free(rule);
+			free(metadata);
+			return (head);
+		}
+
+		feature->metadata = metadata;
+		feature->type = integriforce;
+		feature->metadatasz = sizeof(secadm_integriforce_t);
+
+		rule->sr_features = feature;
+		rule->sr_nfeatures++;
+
+		if (head) {
+			rule->sr_next = head->sr_next;
+			head->sr_next = rule;
+		} else {
+			head = rule;
+		}
+	}
+
 	return (NULL);
 }
 
