@@ -94,5 +94,5 @@ static struct mac_policy_ops secadm_ops =
 	.mpo_prison_destroy	= secadm_jail_destroy
 };
 
-MAC_POLICY_SET(&secadm_ops, secadm, "HardenedBSD Security Firewall",
+MAC_POLICY_SET(&secadm_ops, secadm, "HardenedBSD Control Module",
     MPC_LOADTIME_FLAG_UNLOADOK, NULL);
