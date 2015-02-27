@@ -36,11 +36,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/param.h>
 #include <sys/linker.h>
+#include <sys/mman.h>
 #include <sys/mount.h>
 #include <sys/queue.h>
 #include <sys/sysctl.h>
@@ -52,27 +54,49 @@
 #include "libsecadm.h"
 
 int
-secadm_verify_file(secadm_hash_type_t type, const char *path, char *digest)
+secadm_verify_file(secadm_hash_type_t type, const char *path, unsigned char *digest)
 {
-	char *hash;
+	struct stat sb;
+	SHA256_CTX sha256ctx;
+	unsigned char *hash;
+	void *mapping;
 	size_t hashsz;
-	int res;
+	int fd, res;
+
+	fd = open(path, O_RDONLY);
+	if (fd < 0)
+		return (1);
+
+	if (fstat(fd, &sb)) {
+		close(fd);
+		return (1);
+	}
+
+	mapping = mmap(NULL, sb.st_size, PROT_READ, MAP_SHARED, fd, 0);
+	if (mapping == NULL) {
+		close(fd);
+		return (1);
+	}
 
 	res = 0;
 	switch (type) {
 	case md5:
 		return (1);
 	case sha1:
-		hashsz=20;
-		hash = SHA1_File(path, NULL);
-		if (hash == NULL)
-			return (1);
-		break;
+		return (1);
 	case sha256:
-		hashsz=32;
-		hash = SHA256_File(path, NULL);
-		if (hash == NULL)
+		hash = malloc(32);
+		if (hash == NULL) {
+			close(fd);
+			munmap(mapping, sb.st_size);
 			return (1);
+		}
+
+		SHA256_Init(&sha256ctx);
+		SHA256_Update(&sha256ctx, mapping, sb.st_size);
+		SHA256_Final(hash, &sha256ctx);
+
+		hashsz=32;
 		break;
 	default:
 		return (1);

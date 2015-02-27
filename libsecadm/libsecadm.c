@@ -158,7 +158,7 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 {
 	secadm_feature_t *feature;
 	secadm_integriforce_t *metadata;
-	size_t i;
+	size_t i, j;
 
 	fprintf(stderr, "[*] Rule %zu\n", rule->sr_id);
 	fprintf(stderr, "    - Path: %s\n", rule->sr_path);
@@ -198,6 +198,16 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 			fprintf(stderr, "     - Integriforce:\n");
 			fprintf(stderr, "       + Enforcing mode: %s\n",
 			    convert_from_integriforce_mode(metadata->si_mode));
+			fprintf(stderr, "       + Hash: ");
+			switch (metadata->si_hashtype) {
+			case sha256:
+				for (j=0; j<32; j++)
+					fprintf(stderr, "%02x", metadata->si_hash[j]);
+				break;
+			default:
+				break;
+			}
+			fprintf(stderr, "\n");
 			break;
 		default:
 			fprintf(stderr, "    - Feature %d unknown\n",

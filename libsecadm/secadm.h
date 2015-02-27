@@ -91,7 +91,7 @@ typedef struct secadm_feature {
 typedef struct secadm_integriforce {
 	secadm_integriforce_mode_t	 si_mode;
 	secadm_hash_type_t		 si_hashtype;
-	const char			*si_hash;
+	const unsigned char		*si_hash;
 } secadm_integriforce_t;
 
 typedef struct secadm_rule {

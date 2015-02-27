@@ -264,6 +264,8 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 	secadm_feature_t *features, *feature;
 	secadm_integriforce_t *metadata;
 	const char *path, *data;
+	unsigned char *hash;
+	size_t i;
 
 	defmode = DEFAULT_MODE;
 	ucldata = ucl_lookup_path(uclintegriforce, "enforcing");
@@ -343,7 +345,34 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			continue;
 		}
 
-		metadata->si_hash = strdup(data);
+		if ((strlen(data) % 2) != 0) {
+			free(rule);
+			free(metadata);
+			fprintf(stderr, "Invalid hash\n");
+			continue;
+		}
+
+		hash = malloc(strlen(data) / 2);
+		if (hash == NULL) {
+			free(rule);
+			free(metadata);
+			return (head);
+		}
+
+		for (i=0; i < strlen(data) / 2; i++) {
+			unsigned int val;
+
+			if (sscanf(&data[i*2], "%02x", &val) == 0) {
+				free(rule);
+				free(metadata);
+				fprintf(stderr, "Invalid hash\n");
+				continue;
+			}
+
+			hash[i] = val & 0xff;
+		}
+
+		metadata->si_hash = hash;
 		if (!(metadata->si_hash)) {
 			free(rule);
 			free(metadata);
