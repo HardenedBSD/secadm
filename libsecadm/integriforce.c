@@ -54,7 +54,8 @@
 #include "libsecadm.h"
 
 int
-secadm_verify_file(secadm_hash_type_t type, const char *path, unsigned char *digest)
+secadm_verify_file(secadm_hash_type_t type, const char *path,
+    const unsigned char *digest)
 {
 	struct stat sb;
 	SHA256_CTX sha256ctx;

@@ -48,6 +48,7 @@
 #include <fcntl.h>
 
 #include "secadm.h"
+#include "libsecadm.h"
 
 int
 secadm_parse_path(secadm_rule_t *rule, const char *path)
@@ -92,6 +93,9 @@ secadm_parse_path(secadm_rule_t *rule, const char *path)
 int
 secadm_validate_rule(secadm_rule_t *rule)
 {
+	secadm_integriforce_t *p_integriforce;
+	size_t i;
+
 	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
 	    || rule->sr_nfeatures > SECADM_MAX_FEATURES)
 		return (-1);
@@ -113,6 +117,47 @@ secadm_validate_rule(secadm_rule_t *rule)
 
 	if (rule->sr_prison != NULL)
 		return (-1);
+
+	for (i=0; i < rule->sr_nfeatures; i++) {
+		switch (rule->sr_features[i].type) {
+		case integriforce:
+			if (rule->sr_features[i].metadata == NULL)
+				return (-1);
+			if (rule->sr_features[i].metadatasz != sizeof(secadm_integriforce_t))
+				return (-1);
+
+			p_integriforce = (secadm_integriforce_t *)
+			    (rule->sr_features[i].metadata);
+
+			if (p_integriforce->si_hash == NULL)
+				return (-1);
+
+			switch (p_integriforce->si_hashtype) {
+			case sha256:
+				break;
+			default:
+				return (-1);
+			}
+
+			switch (p_integriforce->si_mode) {
+			case soft:
+			case hard:
+				break;
+			default:
+				return (-1);
+			}
+
+			if (secadm_verify_file(
+			    p_integriforce->si_hashtype,
+			    rule->sr_path,
+			    p_integriforce->si_hash))
+				return (-1);
+
+			break;
+		default:
+			break;
+		}
+	}
 
 	return (0);
 }
