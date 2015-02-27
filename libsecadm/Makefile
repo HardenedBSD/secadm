@@ -1,4 +1,4 @@
-LIB=	secadm
+SHLIB=	secadm
 SHLIB_MAJOR=	0
 SRCS=	integriforce.c libsecadm.c rules.c
 INCS=	secadm.h libsecadm.h
