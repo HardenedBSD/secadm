@@ -39,7 +39,7 @@
 #define SECADM_RULE_FLAGS_GID_DEFINED	0x00000002
 #define SECADM_RULE_FLAGS_INODE_DEFINED	0x00000004
 
-#define SECADM_MAX_FEATURES	4
+#define SECADM_MAX_FEATURES	5
 
 typedef enum secadm_feature_type {
 	secadm_invalid=0,
