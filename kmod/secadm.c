@@ -391,6 +391,7 @@ size_t
 get_rule_size(struct thread *td, size_t id)
 {
 	secadm_rule_t *rule;
+	secadm_integriforce_t *integriforce_p;
 	size_t size, i;
 
 	size = 0;
@@ -403,9 +404,25 @@ get_rule_size(struct thread *td, size_t id)
 	size += sizeof(secadm_feature_t) * rule->sr_nfeatures;
 	size += strlen(rule->sr_prison)+1;
 
-	for (i=0; i < rule->sr_nfeatures; i++)
-		if (rule->sr_features[i].metadata)
+	for (i=0; i < rule->sr_nfeatures; i++) {
+		if (rule->sr_features[i].metadata) {
 			size += rule->sr_features[i].metadatasz;
+			switch (rule->sr_features[i].type) {
+			case integriforce:
+				integriforce_p = rule->sr_features[i].metadata;
+				switch (integriforce_p->si_hashtype) {
+				case sha256:
+					size += 32;
+					break;
+				default:
+					break;
+				}
+				break;
+			default:
+				break;
+			}
+		}
+	}
 end:
 	return (size);
 }
@@ -467,6 +484,7 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 {
 	secadm_rule_t *rule, *newrule;
 	secadm_feature_t *newrule_features;
+	secadm_integriforce_t *integriforce_p;
 	size_t id, size, written, i;
 	char *buf, *path;
 	int err;
@@ -521,8 +539,34 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 	for (i=0; i < rule->sr_nfeatures; i++) {
 		memcpy(&(newrule->sr_features[i]), &rule->sr_features[i], sizeof(secadm_feature_t));
-		newrule->sr_features[i].metadata = NULL;
-		newrule->sr_features[i].metadatasz = 0;
+		if (rule->sr_features[i].metadata) {
+			switch (rule->sr_features[i].type) {
+			case integriforce:
+				integriforce_p = (secadm_integriforce_t *)(buf + written);
+				memcpy(integriforce_p, rule->sr_features[i].metadata,
+					sizeof(secadm_integriforce_t));
+				newrule->sr_features[i].metadata =
+				    (char *)(reply->sr_metadata) + written;
+				written += sizeof(secadm_integriforce_t);
+
+				switch (integriforce_p->si_hashtype) {
+				case sha256:
+					memcpy(buf + written, integriforce_p->si_hash, 32);
+					integriforce_p->si_hash = (unsigned char *)
+					    ((char *)(reply->sr_metadata) + written);
+					written += 32;
+					break;
+				default:
+					break;
+				}
+
+				break;
+			default:
+				newrule->sr_features[i].metadata = NULL;
+				newrule->sr_features[i].metadatasz = 0;
+				break;
+			}
+		}
 	}
 
 	newrule->sr_features = newrule_features;
