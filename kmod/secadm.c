@@ -128,14 +128,28 @@ validate_ruleset(struct thread *td, secadm_rule_t *head)
 void
 free_rule(secadm_rule_t *rule, int freerule)
 {
+	secadm_integriforce_t *integriforce_p;
 	size_t i;
 	
 	if (rule->sr_path)
 		free(rule->sr_path, M_SECADM);
 
-	for (i=0; i < rule->sr_nfeatures; i++)
-		if (rule->sr_features[i].metadata)
+	for (i=0; i < rule->sr_nfeatures; i++) {
+		if (rule->sr_features[i].metadata) {
+			switch (rule->sr_features[i].type) {
+			case integriforce:
+				integriforce_p =
+				    rule->sr_features[i].metadata;
+				free(integriforce_p->si_hash,
+				    M_SECADM);
+				break;
+			default:
+				break;
+			}
+
 			free(rule->sr_features[i].metadata, M_SECADM);
+		}
+	}
 
 	if (rule->sr_features)
 		free(rule->sr_features, M_SECADM);
@@ -239,9 +253,11 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 {
 	secadm_feature_t *features;
 	secadm_kernel_metadata_t *kernel_metadata;
+	secadm_integriforce_t *integriforce_p;
 	size_t i;
 	int err = 0;
 	char *path;
+	unsigned char *hash;
 
 	rule->sr_mount[MNAMELEN-1] = '\0';
 
@@ -259,9 +275,53 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 	}
 
 	for (i=0; i<rule->sr_nfeatures; i++) {
-		/* We have no features that require extra metadata */
-		features[i].metadata = NULL;
-		features[i].metadatasz = 0;
+		if (features[i].type == integriforce) {
+			if (features[i].metadatasz !=
+			    sizeof(secadm_integriforce_t)) {
+				free(features, M_SECADM);
+				goto error;
+			}
+
+			integriforce_p = malloc(
+			    sizeof(secadm_integriforce_t), M_SECADM,
+			    M_WAITOK);
+
+			err = copyin(features[i].metadata,
+			    integriforce_p,
+			    sizeof(secadm_integriforce_t));
+			if (err) {
+				free(features, M_SECADM);
+				free(integriforce_p, M_SECADM);
+				goto error;
+			}
+
+			switch (integriforce_p->si_hashtype) {
+			case sha256:
+				hash = malloc(32, M_SECADM, M_WAITOK);
+				err = copyin(integriforce_p->si_hash,
+				    hash, 32);
+				if (err) {
+					free(hash, M_SECADM);
+					free(features, M_SECADM);
+					free(integriforce_p, M_SECADM);
+					goto error;
+				}
+				integriforce_p->si_hash = hash;
+				break;
+			default:
+				/* MD5 and SHA1 coming soon to an
+				 * Integriforce near you. */
+				free(hash, M_SECADM);
+				free(features, M_SECADM);
+				free(integriforce_p, M_SECADM);
+				goto error;
+			}
+
+			features[i].metadata = integriforce_p;
+		} else {
+			features[i].metadata = NULL;
+			features[i].metadatasz = 0;
+		}
 	}
 
 	rule->sr_features = features;
@@ -459,8 +519,11 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	newrule_features = (secadm_feature_t *)((char *)(reply->sr_metadata) + written);
 	written += sizeof(secadm_feature_t) * rule->sr_nfeatures;
 
-	for (i=0; i < rule->sr_nfeatures; i++)
+	for (i=0; i < rule->sr_nfeatures; i++) {
 		memcpy(&(newrule->sr_features[i]), &rule->sr_features[i], sizeof(secadm_feature_t));
+		newrule->sr_features[i].metadata = NULL;
+		newrule->sr_features[i].metadatasz = 0;
+	}
 
 	newrule->sr_features = newrule_features;
 

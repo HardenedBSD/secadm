@@ -91,7 +91,7 @@ typedef struct secadm_feature {
 typedef struct secadm_integriforce {
 	secadm_integriforce_mode_t	 si_mode;
 	secadm_hash_type_t		 si_hashtype;
-	const unsigned char		*si_hash;
+	unsigned char			*si_hash;
 } secadm_integriforce_t;
 
 typedef struct secadm_rule {
@@ -230,6 +230,8 @@ int get_num_rules(struct thread *, secadm_command_t *, secadm_reply_t *);
 int handle_get_rule(struct thread *, secadm_command_t *, secadm_reply_t *);
 void cleanup_jail_rules(struct secadm_prison_entry *);
 void log_location(const char *, int);
+
+int do_integriforce_check(secadm_rule_t *, struct vattr *, struct image_params *);
 
 #endif /* _KERNEL */
 

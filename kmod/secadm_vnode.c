@@ -61,7 +61,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	secadm_rule_t *rule;
 	struct vattr vap;
 	size_t i;
-	int err, flags=0;
+	int err=0, flags=0;
 
 	entry = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
 	if (entry == NULL)
@@ -108,6 +108,9 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 			case aslr_disabled:
 				flags |= PAX_NOTE_NOASLR;
 				break;
+			case integriforce:
+				err = do_integriforce_check(rule, &vap, imgp);
+				break;
 			default:
 				break;
 			}
@@ -118,7 +121,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 
 	SPL_RUNLOCK(entry, tracker);
 
-	if (flags)
+	if (err == 0 && flags)
 		err = pax_elf(imgp, flags);
 
 	return (err);
