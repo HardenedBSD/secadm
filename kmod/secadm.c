@@ -106,12 +106,47 @@ int
 validate_ruleset(struct thread *td, secadm_rule_t *head)
 {
 	secadm_rule_t *rule;
-	size_t nrules, maxid;
+	secadm_integriforce_t *integriforce_p;
+	size_t nrules, maxid, i;
 
 	nrules = maxid = 0;
 	for (rule = head; rule != NULL; rule = rule->sr_next) {
 		if (pre_validate_rule(td, rule))
 			return (1);
+
+		/*
+		 * Feature validation can only be done after the rules
+		 * have been read in as it hasn't been read in, yet.
+		 */
+		for (i=0; i < rule->sr_nfeatures; i++) {
+			switch (rule->sr_features[i].type) {
+			case integriforce:
+				if (rule->sr_features[i].metadatasz
+				    != sizeof(secadm_integriforce_t))
+					return (1);
+				integriforce_p =
+				    rule->sr_features[i].metadata;
+
+				switch (integriforce_p->si_mode) {
+				case soft:
+				case hard:
+					break;
+				default:
+					return (1);
+				}
+
+				switch (integriforce_p->si_hashtype) {
+				case sha256:
+					break;
+				default:
+					return (1);
+				}
+
+				break;
+			default:
+				break;
+			}
+		}
 
 		if (rule->sr_id > maxid)
 			maxid = rule->sr_id;
