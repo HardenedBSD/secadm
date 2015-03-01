@@ -41,17 +41,84 @@
 #include <sys/rmlock.h>
 #include <sys/systm.h>
 #include <sys/vnode.h>
+#include <sys/uio.h>
 #include <sys/sysctl.h>
 #include <sys/syslog.h>
 #include <sys/stat.h>
+#include <sys/fcntl.h>
 
+#include <crypto/sha2/sha256.h>
 #include <security/mac/mac_policy.h>
 
 #include "secadm.h"
 
 int
 do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
-    struct image_params *imgp)
+    struct image_params *imgp, struct ucred *ucred)
 {
-	return (0);
+	secadm_integriforce_t *integriforce_p;
+	SHA256_CTX sha256ctx;
+	struct iovec iov;
+	struct uio uio;
+	unsigned char *buf, hash[32];
+	size_t total, amt, i;
+	int err;
+
+	err = VOP_OPEN(imgp->vp, FREAD, ucred, curthread, NULL);
+	if (err)
+		return (0);
+
+	for (i=0; i < rule->sr_nfeatures; i++)
+		if (rule->sr_features[i].type == integriforce)
+			break;
+
+	if (i == rule->sr_nfeatures)
+		return (0);
+
+	integriforce_p = rule->sr_features[i].metadata;
+	total = vap->va_size;
+
+	buf = malloc(64, M_SECADM, M_WAITOK);
+
+	SHA256_Init(&sha256ctx);
+	while (total > 0) {
+		amt = MIN(total, 64);
+		iov.iov_base = buf;
+		iov.iov_len = amt;
+		uio.uio_iov = &iov;
+		uio.uio_iovcnt = 1;
+		uio.uio_offset = vap->va_size - total;
+		uio.uio_resid = amt;
+		uio.uio_segflg = UIO_SYSSPACE;
+		uio.uio_rw = UIO_READ;
+		uio.uio_td = curthread;
+		err = VOP_READ(imgp->vp, &uio, 0, ucred);
+		if (err) {
+			VOP_CLOSE(imgp->vp, FREAD, ucred, curthread);
+			free(buf, M_SECADM);
+			return (0);
+		}
+		SHA256_Update(&sha256ctx, buf, amt);
+		total -= amt;
+	}
+
+	free(buf, M_SECADM);
+	VOP_CLOSE(imgp->vp, FREAD, ucred, curthread);
+	SHA256_Final(hash, &sha256ctx);
+
+	if (memcmp(integriforce_p->si_hash, hash, 32)) {
+		switch (integriforce_p->si_mode) {
+		case soft:
+			printf("Warning: hash did not match for rule %zu\n", rule->sr_id);
+			err = 0;
+			break;
+		default:
+			printf("Warning: hash did not match for rule %zu\n", rule->sr_id);
+			err = EPERM;
+			break;
+		}
+
+	}
+
+	return (err);
 }

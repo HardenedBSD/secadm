@@ -231,7 +231,8 @@ int handle_get_rule(struct thread *, secadm_command_t *, secadm_reply_t *);
 void cleanup_jail_rules(struct secadm_prison_entry *);
 void log_location(const char *, int);
 
-int do_integriforce_check(secadm_rule_t *, struct vattr *, struct image_params *);
+int do_integriforce_check(secadm_rule_t *, struct vattr *,
+    struct image_params *, struct ucred *);
 
 #endif /* _KERNEL */
 
