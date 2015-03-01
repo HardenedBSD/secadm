@@ -68,17 +68,16 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	feature = lookup_integriforce_feature(rule);
 	if (feature == NULL)
 		return (0);
+	integriforce_p = feature->metadata;
 
 	err = VOP_OPEN(imgp->vp, FREAD, ucred, curthread, NULL);
 	if (err)
 		return (0);
 
-	integriforce_p = feature->metadata;
-	total = vap->va_size;
-
 	buf = malloc(8192, M_SECADM, M_WAITOK);
-
 	SHA256_Init(&sha256ctx);
+
+	total = vap->va_size;
 	while (total > 0) {
 		amt = MIN(total, 8192);
 		iov.iov_base = buf;
