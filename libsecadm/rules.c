@@ -133,6 +133,7 @@ secadm_validate_rule(secadm_rule_t *rule)
 				return (-1);
 
 			switch (p_integriforce->si_hashtype) {
+			case si_hash_sha1:
 			case si_hash_sha256:
 				break;
 			default:

@@ -137,6 +137,7 @@ validate_ruleset(struct thread *td, secadm_rule_t *head)
 
 				switch (integriforce_p->si_hashtype) {
 				case si_hash_sha256:
+				case si_hash_sha1:
 					break;
 				default:
 					return (1);
@@ -343,10 +344,23 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 				}
 				integriforce_p->si_hash = hash;
 				break;
+			case si_hash_sha1:
+				hash = malloc(20, M_SECADM, M_WAITOK);
+				err = copyin(integriforce_p->si_hash,
+				    hash, 20);
+				if (err) {
+					free(hash, M_SECADM);
+					free(features, M_SECADM);
+					free(integriforce_p, M_SECADM);
+					goto error;
+				}
+				integriforce_p->si_hash = hash;
+				break;
 			default:
-				/* MD5 and SHA1 coming soon to an
-				 * Integriforce near you. */
-				free(hash, M_SECADM);
+				/*
+				 * MD5 coming soon to an
+				 * Integriforce near you.
+				 */
 				free(features, M_SECADM);
 				free(integriforce_p, M_SECADM);
 				goto error;
@@ -446,6 +460,9 @@ get_rule_size(struct thread *td, size_t id)
 			case integriforce:
 				integriforce_p = rule->sr_features[i].sf_metadata;
 				switch (integriforce_p->si_hashtype) {
+				case si_hash_sha1:
+					size += 20;
+					break;
 				case si_hash_sha256:
 					size += 32;
 					break;
@@ -585,6 +602,12 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 				written += sizeof(secadm_integriforce_t);
 
 				switch (integriforce_p->si_hashtype) {
+				case si_hash_sha1:
+					memcpy(buf + written, integriforce_p->si_hash, 20);
+					integriforce_p->si_hash = (unsigned char *)
+					    ((char *)(reply->sr_metadata) + written);
+					written += 20;
+					break;
 				case si_hash_sha256:
 					memcpy(buf + written, integriforce_p->si_hash, 32);
 					integriforce_p->si_hash = (unsigned char *)

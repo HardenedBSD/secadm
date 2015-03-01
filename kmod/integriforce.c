@@ -47,6 +47,7 @@
 #include <sys/stat.h>
 #include <sys/fcntl.h>
 
+#include <crypto/sha1.h>
 #include <crypto/sha2/sha256.h>
 #include <security/mac/mac_policy.h>
 
@@ -59,10 +60,11 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	secadm_feature_t *feature;
 	secadm_integriforce_t *integriforce_p;
 	SHA256_CTX sha256ctx;
+	SHA1_CTX sha1ctx;
 	struct iovec iov;
 	struct uio uio;
-	unsigned char *buf, hash[32];
-	size_t total, amt;
+	unsigned char *buf, *hash;
+	size_t total, amt, hashsz;
 	int err;
 
 	feature = lookup_integriforce_feature(rule);
@@ -75,7 +77,22 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 		return (0);
 
 	buf = malloc(8192, M_SECADM, M_WAITOK);
-	SHA256_Init(&sha256ctx);
+
+	switch (integriforce_p->si_hashtype) {
+	case si_hash_sha1:
+		hashsz = 20;
+		SHA1Init(&sha1ctx);
+		break;
+	case si_hash_sha256:
+		hashsz=32;
+		SHA256_Init(&sha256ctx);
+		break;
+	default:
+		VOP_CLOSE(imgp->vp, FREAD, ucred, curthread);
+		free(buf, M_SECADM);
+		return (0);
+	}
+
 
 	total = vap->va_size;
 	while (total > 0) {
@@ -95,15 +112,37 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 			free(buf, M_SECADM);
 			return (0);
 		}
-		SHA256_Update(&sha256ctx, buf, amt);
+
+		switch (integriforce_p->si_hashtype) {
+		case si_hash_sha1:
+			SHA1Update(&sha1ctx, buf, amt);
+			break;
+		case si_hash_sha256:
+			SHA256_Update(&sha256ctx, buf, amt);
+			break;
+		default:
+			break;
+		}
+
 		total -= amt;
 	}
 
 	free(buf, M_SECADM);
 	VOP_CLOSE(imgp->vp, FREAD, ucred, curthread);
-	SHA256_Final(hash, &sha256ctx);
 
-	if (memcmp(integriforce_p->si_hash, hash, 32)) {
+	hash = malloc(hashsz, M_SECADM, M_WAITOK);
+	switch (integriforce_p->si_hashtype) {
+	case si_hash_sha1:
+		SHA1Final(hash, &sha1ctx);
+		break;
+	case si_hash_sha256:
+		SHA256_Final(hash, &sha256ctx);
+		break;
+	default:
+		break;
+	}
+
+	if (memcmp(integriforce_p->si_hash, hash, hashsz)) {
 		switch (integriforce_p->si_mode) {
 		case si_mode_soft:
 			printf("secadm warning: hash did not match for rule %zu\n", rule->sr_id);
@@ -117,6 +156,7 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 
 	}
 
+	free(hash, M_SECADM);
 	return (err);
 }
 

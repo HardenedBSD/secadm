@@ -59,6 +59,7 @@ secadm_verify_file(secadm_hash_type_t type, const char *path,
 {
 	struct stat sb;
 	SHA256_CTX sha256ctx;
+	SHA1_CTX sha1ctx;
 	unsigned char *hash;
 	void *mapping;
 	size_t hashsz;
@@ -84,7 +85,19 @@ secadm_verify_file(secadm_hash_type_t type, const char *path,
 	case si_hash_md5:
 		return (1);
 	case si_hash_sha1:
-		return (1);
+		hash = malloc(20);
+		if (hash == NULL) {
+			close(fd);
+			munmap(mapping, sb.st_size);
+			return (1);
+		}
+
+		SHA1_Init(&sha1ctx);
+		SHA1_Update(&sha1ctx, mapping, sb.st_size);
+		SHA1_Final(hash, &sha1ctx);
+
+		hashsz=20;
+		break;
 	case si_hash_sha256:
 		hash = malloc(32);
 		if (hash == NULL) {
@@ -105,6 +118,9 @@ secadm_verify_file(secadm_hash_type_t type, const char *path,
 
 	res = (memcmp(hash, digest, hashsz) != 0);
 	free(hash);
+
+	munmap(mapping, sb.st_size);
+	close(fd);
 
 	return (res);
 }
