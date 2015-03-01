@@ -56,33 +56,31 @@ int
 do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
     struct image_params *imgp, struct ucred *ucred)
 {
+	secadm_feature_t *feature;
 	secadm_integriforce_t *integriforce_p;
 	SHA256_CTX sha256ctx;
 	struct iovec iov;
 	struct uio uio;
 	unsigned char *buf, hash[32];
-	size_t total, amt, i;
+	size_t total, amt;
 	int err;
+
+	feature = lookup_integriforce_feature(rule);
+	if (feature == NULL)
+		return (0);
 
 	err = VOP_OPEN(imgp->vp, FREAD, ucred, curthread, NULL);
 	if (err)
 		return (0);
 
-	for (i=0; i < rule->sr_nfeatures; i++)
-		if (rule->sr_features[i].type == integriforce)
-			break;
-
-	if (i == rule->sr_nfeatures)
-		return (0);
-
-	integriforce_p = rule->sr_features[i].metadata;
+	integriforce_p = feature->metadata;
 	total = vap->va_size;
 
-	buf = malloc(64, M_SECADM, M_WAITOK);
+	buf = malloc(8192, M_SECADM, M_WAITOK);
 
 	SHA256_Init(&sha256ctx);
 	while (total > 0) {
-		amt = MIN(total, 64);
+		amt = MIN(total, 8192);
 		iov.iov_base = buf;
 		iov.iov_len = amt;
 		uio.uio_iov = &iov;
@@ -109,11 +107,11 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	if (memcmp(integriforce_p->si_hash, hash, 32)) {
 		switch (integriforce_p->si_mode) {
 		case si_mode_soft:
-			printf("Warning: hash did not match for rule %zu\n", rule->sr_id);
+			printf("secadm warning: hash did not match for rule %zu\n", rule->sr_id);
 			err = 0;
 			break;
 		default:
-			printf("Error: hash did not match for rule %zu. Blocking execution.\n", rule->sr_id);
+			printf("secadm error: hash did not match for rule %zu. Blocking execution.\n", rule->sr_id);
 			err = EPERM;
 			break;
 		}
@@ -121,4 +119,16 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	}
 
 	return (err);
+}
+
+secadm_feature_t *
+lookup_integriforce_feature(secadm_rule_t *rule)
+{
+	size_t i;
+
+	for (i=0; i < rule->sr_nfeatures; i++)
+		if (rule->sr_features[i].type == integriforce)
+			return (&(rule->sr_features[i]));
+
+	return (NULL);
 }
