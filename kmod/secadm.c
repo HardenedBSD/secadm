@@ -128,8 +128,8 @@ validate_ruleset(struct thread *td, secadm_rule_t *head)
 				    rule->sr_features[i].metadata;
 
 				switch (integriforce_p->si_mode) {
-				case soft:
-				case hard:
+				case si_mode_soft:
+				case si_mode_hard:
 					break;
 				default:
 					return (1);

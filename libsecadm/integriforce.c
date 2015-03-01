@@ -113,9 +113,9 @@ secadm_integriforce_mode_t
 convert_to_integriforce_mode(const char *mode)
 {
 	if (!strcasecmp(mode, "soft"))
-		return (soft);
+		return (si_mode_soft);
 
-	return (hard);
+	return (si_mode_hard);
 }
 
 secadm_hash_type_t
@@ -135,9 +135,9 @@ const char *
 convert_from_integriforce_mode(secadm_integriforce_mode_t mode)
 {
 	switch (mode) {
-	case soft:
+	case si_mode_soft:
 		return ("soft");
-	case hard:
+	case si_mode_hard:
 		return ("hard");
 	default:
 		return ("unknown");

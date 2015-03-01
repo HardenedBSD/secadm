@@ -32,6 +32,13 @@
 				"hash":
 "bc65cd516077173d58a3d430cbab1a6178f4ee1d24a89e5c76f2d107b1d385ec",
 				"hash_type": "sha256"
+			},
+			{
+				"path": "/tmp/ls",
+				"hash":
+"bc65cd516077173d58a3d430cbab1a6178f4ee1d24a89e5c76f2d107b1d385ec",
+				"hash_type": "sha256",
+				"enforcing": "hard"
 			}
 		]
 	}

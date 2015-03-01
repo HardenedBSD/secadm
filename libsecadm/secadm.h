@@ -62,11 +62,11 @@ typedef enum secadm_hash_type {
 } secadm_hash_type_t;
 
 typedef enum secadm_integriforce_mode {
-	soft=0,
-	hard=1
+	si_mode_soft=0,
+	si_mode_hard
 } secadm_integriforce_mode_t;
 
-#define DEFAULT_MODE	hard
+#define DEFAULT_MODE	si_mode_hard
 
 typedef enum secadm_command_type {
 	secadm_get_version=0,

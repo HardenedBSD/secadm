@@ -140,8 +140,8 @@ secadm_validate_rule(secadm_rule_t *rule)
 			}
 
 			switch (p_integriforce->si_mode) {
-			case soft:
-			case hard:
+			case si_mode_soft:
+			case si_mode_hard:
 				break;
 			default:
 				return (-1);

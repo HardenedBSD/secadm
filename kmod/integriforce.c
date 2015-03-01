@@ -108,12 +108,12 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 
 	if (memcmp(integriforce_p->si_hash, hash, 32)) {
 		switch (integriforce_p->si_mode) {
-		case soft:
+		case si_mode_soft:
 			printf("Warning: hash did not match for rule %zu\n", rule->sr_id);
 			err = 0;
 			break;
 		default:
-			printf("Warning: hash did not match for rule %zu\n", rule->sr_id);
+			printf("Error: hash did not match for rule %zu. Blocking execution.\n", rule->sr_id);
 			err = EPERM;
 			break;
 		}
