@@ -83,9 +83,9 @@ typedef enum secadm_command_type {
 } secadm_command_type_t;
 
 typedef struct secadm_feature {
-	secadm_feature_type_t	 type;
-	size_t			 metadatasz;
-	void			*metadata;
+	secadm_feature_type_t	 sf_type;
+	size_t			 sf_metadatasz;
+	void			*sf_metadata;
 } secadm_feature_t;
 
 typedef struct secadm_integriforce {

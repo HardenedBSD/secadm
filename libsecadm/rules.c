@@ -119,15 +119,15 @@ secadm_validate_rule(secadm_rule_t *rule)
 		return (-1);
 
 	for (i=0; i < rule->sr_nfeatures; i++) {
-		switch (rule->sr_features[i].type) {
+		switch (rule->sr_features[i].sf_type) {
 		case integriforce:
-			if (rule->sr_features[i].metadata == NULL)
+			if (rule->sr_features[i].sf_metadata == NULL)
 				return (-1);
-			if (rule->sr_features[i].metadatasz != sizeof(secadm_integriforce_t))
+			if (rule->sr_features[i].sf_metadatasz != sizeof(secadm_integriforce_t))
 				return (-1);
 
 			p_integriforce = (secadm_integriforce_t *)
-			    (rule->sr_features[i].metadata);
+			    (rule->sr_features[i].sf_metadata);
 
 			if (p_integriforce->si_hash == NULL)
 				return (-1);
@@ -194,8 +194,8 @@ secadm_free_rule(secadm_rule_t *rule, int freerule)
 		free(rule->sr_path);
 
 	for (i=0; i < rule->sr_nfeatures; i++)
-		if (rule->sr_features[i].metadata)
-			free(rule->sr_features[i].metadata);
+		if (rule->sr_features[i].sf_metadata)
+			free(rule->sr_features[i].sf_metadata);
 
 	if (rule->sr_features)
 		free(rule->sr_features);

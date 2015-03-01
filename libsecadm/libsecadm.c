@@ -163,7 +163,7 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 	fprintf(stderr, "[*] Rule %zu\n", rule->sr_id);
 	fprintf(stderr, "    - Path: %s\n", rule->sr_path);
 	for (i=0; i < rule->sr_nfeatures; i++) {
-		switch (rule->sr_features[i].type) {
+		switch (rule->sr_features[i].sf_type) {
 		case pageexec_disabled:
 			fprintf(stderr, "    - Feature[PAGEEXEC]: Disabled\n");
 			break;
@@ -189,12 +189,12 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
 			break;
 		case integriforce:
-			if (rule->sr_features[i].metadata == NULL) {
+			if (rule->sr_features[i].sf_metadata == NULL) {
 				fprintf(stderr, "    - Integriforce enabled, but NULL\n");
 				break;
 			}
 
-			metadata = (secadm_integriforce_t *)(rule->sr_features[i].metadata);
+			metadata = (secadm_integriforce_t *)(rule->sr_features[i].sf_metadata);
 			fprintf(stderr, "     - Integriforce:\n");
 			fprintf(stderr, "       + Enforcing mode: %s\n",
 			    convert_from_integriforce_mode(metadata->si_mode));
@@ -211,7 +211,7 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 			break;
 		default:
 			fprintf(stderr, "    - Feature %d unknown\n",
-			    rule->sr_features[i].type);
+			    rule->sr_features[i].sf_type);
 			break;
 		}
 	}

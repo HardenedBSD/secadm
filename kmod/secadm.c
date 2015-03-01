@@ -119,13 +119,13 @@ validate_ruleset(struct thread *td, secadm_rule_t *head)
 		 * have been read in as it hasn't been read in, yet.
 		 */
 		for (i=0; i < rule->sr_nfeatures; i++) {
-			switch (rule->sr_features[i].type) {
+			switch (rule->sr_features[i].sf_type) {
 			case integriforce:
-				if (rule->sr_features[i].metadatasz
+				if (rule->sr_features[i].sf_metadatasz
 				    != sizeof(secadm_integriforce_t))
 					return (1);
 				integriforce_p =
-				    rule->sr_features[i].metadata;
+				    rule->sr_features[i].sf_metadata;
 
 				switch (integriforce_p->si_mode) {
 				case si_mode_soft:
@@ -170,11 +170,11 @@ free_rule(secadm_rule_t *rule, int freerule)
 		free(rule->sr_path, M_SECADM);
 
 	for (i=0; i < rule->sr_nfeatures; i++) {
-		if (rule->sr_features[i].metadata) {
-			switch (rule->sr_features[i].type) {
+		if (rule->sr_features[i].sf_metadata) {
+			switch (rule->sr_features[i].sf_type) {
 			case integriforce:
 				integriforce_p =
-				    rule->sr_features[i].metadata;
+				    rule->sr_features[i].sf_metadata;
 				free(integriforce_p->si_hash,
 				    M_SECADM);
 				break;
@@ -182,7 +182,7 @@ free_rule(secadm_rule_t *rule, int freerule)
 				break;
 			}
 
-			free(rule->sr_features[i].metadata, M_SECADM);
+			free(rule->sr_features[i].sf_metadata, M_SECADM);
 		}
 	}
 
@@ -310,8 +310,8 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 	}
 
 	for (i=0; i<rule->sr_nfeatures; i++) {
-		if (features[i].type == integriforce) {
-			if (features[i].metadatasz !=
+		if (features[i].sf_type == integriforce) {
+			if (features[i].sf_metadatasz !=
 			    sizeof(secadm_integriforce_t)) {
 				free(features, M_SECADM);
 				goto error;
@@ -321,7 +321,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 			    sizeof(secadm_integriforce_t), M_SECADM,
 			    M_WAITOK);
 
-			err = copyin(features[i].metadata,
+			err = copyin(features[i].sf_metadata,
 			    integriforce_p,
 			    sizeof(secadm_integriforce_t));
 			if (err) {
@@ -352,10 +352,10 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 				goto error;
 			}
 
-			features[i].metadata = integriforce_p;
+			features[i].sf_metadata = integriforce_p;
 		} else {
-			features[i].metadata = NULL;
-			features[i].metadatasz = 0;
+			features[i].sf_metadata = NULL;
+			features[i].sf_metadatasz = 0;
 		}
 	}
 
@@ -440,11 +440,11 @@ get_rule_size(struct thread *td, size_t id)
 	size += strlen(rule->sr_prison)+1;
 
 	for (i=0; i < rule->sr_nfeatures; i++) {
-		if (rule->sr_features[i].metadata) {
-			size += rule->sr_features[i].metadatasz;
-			switch (rule->sr_features[i].type) {
+		if (rule->sr_features[i].sf_metadata) {
+			size += rule->sr_features[i].sf_metadatasz;
+			switch (rule->sr_features[i].sf_type) {
 			case integriforce:
-				integriforce_p = rule->sr_features[i].metadata;
+				integriforce_p = rule->sr_features[i].sf_metadata;
 				switch (integriforce_p->si_hashtype) {
 				case si_hash_sha256:
 					size += 32;
@@ -574,13 +574,13 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 	for (i=0; i < rule->sr_nfeatures; i++) {
 		memcpy(&(newrule->sr_features[i]), &rule->sr_features[i], sizeof(secadm_feature_t));
-		if (rule->sr_features[i].metadata) {
-			switch (rule->sr_features[i].type) {
+		if (rule->sr_features[i].sf_metadata) {
+			switch (rule->sr_features[i].sf_type) {
 			case integriforce:
 				integriforce_p = (secadm_integriforce_t *)(buf + written);
-				memcpy(integriforce_p, rule->sr_features[i].metadata,
+				memcpy(integriforce_p, rule->sr_features[i].sf_metadata,
 					sizeof(secadm_integriforce_t));
-				newrule->sr_features[i].metadata =
+				newrule->sr_features[i].sf_metadata =
 				    (char *)(reply->sr_metadata) + written;
 				written += sizeof(secadm_integriforce_t);
 
@@ -597,8 +597,8 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 				break;
 			default:
-				newrule->sr_features[i].metadata = NULL;
-				newrule->sr_features[i].metadatasz = 0;
+				newrule->sr_features[i].sf_metadata = NULL;
+				newrule->sr_features[i].sf_metadatasz = 0;
 				break;
 			}
 		}

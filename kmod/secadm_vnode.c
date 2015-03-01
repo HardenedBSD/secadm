@@ -81,7 +81,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 			continue;
 
 		for (i=0; i < rule->sr_nfeatures; i++) {
-			switch(rule->sr_features[i].type) {
+			switch(rule->sr_features[i].sf_type) {
 #ifdef PAGE_NOTE_PAGEEXEC
 			case pageexec_enabled:
 				flags |= PAX_NOTE_PAGEEXEC;

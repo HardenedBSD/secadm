@@ -68,7 +68,7 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	feature = lookup_integriforce_feature(rule);
 	if (feature == NULL)
 		return (0);
-	integriforce_p = feature->metadata;
+	integriforce_p = feature->sf_metadata;
 
 	err = VOP_OPEN(imgp->vp, FREAD, ucred, curthread, NULL);
 	if (err)
@@ -126,7 +126,7 @@ lookup_integriforce_feature(secadm_rule_t *rule)
 	size_t i;
 
 	for (i=0; i < rule->sr_nfeatures; i++)
-		if (rule->sr_features[i].type == integriforce)
+		if (rule->sr_features[i].sf_type == integriforce)
 			return (&(rule->sr_features[i]));
 
 	return (NULL);

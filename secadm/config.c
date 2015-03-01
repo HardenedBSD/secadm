@@ -173,7 +173,7 @@ add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t 
 	case segvguard_disabled:
 	case aslr_enabled:
 	case aslr_disabled:
-		rule->sr_features[rule->sr_nfeatures].type = feature;
+		rule->sr_features[rule->sr_nfeatures].sf_type = feature;
 		break;
 	default:
 		fprintf(stderr, "Unknown feature\n");
@@ -392,9 +392,9 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			return (head);
 		}
 
-		feature->metadata = metadata;
-		feature->type = integriforce;
-		feature->metadatasz = sizeof(secadm_integriforce_t);
+		feature->sf_metadata = metadata;
+		feature->sf_type = integriforce;
+		feature->sf_metadatasz = sizeof(secadm_integriforce_t);
 
 		rule->sr_features = feature;
 		rule->sr_nfeatures = 1;
