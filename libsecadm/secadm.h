@@ -56,7 +56,6 @@ typedef enum secadm_feature_type {
 
 typedef enum secadm_hash_type {
 	invalid_hash=0,
-	si_hash_md5,
 	si_hash_sha1,
 	si_hash_sha256
 } secadm_hash_type_t;

@@ -82,8 +82,6 @@ secadm_verify_file(secadm_hash_type_t type, const char *path,
 
 	res = 0;
 	switch (type) {
-	case si_hash_md5:
-		return (1);
 	case si_hash_sha1:
 		hash = malloc(20);
 		if (hash == NULL) {
@@ -137,8 +135,6 @@ convert_to_integriforce_mode(const char *mode)
 secadm_hash_type_t
 convert_to_hash_type(const char *type)
 {
-	if (!strcasecmp(type, "md5"))
-		return (si_hash_md5);
 	if (!strcasecmp(type, "sha1"))
 		return (si_hash_sha1);
 	if (!strcasecmp(type, "sha256"))
