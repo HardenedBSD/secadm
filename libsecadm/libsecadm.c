@@ -200,7 +200,7 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 			    convert_from_integriforce_mode(metadata->si_mode));
 			fprintf(stderr, "       + Hash: ");
 			switch (metadata->si_hashtype) {
-			case sha256:
+			case si_hash_sha256:
 				for (j=0; j<32; j++)
 					fprintf(stderr, "%02x", metadata->si_hash[j]);
 				break;

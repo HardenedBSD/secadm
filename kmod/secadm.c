@@ -136,7 +136,7 @@ validate_ruleset(struct thread *td, secadm_rule_t *head)
 				}
 
 				switch (integriforce_p->si_hashtype) {
-				case sha256:
+				case si_hash_sha256:
 					break;
 				default:
 					return (1);
@@ -331,7 +331,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 			}
 
 			switch (integriforce_p->si_hashtype) {
-			case sha256:
+			case si_hash_sha256:
 				hash = malloc(32, M_SECADM, M_WAITOK);
 				err = copyin(integriforce_p->si_hash,
 				    hash, 32);
@@ -446,7 +446,7 @@ get_rule_size(struct thread *td, size_t id)
 			case integriforce:
 				integriforce_p = rule->sr_features[i].metadata;
 				switch (integriforce_p->si_hashtype) {
-				case sha256:
+				case si_hash_sha256:
 					size += 32;
 					break;
 				default:
@@ -585,7 +585,7 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 				written += sizeof(secadm_integriforce_t);
 
 				switch (integriforce_p->si_hashtype) {
-				case sha256:
+				case si_hash_sha256:
 					memcpy(buf + written, integriforce_p->si_hash, 32);
 					integriforce_p->si_hash = (unsigned char *)
 					    ((char *)(reply->sr_metadata) + written);
