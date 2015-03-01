@@ -188,14 +188,27 @@ secadm_validate_ruleset(secadm_rule_t *rules)
 void
 secadm_free_rule(secadm_rule_t *rule, int freerule)
 {
+	secadm_integriforce_t *integriforce_p;
 	size_t i;
 
 	if (rule->sr_path)
 		free(rule->sr_path);
 
-	for (i=0; i < rule->sr_nfeatures; i++)
-		if (rule->sr_features[i].sf_metadata)
+	for (i=0; i < rule->sr_nfeatures; i++) {
+		if (rule->sr_features[i].sf_metadata) {
+			switch (rule->sr_features[i].sf_type) {
+			case integriforce:
+				integriforce_p =
+				    rule->sr_features[i].sf_metadata;
+				free(integriforce_p->si_hash);
+				break;
+			default:
+				break;
+			}
+
 			free(rule->sr_features[i].sf_metadata);
+		}
+	}
 
 	if (rule->sr_features)
 		free(rule->sr_features);
