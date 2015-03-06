@@ -345,11 +345,25 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			continue;
 		}
 
-		if ((strlen(data) % 2) != 0) {
-			free(rule);
-			free(metadata);
-			fprintf(stderr, "Invalid hash\n");
-			continue;
+		switch (metadata->si_hashtype) {
+		case si_hash_sha1:
+			if (strlen(data) != 40) {
+				free(rule);
+				free(metadata);
+				fprintf(stderr, "Hash must be 40 characters\n");
+				return (head);
+			}
+			break;
+		case si_hash_sha256:
+			if (strlen(data) != 64) {
+				free(rule);
+				free(metadata);
+				fprintf(stderr, "Hash must be 64 characters\n");
+				return (head);
+			}
+			break;
+		default:
+			break;
 		}
 
 		hash = malloc(strlen(data) / 2);
