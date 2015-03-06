@@ -231,7 +231,7 @@ void cleanup_jail_rules(struct secadm_prison_entry *);
 void log_location(const char *, int);
 
 int do_integriforce_check(secadm_rule_t *, struct vattr *,
-    struct image_params *, struct ucred *);
+    struct vnode *, struct ucred *);
 secadm_feature_t *lookup_integriforce_feature(secadm_rule_t *);
 
 #endif /* _KERNEL */

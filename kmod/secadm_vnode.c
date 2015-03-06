@@ -109,7 +109,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 				flags |= PAX_NOTE_NOASLR;
 				break;
 			case integriforce:
-				err = do_integriforce_check(rule, &vap, imgp, ucred);
+				err = do_integriforce_check(rule, &vap, imgp->vp, ucred);
 				break;
 			default:
 				break;

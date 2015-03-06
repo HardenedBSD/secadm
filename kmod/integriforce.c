@@ -56,7 +56,7 @@
 
 int
 do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
-    struct image_params *imgp, struct ucred *ucred)
+    struct vnode *vp, struct ucred *ucred)
 {
 	secadm_feature_t *feature;
 	secadm_integriforce_t *integriforce_p;
@@ -73,7 +73,7 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 		return (0);
 	integriforce_p = feature->sf_metadata;
 
-	err = VOP_OPEN(imgp->vp, FREAD, ucred, curthread, NULL);
+	err = VOP_OPEN(vp, FREAD, ucred, curthread, NULL);
 	if (err)
 		return (0);
 
@@ -89,7 +89,7 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 		SHA256_Init(&sha256ctx);
 		break;
 	default:
-		VOP_CLOSE(imgp->vp, FREAD, ucred, curthread);
+		VOP_CLOSE(vp, FREAD, ucred, curthread);
 		free(buf, M_SECADM);
 		return (0);
 	}
@@ -107,9 +107,9 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 		uio.uio_segflg = UIO_SYSSPACE;
 		uio.uio_rw = UIO_READ;
 		uio.uio_td = curthread;
-		err = VOP_READ(imgp->vp, &uio, 0, ucred);
+		err = VOP_READ(vp, &uio, 0, ucred);
 		if (err) {
-			VOP_CLOSE(imgp->vp, FREAD, ucred, curthread);
+			VOP_CLOSE(vp, FREAD, ucred, curthread);
 			free(buf, M_SECADM);
 			return (0);
 		}
@@ -129,7 +129,7 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	}
 
 	free(buf, M_SECADM);
-	VOP_CLOSE(imgp->vp, FREAD, ucred, curthread);
+	VOP_CLOSE(vp, FREAD, ucred, curthread);
 
 	hash = malloc(hashsz, M_SECADM, M_WAITOK);
 	switch (integriforce_p->si_hashtype) {
