@@ -54,12 +54,12 @@ typedef int (*action_t)(int, char **);
 
 static void usage(const char *);
 static void check_bsd(void);
-static void get_version(void);
 
 static int listact(int, char **);
 static int setact(int, char **);
 static int flushact(int, char **);
 static int validateact(int, char **);
+static int versionact(int, char **);
 
 const char *configpath=NULL;
 const char *name;
@@ -88,6 +88,11 @@ struct _action {
 		"validate",
 		0,
 		validateact
+	},
+	{
+		"version",
+		1,
+		versionact
 	}
 };
 
@@ -119,8 +124,8 @@ check_bsd(void)
 	}
 }
 
-static void
-get_version(void)
+static int
+versionact(int argc, char *argv[])
 {
 	unsigned long version;
 
@@ -244,13 +249,11 @@ main(int argc, char *argv[])
 
 	check_bsd();
 
-	while ((ch = getopt(argc, argv, "c:hv?")) != -1) {
+	while ((ch = getopt(argc, argv, "c:h?")) != -1) {
 		switch (ch) {
 		case 'c':
 			configpath = (const char *)optarg;
 			break;
-		case 'v':
-			get_version();
 		default:
 			usage(name);
 		}
