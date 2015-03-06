@@ -61,20 +61,20 @@ secadm_parse_path(secadm_rule_t *rule, const char *path)
 	if (fd < 0) {
 		fprintf(stderr, "[-] Cannot open %s for stat. Skipping.\n",
 		    path);
-		return (-1);
+		return (1);
 	}
 
 	if (fstat(fd, &sb)) {
 		perror("fstat");
 		close(fd);
-		return (-1);
+		return (1);
 	}
 
 	memset(&fsb, 0x00, sizeof(struct statfs));
 	if (fstatfs(fd, &fsb)) {
 		perror("fstatfs");
 		close(fd);
-		return (-1);
+		return (1);
 	}
 
 	close(fd);
@@ -98,13 +98,13 @@ secadm_validate_rule(secadm_rule_t *rule)
 
 	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
 	    || rule->sr_nfeatures > SECADM_MAX_FEATURES)
-		return (-1);
+		return (1);
 
 	if (rule->sr_path != NULL && rule->sr_pathlen > MNAMELEN)
-		return (-1);
+		return (1);
 
 	if (!strlen(rule->sr_mount))
-		return (-1);
+		return (1);
 
 	/*
 	 * Perform extra validation for rules in userland. Since these
@@ -113,31 +113,31 @@ secadm_validate_rule(secadm_rule_t *rule)
 	 */
 
 	if (rule->sr_kernel != NULL)
-		return (-1);
+		return (1);
 
 	if (rule->sr_prison != NULL)
-		return (-1);
+		return (1);
 
 	for (i=0; i < rule->sr_nfeatures; i++) {
 		switch (rule->sr_features[i].sf_type) {
 		case integriforce:
 			if (rule->sr_features[i].sf_metadata == NULL)
-				return (-1);
+				return (1);
 			if (rule->sr_features[i].sf_metadatasz != sizeof(secadm_integriforce_t))
-				return (-1);
+				return (1);
 
 			p_integriforce = (secadm_integriforce_t *)
 			    (rule->sr_features[i].sf_metadata);
 
 			if (p_integriforce->si_hash == NULL)
-				return (-1);
+				return (1);
 
 			switch (p_integriforce->si_hashtype) {
 			case si_hash_sha1:
 			case si_hash_sha256:
 				break;
 			default:
-				return (-1);
+				return (1);
 			}
 
 			switch (p_integriforce->si_mode) {
@@ -145,14 +145,14 @@ secadm_validate_rule(secadm_rule_t *rule)
 			case si_mode_hard:
 				break;
 			default:
-				return (-1);
+				return (1);
 			}
 
 			if (secadm_verify_file(
 			    p_integriforce->si_hashtype,
 			    rule->sr_path,
 			    p_integriforce->si_hash))
-				return (-1);
+				return (1);
 
 			break;
 		default:
@@ -172,7 +172,7 @@ secadm_validate_ruleset(secadm_rule_t *rules)
 	nrules = maxid = 0;
 	for (rule = rules; rule != NULL; rule = rule->sr_next) {
 		if (secadm_validate_rule(rule))
-			return (-1);
+			return (1);
 
 		if (rule->sr_id > maxid)
 			maxid = rule->sr_id;
@@ -181,7 +181,7 @@ secadm_validate_ruleset(secadm_rule_t *rules)
 	}
 
 	if (maxid > nrules)
-		return (-1);
+		return (1);
 
 	return (0);
 }
