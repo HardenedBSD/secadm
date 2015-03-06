@@ -41,6 +41,9 @@
 
 #define SECADM_MAX_FEATURES	5
 
+#define SHA1_DIGESTLEN		20
+#define SHA256_DIGESTLEN	32
+
 typedef enum secadm_feature_type {
 	secadm_invalid=0,
 	pageexec_enabled,

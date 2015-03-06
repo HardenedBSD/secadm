@@ -201,10 +201,10 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 			fprintf(stderr, "       + Hash: ");
 			switch (metadata->si_hashtype) {
 			case si_hash_sha1:
-				hashsz=20;
+				hashsz=SHA1_DIGESTLEN;
 				break;
 			case si_hash_sha256:
-				hashsz=32;
+				hashsz=SHA256_DIGESTLEN;
 				break;
 			default:
 				hashsz=0;

@@ -83,7 +83,7 @@ secadm_verify_file(secadm_hash_type_t type, const char *path,
 	res = 0;
 	switch (type) {
 	case si_hash_sha1:
-		hash = malloc(20);
+		hash = malloc(SHA1_DIGESTLEN);
 		if (hash == NULL) {
 			close(fd);
 			munmap(mapping, sb.st_size);
@@ -94,10 +94,10 @@ secadm_verify_file(secadm_hash_type_t type, const char *path,
 		SHA1_Update(&sha1ctx, mapping, sb.st_size);
 		SHA1_Final(hash, &sha1ctx);
 
-		hashsz=20;
+		hashsz=SHA1_DIGESTLEN;
 		break;
 	case si_hash_sha256:
-		hash = malloc(32);
+		hash = malloc(SHA256_DIGESTLEN);
 		if (hash == NULL) {
 			close(fd);
 			munmap(mapping, sb.st_size);
@@ -108,7 +108,7 @@ secadm_verify_file(secadm_hash_type_t type, const char *path,
 		SHA256_Update(&sha256ctx, mapping, sb.st_size);
 		SHA256_Final(hash, &sha256ctx);
 
-		hashsz=32;
+		hashsz=SHA256_DIGESTLEN;
 		break;
 	default:
 		return (1);
