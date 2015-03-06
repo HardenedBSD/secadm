@@ -42,6 +42,8 @@
 #include <sys/rmlock.h>
 #include <sys/uio.h>
 
+#include <crypto/sha1.h>
+#include <crypto/sha2/sha2.h>
 #include <security/mac/mac_policy.h>
 
 #include "secadm.h"
@@ -333,9 +335,9 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 
 			switch (integriforce_p->si_hashtype) {
 			case si_hash_sha256:
-				hash = malloc(32, M_SECADM, M_WAITOK);
+				hash = malloc(SHA256_DIGEST_LENGTH, M_SECADM, M_WAITOK);
 				err = copyin(integriforce_p->si_hash,
-				    hash, 32);
+				    hash, SHA256_DIGEST_LENGTH);
 				if (err) {
 					free(hash, M_SECADM);
 					free(features, M_SECADM);
@@ -345,9 +347,9 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 				integriforce_p->si_hash = hash;
 				break;
 			case si_hash_sha1:
-				hash = malloc(20, M_SECADM, M_WAITOK);
+				hash = malloc(SHA1_RESULTLEN, M_SECADM, M_WAITOK);
 				err = copyin(integriforce_p->si_hash,
-				    hash, 20);
+				    hash, SHA1_RESULTLEN);
 				if (err) {
 					free(hash, M_SECADM);
 					free(features, M_SECADM);
@@ -461,10 +463,10 @@ get_rule_size(struct thread *td, size_t id)
 				integriforce_p = rule->sr_features[i].sf_metadata;
 				switch (integriforce_p->si_hashtype) {
 				case si_hash_sha1:
-					size += 20;
+					size += SHA1_RESULTLEN;
 					break;
 				case si_hash_sha256:
-					size += 32;
+					size += SHA256_DIGEST_LENGTH;
 					break;
 				default:
 					break;
@@ -603,16 +605,18 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 
 				switch (integriforce_p->si_hashtype) {
 				case si_hash_sha1:
-					memcpy(buf + written, integriforce_p->si_hash, 20);
+					memcpy(buf + written, integriforce_p->si_hash, SHA1_RESULTLEN);
 					integriforce_p->si_hash = (unsigned char *)
 					    ((char *)(reply->sr_metadata) + written);
-					written += 20;
+					written += SHA1_RESULTLEN;
 					break;
 				case si_hash_sha256:
-					memcpy(buf + written, integriforce_p->si_hash, 32);
+					memcpy(buf + written,
+					    integriforce_p->si_hash,
+					    SHA256_DIGEST_LENGTH);
 					integriforce_p->si_hash = (unsigned char *)
 					    ((char *)(reply->sr_metadata) + written);
-					written += 32;
+					written += SHA256_DIGEST_LENGTH;
 					break;
 				default:
 					break;

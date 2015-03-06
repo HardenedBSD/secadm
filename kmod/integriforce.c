@@ -48,6 +48,7 @@
 #include <sys/fcntl.h>
 
 #include <crypto/sha1.h>
+#include <crypto/sha2/sha2.h>
 #include <crypto/sha2/sha256.h>
 #include <security/mac/mac_policy.h>
 
@@ -80,11 +81,11 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 
 	switch (integriforce_p->si_hashtype) {
 	case si_hash_sha1:
-		hashsz = 20;
+		hashsz = SHA1_RESULTLEN;
 		SHA1Init(&sha1ctx);
 		break;
 	case si_hash_sha256:
-		hashsz=32;
+		hashsz = SHA256_DIGEST_LENGTH;
 		SHA256_Init(&sha256ctx);
 		break;
 	default:
