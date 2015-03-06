@@ -201,7 +201,8 @@ secadm_free_rule(secadm_rule_t *rule, int freerule)
 			case integriforce:
 				integriforce_p =
 				    rule->sr_features[i].sf_metadata;
-				free(integriforce_p->si_hash);
+				if (integriforce_p->si_hash != NULL)
+					free(integriforce_p->si_hash);
 				break;
 			default:
 				break;
