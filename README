@@ -36,7 +36,7 @@ additional flexibility and dynamic content. One can imagine secadm
 deployed in a security appliance where the rulesets are created and
 updated via a web service API.
 
-secadm supports toggling ASLR, SEGVGUARD, PAGEEXEC, and mprotect
+secadm supports toggling ASLR, SEGVGUARD, PAGEEXEC, and MPROTECT
 restrictions. As of version 0.2, secadm also introduces a new
 Integriforce feature. Integriforce ensures executable file integrity
 prior to execution.
