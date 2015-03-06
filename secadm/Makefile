@@ -1,7 +1,12 @@
 PROG=	secadm
 SRCS=	config.c \
 	secadm.c
+
+.if defined(PREFIX)
+BINDIR?=	${PREFIX}/sbin
+.else
 BINDIR?=	/usr/sbin
+.endif
 
 LDADD=	-lucl -lm -lsecadm
 
