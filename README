@@ -36,8 +36,10 @@ additional flexibility and dynamic content. One can imagine secadm
 deployed in a security appliance where the rulesets are created and
 updated via a web service API.
 
-secadm will initially support toggling ASLR, SEGVGUARD, and PTrace
-hardening. It will work on a per-jail and per-file basis.
+secadm supports toggling ASLR, SEGVGUARD, PAGEEXEC, and mprotect
+restrictions. As of version 0.2, secadm also introduces a new
+Integriforce feature. Integriforce ensures executable file integrity
+prior to execution.
 
 Requirements
 ============
@@ -76,7 +78,7 @@ Writing Application Rules
 
 secadm currently supports toggling ASLR, SEGVGUARD, mprotect(exec)
 hardening, and on certain HardenedBSD builds, PAGEEXEC hardening. In
-the secadm directory, you will find config.conf.sample, which shows
+the etc directory, you will find secadm.rules.sample, which shows
 how to write rules.
 
 secadm uses libucl for parsing its config file. As it stands right
@@ -123,6 +125,43 @@ example. Let's say we want to force ASLR and SEGVGUARD off with
 	]
 }
 ==== End of Example ====
+
+Integriforce
+============
+
+secadm version 0.2 supports a new feature, called Integriforce. This
+feature provides executable file integrity enforcement. If a rule
+exists for a given file, that file's hash as defined in the rule is
+matched against the hash of the file. If the hashes don't match,
+execution may be disallowed, depending on the configuration settings.
+Integriforce is an optional, but powerful, feature. Integriforce
+currently supports only SHA1 or SHA256.
+
+NOTE: As it stands right now, dependent shared objects are not checked
+for validity. Doing so would cause a major performance hit. Research
+is being done to provide full ELF x509 signing for executables and
+shared objects. ELF digital signatures will solve this problem.
+
+Configuring Integriforce
+------------------------
+
+In the root object of the configuration file, secadm will look for an
+integriforce object. In the integriforce object, you may place the
+following options:
+
+	1. enforcing (string, default "hard"): If set, this must equal
+	   either "soft" or "hard". Soft mode means execution is
+	   allowed if hashes don't match, but a warning message is
+	   printed. Hard mode prints an error messages and disallows
+	   execution.
+	2. files (array of objects): Each object must contain the
+	   following fields:
+		2.1. path (string): The path to the executable.
+		2.2. hash (string): The hash (sha1 or sha256) of the
+		     executable.
+		2.3. hash_type (string): Either "sha1" or "sha256".
+		2.4. enforcing (optional, string, default to inherit):
+		     The enforcing mode for this file.
 
 Note About ABI and API Stability
 ================================
