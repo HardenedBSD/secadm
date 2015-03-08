@@ -170,13 +170,13 @@ listact(int argc, char *argv[])
 
 	if (!strcmp(argv[1], "features")) {
 		printf("Available features\n");
-		if (feature_present("aslr"))
+		if (feature_present(FEATURE_PAX_ASLR))
 			printf("    aslr:\t(bool) - Opt an application in to or out of ASLR\n");
-		if (feature_present("pax_mprotect"))
+		if (feature_present(FEATURE_PAX_MPROTECT))
 			printf("    mprotect:\t(bool) - Opt an application in to or out of MPROTECT restrictions\n");
-		if (feature_present("pax_pageexec"))
+		if (feature_present(FEATURE_PAX_PAGEEXEC))
 			printf("    pageexec:\t(bool) - Opt an application in to or out of PAGEEXEC\n");
-		if (feature_present("segvguard"))
+		if (feature_present(FEATURE_PAX_SEGVGUARD))
 			printf("    segvguard:\t(bool) - Opt an application in to or out of SEGVGUARD\n");
 	}
 

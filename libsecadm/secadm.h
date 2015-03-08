@@ -33,6 +33,11 @@
 
 #define SECADM_KLDNAME			"secadm"
 
+#define	FEATURE_PAX_PAGEEXEC		"pax_pageexec"
+#define	FEATURE_PAX_MPROTECT		"pax_mprotect"
+#define	FEATURE_PAX_SEGVGUARD		"segvguard"
+#define	FEATURE_PAX_ASLR		"aslr"
+
 /* These flags are unused right now */
 #define SECADM_RULE_FLAGS_NONE		0x00000000
 #define SECADM_RULE_FLAGS_UID_DEFINED	0x00000001

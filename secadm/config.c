@@ -153,33 +153,66 @@ parse_object(struct ucl_parser *parser)
 void
 add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t feature)
 {
-	void *f;
+	bool valid_feature = false;
+	char *feature_name = "unknown";
+	void *f = NULL;
 
-	f = reallocarray(rule->sr_features, rule->sr_nfeatures + 1,
-	    sizeof(secadm_feature_t));
-	if (f == NULL)
-		return;
-	rule->sr_features = f;
-
-	memset(&(rule->sr_features[rule->sr_nfeatures]), 0x00,
-	    sizeof(secadm_feature_t));
 
 	switch (feature) {
 	case pageexec_enabled:
 	case pageexec_disabled:
+		if (feature_present(FEATURE_PAX_PAGEEXEC)) {
+			valid_feature = true;
+		} else {
+			valid_feature = false;
+			feature_name = FEATURE_PAX_PAGEEXEC;
+		}
+		break;
 	case mprotect_enabled:
 	case mprotect_disabled:
+		if (feature_present(FEATURE_PAX_MPROTECT)) {
+			valid_feature = true;
+		} else {
+			valid_feature = false;
+			feature_name = FEATURE_PAX_MPROTECT;
+		}
+		break;
 	case segvguard_enabled:
 	case segvguard_disabled:
+		if (feature_present(FEATURE_PAX_SEGVGUARD)) {
+			valid_feature = true;
+		} else {
+			valid_feature = false;
+			feature_name = FEATURE_PAX_SEGVGUARD;
+		}
+		break;
 	case aslr_enabled:
 	case aslr_disabled:
-		rule->sr_features[rule->sr_nfeatures].sf_type = feature;
+		if (feature_present(FEATURE_PAX_ASLR)) {
+			valid_feature = true;
+		} else {
+			valid_feature = false;
+			feature_name = FEATURE_PAX_ASLR;
+		}
 		break;
 	default:
-		fprintf(stderr, "Unknown feature\n");
+		valid_feature = false;
 	}
 
-	rule->sr_nfeatures++;
+	if (valid_feature) {
+		f = reallocarray(rule->sr_features, rule->sr_nfeatures + 1,
+		    sizeof(secadm_feature_t));
+		if (f == NULL)
+			return;
+
+		rule->sr_features = f;
+		memset(&(rule->sr_features[rule->sr_nfeatures]), 0x00,
+		    sizeof(secadm_feature_t));
+		rule->sr_features[rule->sr_nfeatures].sf_type = feature;
+		rule->sr_nfeatures++;
+	} else {
+		fprintf(stderr, "Ignored %s feature: %d\n", feature_name, feature);
+	}
 }
 
 secadm_rule_t *
