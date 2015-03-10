@@ -19,7 +19,6 @@
 		{
 			"path": "/bin/ls",
 			"features": {
-				"mprotect": false,
 				"aslr": false,
 			}
 		}
