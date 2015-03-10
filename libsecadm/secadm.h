@@ -30,6 +30,7 @@
 #define _SYS_SECURITY_SECADM_H
 
 #define SECADM_VERSION			20150301001UL
+#define SECADM_PRETTY_VERSION		"0.2-beta1"
 
 #define SECADM_KLDNAME			"secadm"
 

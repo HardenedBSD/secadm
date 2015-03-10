@@ -129,6 +129,9 @@ versionact(int argc, char *argv[])
 {
 	unsigned long version;
 
+	fprintf(stderr, "[+] secadm version: %s\n",
+	    SECADM_PRETTY_VERSION);
+
 	version = secadm_kernel_version();
 	if (version)
 		fprintf(stderr, "[+] secadm kernel module version: %lu\n",
