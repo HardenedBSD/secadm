@@ -37,7 +37,7 @@ rcvar="secadm_enable"
 stop_cmd="secadm_stop"
 start_cmd="secadm_start"
 
-_secadm="/usr/local/sbin/secadm"
+_secadm="/usr/sbin/secadm"
 
 : ${secadm_enable:="NO"}
 
