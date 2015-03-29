@@ -37,11 +37,13 @@ rcvar="secadm_enable"
 stop_cmd="secadm_stop"
 start_cmd="secadm_start"
 
+_secadm="/usr/local/sbin/secadm"
+
 : ${secadm_enable:="NO"}
 
 list_secadm()
 {
-	/usr/sbin/secadm list
+	${_secadm} list
 }
 
 secadm_start()
@@ -54,12 +56,12 @@ secadm_start()
 		return 1
 	fi
 
-	/usr/sbin/secadm -c ${secadm_rules} set
+	${_secadm} -c ${secadm_rules} set
 }
 
 secadm_stop()
 {
-	/usr/sbin/secadm flush
+	${_secadm} flush
 }
 
 load_rc_config $name
