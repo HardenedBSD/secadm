@@ -34,6 +34,7 @@
 #include <sys/module.h>
 #include <sys/mount.h>
 #include <sys/mutex.h>
+#include <sys/namei.h>
 #include <sys/pax.h>
 #include <sys/priv.h>
 #include <sys/proc.h>
@@ -53,6 +54,16 @@
 #include <security/mac/mac_policy.h>
 
 #include "secadm.h"
+
+FEATURE(integriforce, "HardenedBSD Integriforce");
+
+static int sysctl_integriforce_so(SYSCTL_HANDLER_ARGS);
+
+SYSCTL_DECL(_hardening_secadm);
+
+SYSCTL_NODE(_hardening_secadm, OID_AUTO, integriforce_so,
+    CTLFLAG_MPSAFE | CTLFLAG_RW | CTLFLAG_PRISON | CTLFLAG_ANYBODY, sysctl_integriforce_so,
+    "secadm integriforce checking for shared objects");
 
 int
 do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
@@ -171,4 +182,61 @@ lookup_integriforce_feature(secadm_rule_t *rule)
 			return (&(rule->sr_features[i]));
 
 	return (NULL);
+}
+
+static int
+sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
+{
+	struct nameidata nd;
+	struct vattr vap;
+	integriforce_so_check_t *integriforce_so;
+	secadm_rule_t *rule;
+	int error;
+
+	error = 0;
+
+	if (!(req->newptr) || req->newlen != sizeof(integriforce_so_check_t))
+		return (EINVAL);
+
+	if (!(req->oldptr) || req->oldlen != sizeof(integriforce_so_check_t))
+		return (EINVAL);
+
+	integriforce_so = malloc(sizeof(integriforce_so_check_t), M_SECADM, M_WAITOK);
+
+	error = SYSCTL_IN(req, integriforce_so, sizeof(integriforce_so_check_t));
+	if (error) {
+		free(integriforce_so, M_SECADM);
+		return (error);
+	}
+
+	NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE, integriforce_so->isc_path, req->td);
+	error = namei(&nd);
+	if (error) {
+		free(integriforce_so, M_SECADM);
+		NDFREE(&nd, 0);
+		return (error);
+	}
+
+	error = VOP_GETATTR(nd.ni_vp, &vap, req->td->td_ucred);
+	if (error) {
+		free(integriforce_so, M_SECADM);
+		NDFREE(&nd, 0);
+		return (error);
+	}
+
+	for (rule = get_first_rule(req->td); rule != NULL; rule = rule->sr_next) {
+		if (rule->sr_path != NULL) {
+			if (!strcmp(rule->sr_path, integriforce_so->isc_path)) {
+				integriforce_so->isc_result = do_integriforce_check(rule,
+				    &vap, nd.ni_vp, req->td->td_ucred);
+			}
+		}
+	}
+
+	SYSCTL_OUT(req, integriforce_so, sizeof(integriforce_so_check_t));
+	free(integriforce_so, M_SECADM);
+
+	NDFREE(&nd, 0);
+
+	return (0);
 }

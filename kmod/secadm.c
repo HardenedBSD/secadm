@@ -40,6 +40,7 @@
 #include <sys/proc.h>
 #include <sys/queue.h>
 #include <sys/rmlock.h>
+#include <sys/sysctl.h>
 #include <sys/uio.h>
 
 #include <crypto/sha1.h>
@@ -47,6 +48,8 @@
 #include <security/mac/mac_policy.h>
 
 #include "secadm.h"
+
+FEATURE(secadm, "HardenedBSD Security Administration (secadm)");
 
 MALLOC_DEFINE(M_SECADM, "secadm", "secadm rule data");
 

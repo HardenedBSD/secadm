@@ -29,6 +29,8 @@
 #ifndef _SYS_SECURITY_SECADM_H
 #define _SYS_SECURITY_SECADM_H
 
+#include <sys/param.h>
+
 #define SECADM_VERSION			20150308001UL
 #define SECADM_PRETTY_VERSION		"0.2-beta1"
 
@@ -147,6 +149,11 @@ typedef struct secadm_reply {
 	void			*sr_metadata;
 	size_t			 sr_size;
 } secadm_reply_t;
+
+typedef struct integriforce_so_check {
+	char	 isc_path[MAXPATHLEN];
+	int	 isc_result;
+} integriforce_so_check_t;
 
 #ifdef _KERNEL
 
