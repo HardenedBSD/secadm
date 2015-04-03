@@ -187,11 +187,17 @@ lookup_integriforce_feature(secadm_rule_t *rule)
 static int
 sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 {
+	struct secadm_prison_entry *pr;
+	integriforce_so_check_t *integriforce_so;
+	struct rm_priotracker tracker;
 	struct nameidata nd;
 	struct vattr vap;
-	integriforce_so_check_t *integriforce_so;
 	secadm_rule_t *rule;
 	int error;
+
+	pr = get_prison_list_entry(req->td->td_ucred->cr_prison->pr_name, 0);
+	if (pr == NULL)
+		return (0);
 
 	error = 0;
 
@@ -224,15 +230,17 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 		return (error);
 	}
 
-	/* TODO: Add proper locking here */
-	for (rule = get_first_rule(req->td); rule != NULL; rule = rule->sr_next) {
+	SPL_RLOCK(pr, tracker);
+	for (rule = pr->spl_rules; rule != NULL; rule = rule->sr_next) {
 		if (rule->sr_path != NULL) {
 			if (!strcmp(rule->sr_path, integriforce_so->isc_path)) {
 				integriforce_so->isc_result = do_integriforce_check(rule,
 				    &vap, nd.ni_vp, req->td->td_ucred);
+				break;
 			}
 		}
 	}
+	SPL_RUNLOCK(pr, tracker);
 
 	SYSCTL_OUT(req, integriforce_so, sizeof(integriforce_so_check_t));
 	free(integriforce_so, M_SECADM);
