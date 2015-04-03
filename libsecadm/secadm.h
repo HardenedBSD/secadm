@@ -31,7 +31,7 @@
 
 #include <sys/param.h>
 
-#define SECADM_VERSION			20150308001UL
+#define SECADM_VERSION			20150403001UL
 #define SECADM_PRETTY_VERSION		"0.2-beta1"
 
 #define SECADM_KLDNAME			"secadm"
