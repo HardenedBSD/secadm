@@ -224,6 +224,7 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 		return (error);
 	}
 
+	/* TODO: Add proper locking here */
 	for (rule = get_first_rule(req->td); rule != NULL; rule = rule->sr_next) {
 		if (rule->sr_path != NULL) {
 			if (!strcmp(rule->sr_path, integriforce_so->isc_path)) {
