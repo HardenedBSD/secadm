@@ -137,17 +137,17 @@ execution may be disallowed, depending on the configuration settings.
 Integriforce is an optional, but powerful, feature. Integriforce
 currently supports only SHA1 or SHA256.
 
-NOTE: As it stands right now, dependent shared objects are not checked
-for validity. Doing so would cause a major performance hit. Research
-is being done to provide full ELF x509 signing for executables and
-shared objects. ELF digital signatures will solve this problem.
+NOTE: Files that are under Integriforce management cannot be modified
+or deleted. The ruleset will need to be flushed prior to
+modifying or deleting the file.
 
 Configuring Integriforce
 ------------------------
 
 In the root object of the configuration file, secadm will look for an
-integriforce object. In the integriforce object, you may place the
-following options:
+integriforce object. In the integriforce object, add a files array. In
+the files array, place an array of objects, where each object contains
+the following options:
 
 	1. enforcing (string, default "hard"): If set, this must equal
 	   either "soft" or "hard". Soft mode means execution is
