@@ -164,3 +164,48 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 
 	return (res);
 }
+
+int
+secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
+    struct label *label, accmode_t accmode)
+{
+	struct rm_priotracker tracker;
+	struct secadm_prison_entry *entry;
+	secadm_rule_t *rule;
+	struct vattr vap;
+	int err, res;
+
+	if (!(accmode & (VWRITE | VAPPEND)))
+		return (0);
+
+	res = 0;
+
+	entry = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
+	if (entry == NULL)
+		return (0);
+
+	err = VOP_GETATTR(vp, &vap, ucred);
+	if (err)
+		return (err);
+
+	SPL_RLOCK(entry, tracker);
+	for (rule = entry->spl_rules; rule != NULL; rule = rule->sr_next) {
+		if (vap.va_fileid != rule->sr_inode)
+			continue;
+
+		if (strcmp(vp->v_mount->mnt_stat.f_mntonname,
+		    rule->sr_mount))
+			continue;
+
+		if (lookup_integriforce_feature(rule) != NULL) {
+			printf("Info: A process tried to modify a "
+			    "file protected by a secadm rule. "
+			    "Returning EPERM.\n");
+			res=EPERM;
+		}
+		break;
+	}
+	SPL_RUNLOCK(entry, tracker);
+
+	return (res);
+}

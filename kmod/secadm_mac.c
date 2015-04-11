@@ -91,6 +91,7 @@ static struct mac_policy_ops secadm_ops =
 	.mpo_init		= secadm_init,
 	.mpo_vnode_check_exec	= secadm_vnode_check_exec,
 	.mpo_vnode_check_unlink	= secadm_vnode_check_unlink,
+	.mpo_vnode_check_open	= secadm_vnode_check_open,
 	.mpo_prison_destroy	= secadm_jail_destroy
 };
 

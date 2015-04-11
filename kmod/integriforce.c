@@ -84,6 +84,22 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 		return (0);
 	integriforce_p = feature->sf_metadata;
 
+	switch (integriforce_p->si_cache) {
+	case si_unchecked:
+		break;
+	case si_success:
+		return (0);
+	default:
+		switch (integriforce_p->si_mode) {
+		case si_mode_soft:
+			printf("secadm warning: hash did not match for rule %zu\n", rule->sr_id);
+			return (0);
+		default:
+			printf("secadm error: hash did not match for rule %zu. Blocking execution.\n", rule->sr_id);
+			return (EPERM);
+		}
+	}
+
 	err = VOP_OPEN(vp, FREAD, ucred, curthread, NULL);
 	if (err)
 		return (0);
@@ -166,6 +182,9 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 			break;
 		}
 
+		integriforce_p->si_cache = si_fail;
+	} else {
+		integriforce_p->si_cache = si_success;
 	}
 
 	free(hash, M_SECADM);

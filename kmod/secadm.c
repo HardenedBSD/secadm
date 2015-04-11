@@ -336,6 +336,8 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 				goto error;
 			}
 
+			integriforce_p->si_cache = si_unchecked;
+
 			switch (integriforce_p->si_hashtype) {
 			case si_hash_sha256:
 				hash = malloc(SHA256_DIGEST_LENGTH, M_SECADM, M_WAITOK);
@@ -362,10 +364,6 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 				integriforce_p->si_hash = hash;
 				break;
 			default:
-				/*
-				 * MD5 coming soon to an
-				 * Integriforce near you.
-				 */
 				free(features, M_SECADM);
 				free(integriforce_p, M_SECADM);
 				goto error;

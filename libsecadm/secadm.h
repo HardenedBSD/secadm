@@ -76,6 +76,12 @@ typedef enum secadm_integriforce_mode {
 	si_mode_hard
 } secadm_integriforce_mode_t;
 
+typedef enum secadm_integriforce_cache {
+	si_unchecked=0,
+	si_success,
+	si_fail
+} secadm_integriforce_check_t;
+
 #define DEFAULT_MODE	si_mode_hard
 
 typedef enum secadm_command_type {
@@ -100,6 +106,7 @@ typedef struct secadm_feature {
 
 typedef struct secadm_integriforce {
 	secadm_integriforce_mode_t	 si_mode;
+	secadm_integriforce_check_t	 si_cache;
 	secadm_hash_type_t		 si_hashtype;
 	unsigned char			*si_hash;
 } secadm_integriforce_t;
@@ -229,6 +236,9 @@ int secadm_vnode_check_exec(struct ucred *, struct vnode *,
 int secadm_vnode_check_unlink(struct ucred *, struct vnode *,
     struct label *, struct vnode *, struct label *,
     struct componentname *);
+
+int secadm_vnode_check_open(struct ucred *, struct vnode *,
+    struct label *, accmode_t);
 
 int pre_validate_rule(struct thread *, secadm_rule_t *);
 int validate_ruleset(struct thread *, secadm_rule_t *);
