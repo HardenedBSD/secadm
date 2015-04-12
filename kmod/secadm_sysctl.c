@@ -174,6 +174,9 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		 * sysctl lifecycle? */
 		if (req->td->td_ucred->cr_uid != 0)
 			return (EPERM);
+
+		if (securelevel_gt(req->td->td_ucred, 0))
+			return (EPERM);
 	default:
 		break;
 	}
@@ -197,9 +200,6 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		handle_version_command(&cmd, &reply);
 		break;
 	case secadm_set_rules:
-		if (req->td->td_ucred->cr_uid != 0)
-			return (EPERM);
-
 		if (cmd.sc_size != sizeof(secadm_rule_t))
 			return (EINVAL);
 
