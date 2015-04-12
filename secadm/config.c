@@ -106,6 +106,10 @@ load_config(const char *config)
 	}
 
 	rules = parse_object(parser);
+	if (rules == NULL) {
+		fprintf(stderr, "[-] Ruleset is invalid.\n");
+		return (NULL);
+	}
 
 	for (rule = rules; rule != NULL; rule = rule->sr_next)
 		rule->sr_id = id++;
@@ -127,10 +131,8 @@ parse_object(struct ucl_parser *parser)
 	curobj = ucl_lookup_path(obj, "integriforce");
 	if (curobj != NULL) {
 		rules = parse_integriforce(curobj);
-#if 0
 		if (rules == NULL)
 			return (NULL);
-#endif
 	}
 
 	curobj = ucl_lookup_path(obj, "applications");
@@ -150,13 +152,15 @@ parse_object(struct ucl_parser *parser)
 	return (rules);
 }
 
-void
+int
 add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t feature)
 {
 	bool valid_feature = false;
 	char *feature_name = "unknown";
 	void *f = NULL;
+	int res;
 
+	res=0;
 
 	switch (feature) {
 	case pageexec_enabled:
@@ -203,7 +207,7 @@ add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t 
 		f = reallocarray(rule->sr_features, rule->sr_nfeatures + 1,
 		    sizeof(secadm_feature_t));
 		if (f == NULL)
-			return;
+			return (-1);
 
 		rule->sr_features = f;
 		memset(&(rule->sr_features[rule->sr_nfeatures]), 0x00,
@@ -211,8 +215,12 @@ add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t 
 		rule->sr_features[rule->sr_nfeatures].sf_type = feature;
 		rule->sr_nfeatures++;
 	} else {
-		fprintf(stderr, "Ignored %s feature: %d\n", feature_name, feature);
+		fprintf(stderr, "[-] Rule[%s] Invalid feature\n",
+		   rule->sr_path);
+		res=1;
 	}
+
+	return (res);
 }
 
 secadm_rule_t *
@@ -224,21 +232,23 @@ parse_applications_object(secadm_rule_t *head, const ucl_object_t *obj)
 	secadm_rule_t *apprule;
 	const char *path, *datakey, *key;
 	bool enabled;
+	int needadd;
 
 	while ((appindex = ucl_iterate_object(obj, &it, 1))) {
 		appdata = ucl_lookup_path(appindex, "path");
 		if (!(appdata)) {
 			free(apprule);
 			fprintf(stderr, "Object does not have a path!\n");
-			continue;
+			return (NULL);
 		}
 
 		if (ucl_object_tostring_safe(appdata, &path) == false) {
 			free(apprule);
 			fprintf(stderr, "Object's path is not a string!\n");
-			continue;
+			return (NULL);
 		}
 
+		needadd = 0;
 		apprule = find_rule(head, path);
 		if (apprule == NULL) {
 			apprule = calloc(1, sizeof(secadm_rule_t));
@@ -248,39 +258,47 @@ parse_applications_object(secadm_rule_t *head, const ucl_object_t *obj)
 			if (secadm_parse_path(apprule, path)) {
 				fprintf(stderr, "Could not set the rule's path!\n");
 				free(apprule);
-				continue;
+				return (NULL);
 			}
 
+			needadd++;
+		}
+
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.pageexec")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				if (add_feature(apprule, ucl_feature,
+				    enabled ? pageexec_enabled : pageexec_disabled))
+					return (NULL);
+		}
+
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.mprotect")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				if (add_feature(apprule, ucl_feature,
+				    enabled ? mprotect_enabled : mprotect_disabled))
+					return (NULL);
+		}
+
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.segvguard")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				if (add_feature(apprule, ucl_feature,
+				    enabled ? segvguard_enabled : segvguard_disabled))
+					return (NULL);
+		}
+
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.aslr")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				if (add_feature(apprule, ucl_feature,
+				    enabled ? aslr_enabled : aslr_disabled))
+					return (NULL);
+		}
+
+		if (needadd) {
 			if (head) {
 				apprule->sr_next = head->sr_next;
 				head->sr_next = apprule;
 			} else {
 				head = apprule;
 			}
-		}
-
-		if ((ucl_feature = ucl_lookup_path(appindex, "features.pageexec")) != NULL) {
-			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature,
-				    enabled ? pageexec_enabled : pageexec_disabled);
-		}
-
-		if ((ucl_feature = ucl_lookup_path(appindex, "features.mprotect")) != NULL) {
-			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature,
-				    enabled ? mprotect_enabled : mprotect_disabled);
-		}
-
-		if ((ucl_feature = ucl_lookup_path(appindex, "features.segvguard")) != NULL) {
-			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature,
-				    enabled ? segvguard_enabled : segvguard_disabled);
-		}
-
-		if ((ucl_feature = ucl_lookup_path(appindex, "features.aslr")) != NULL) {
-			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
-				add_feature(apprule, ucl_feature,
-				    enabled ? aslr_enabled : aslr_disabled);
 		}
 	}
 
@@ -317,27 +335,27 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		ucldata = ucl_lookup_path(index, "path");
 		if (!(ucldata)) {
 			fprintf(stderr, "Object does not have a path!\n");
-			continue;
+			return (NULL);
 		}
 
 		if (ucl_object_tostring_safe(ucldata, &path) == false) {
 			fprintf(stderr, "Object's path is not a string!\n");
-			continue;
+			return (NULL);
 		}
 
 		rule = calloc(1, sizeof(secadm_rule_t));
 		if (rule == NULL)
-			return (head);
+			return (NULL);
 
 		if (secadm_parse_path(rule, path)) {
 			fprintf(stderr, "Could not set the rule's path!\n");
 			free(rule);
-			continue;
+			return (NULL);
 		}
 
 		metadata = calloc(1, sizeof(secadm_integriforce_t));
 		if (metadata == NULL)
-			return (head);
+			return (NULL);
 
 		ucldata = ucl_lookup_path(index, "hash_type");
 		if (ucldata == NULL) {
@@ -345,14 +363,14 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			free(metadata);
 			fprintf(stderr, "hash_type (md5, sha1, sha256) not specified for integriforce path %s\n",
 			    path);
-			continue;
+			return (NULL);
 		}
 
 		if (ucl_object_tostring_safe(ucldata, &data) == false) {
 			free(rule);
 			free(metadata);
 			fprintf(stderr, "hash_type must be a string.\n");
-			continue;
+			return (NULL);
 		}
 
 		metadata->si_hashtype = convert_to_hash_type(data);
@@ -360,7 +378,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			free(rule);
 			free(metadata);
 			fprintf(stderr, "Invalid hash type\n");
-			continue;
+			return (NULL);
 		}
 
 		ucldata = ucl_lookup_path(index, "hash");
@@ -368,14 +386,14 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			free(rule);
 			free(metadata);
 			fprintf(stderr, "No hash specified\n");
-			continue;
+			return (NULL);
 		}
 
 		if (ucl_object_tostring_safe(ucldata, &data) == false) {
 			free(rule);
 			free(metadata);
 			fprintf(stderr, "hash must be a string\n");
-			continue;
+			return (NULL);
 		}
 
 		switch (metadata->si_hashtype) {
@@ -384,7 +402,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 				free(rule);
 				free(metadata);
 				fprintf(stderr, "Hash must be 40 characters\n");
-				return (head);
+				return (NULL);
 			}
 			break;
 		case si_hash_sha256:
@@ -392,7 +410,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 				free(rule);
 				free(metadata);
 				fprintf(stderr, "Hash must be 64 characters\n");
-				return (head);
+				return (NULL);
 			}
 			break;
 		default:
@@ -403,7 +421,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		if (hash == NULL) {
 			free(rule);
 			free(metadata);
-			return (head);
+			return (NULL);
 		}
 
 		for (i=0; i < strlen(data) / 2; i++) {
@@ -413,7 +431,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 				free(rule);
 				free(metadata);
 				fprintf(stderr, "Invalid hash\n");
-				continue;
+				return (NULL);
 			}
 
 			hash[i] = val & 0xff;
@@ -423,7 +441,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		if (!(metadata->si_hash)) {
 			free(rule);
 			free(metadata);
-			return (head);
+			return (NULL);
 		}
 
 		metadata->si_mode = defmode;
@@ -436,7 +454,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		if (feature == NULL) {
 			free(rule);
 			free(metadata);
-			return (head);
+			return (NULL);
 		}
 
 		feature->sf_metadata = metadata;

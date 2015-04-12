@@ -65,14 +65,14 @@ secadm_parse_path(secadm_rule_t *rule, const char *path)
 	}
 
 	if (fstat(fd, &sb)) {
-		perror("fstat");
+		fprintf(stderr, "[-] fstat(%s): %s\n", path, strerror(errno));
 		close(fd);
 		return (1);
 	}
 
 	memset(&fsb, 0x00, sizeof(struct statfs));
 	if (fstatfs(fd, &fsb)) {
-		perror("fstatfs");
+		fprintf(stderr, "[-] fstatfs(%s): %s\n", path, strerror(errno));
 		close(fd);
 		return (1);
 	}
@@ -121,22 +121,34 @@ secadm_validate_rule(secadm_rule_t *rule)
 	for (i=0; i < rule->sr_nfeatures; i++) {
 		switch (rule->sr_features[i].sf_type) {
 		case integriforce:
-			if (rule->sr_features[i].sf_metadata == NULL)
+			if (rule->sr_features[i].sf_metadata == NULL) {
+				fprintf(stderr, "[-] Rule[%s]: Integriforce enabled, but no valid metadata\n",
+				    rule->sr_path);
 				return (1);
-			if (rule->sr_features[i].sf_metadatasz != sizeof(secadm_integriforce_t))
+			}
+
+			if (rule->sr_features[i].sf_metadatasz != sizeof(secadm_integriforce_t)) {
+				fprintf(stderr, "[-] Rule[%s]: Integriforce enabled, but metadata has incorrect size\n",
+				    rule->sr_path);
 				return (1);
+			}
 
 			p_integriforce = (secadm_integriforce_t *)
 			    (rule->sr_features[i].sf_metadata);
 
-			if (p_integriforce->si_hash == NULL)
+			if (p_integriforce->si_hash == NULL) {
+				fprintf(stderr, "[-] Rule[%s]: No Integriforce hash specified\n",
+				    rule->sr_path);
 				return (1);
+			}
 
 			switch (p_integriforce->si_hashtype) {
 			case si_hash_sha1:
 			case si_hash_sha256:
 				break;
 			default:
+				fprintf(stderr, "[-] Rule[%s]: Invalid Integriforce hash\n",
+				    rule->sr_path);
 				return (1);
 			}
 
@@ -145,14 +157,19 @@ secadm_validate_rule(secadm_rule_t *rule)
 			case si_mode_hard:
 				break;
 			default:
+				fprintf(stderr, "[-] Rule[%s]: Invalid Integriforce mode\n",
+				    rule->sr_path);
 				return (1);
 			}
 
 			if (secadm_verify_file(
 			    p_integriforce->si_hashtype,
 			    rule->sr_path,
-			    p_integriforce->si_hash))
+			    p_integriforce->si_hash)) {
+				fprintf(stderr, "[-] Rule[%s]: Integrity check failed\n",
+				    rule->sr_path);
 				return (1);
+			}
 
 			break;
 		default:
@@ -171,8 +188,11 @@ secadm_validate_ruleset(secadm_rule_t *rules)
 
 	nrules = maxid = 0;
 	for (rule = rules; rule != NULL; rule = rule->sr_next) {
-		if (secadm_validate_rule(rule))
+		if (secadm_validate_rule(rule)) {
+			fprintf(stderr, "[-] Rule[%s] failed to validate\n",
+			    rule->sr_path);
 			return (1);
+		}
 
 		if (rule->sr_id > maxid)
 			maxid = rule->sr_id;

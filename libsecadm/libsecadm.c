@@ -160,45 +160,45 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 	secadm_integriforce_t *metadata;
 	size_t hashsz, i, j;
 
-	fprintf(stderr, "[*] Rule %zu\n", rule->sr_id);
-	fprintf(stderr, "    - Path: %s\n", rule->sr_path);
+	printf("[*] Rule %zu\n", rule->sr_id);
+	printf("    - Path: %s\n", rule->sr_path);
 	for (i=0; i < rule->sr_nfeatures; i++) {
 		switch (rule->sr_features[i].sf_type) {
 		case pageexec_disabled:
-			fprintf(stderr, "    - Feature[PAGEEXEC]: Disabled\n");
+			printf("    - Feature[PAGEEXEC]: Disabled\n");
 			break;
 		case pageexec_enabled:
-			fprintf(stderr, "    - Feature[PAGEEXEC]: Enabled\n");
+			printf("    - Feature[PAGEEXEC]: Enabled\n");
 			break;
 		case mprotect_disabled:
-			fprintf(stderr, "    - Feature[MPROTECT]: Disabled\n");
+			printf("    - Feature[MPROTECT]: Disabled\n");
 			break;
 		case mprotect_enabled:
-			fprintf(stderr, "    - Feature[MPROTECT]: Enabled\n");
+			printf("    - Feature[MPROTECT]: Enabled\n");
 			break;
 		case segvguard_enabled:
-			fprintf(stderr, "    - Feature[SEGVGUARD] - Enabled\n");
+			printf("    - Feature[SEGVGUARD] - Enabled\n");
 			break;
 		case segvguard_disabled:
-			fprintf(stderr, "    - Feature[SEGVGUARD] - Disabled\n");
+			printf("    - Feature[SEGVGUARD] - Disabled\n");
 			break;
 		case aslr_disabled:
-			fprintf(stderr, "    - Feature[ASLR]: Disabled\n");
+			printf("    - Feature[ASLR]: Disabled\n");
 			break;
 		case aslr_enabled:
-			fprintf(stderr, "    - Feature[ASLR]: Enabled\n");
+			printf("    - Feature[ASLR]: Enabled\n");
 			break;
 		case integriforce:
 			if (rule->sr_features[i].sf_metadata == NULL) {
-				fprintf(stderr, "    - Integriforce enabled, but NULL\n");
+				printf("    - Integriforce enabled, but NULL\n");
 				break;
 			}
 
 			metadata = (secadm_integriforce_t *)(rule->sr_features[i].sf_metadata);
-			fprintf(stderr, "     - Integriforce:\n");
-			fprintf(stderr, "       + Enforcing mode: %s\n",
+			printf("     - Integriforce:\n");
+			printf("       + Enforcing mode: %s\n",
 			    convert_from_integriforce_mode(metadata->si_mode));
-			fprintf(stderr, "       + Hash: ");
+			printf("       + Hash: ");
 			switch (metadata->si_hashtype) {
 			case si_hash_sha1:
 				hashsz=SHA1_DIGESTLEN;
@@ -212,17 +212,18 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 			}
 
 			for (j=0; j<hashsz; j++)
-				fprintf(stderr, "%02x", metadata->si_hash[j]);
-			fprintf(stderr, "\n");
+				printf("%02x", metadata->si_hash[j]);
+			printf("\n");
 			break;
 		default:
-			fprintf(stderr, "    - Feature %d unknown\n",
+			printf("    - Feature %d unknown\n",
 			    rule->sr_features[i].sf_type);
 			break;
 		}
 	}
 
-	fprintf(stderr, "    - Owning jail: %s\n", rule->sr_prison);
+	if (rule->sr_prison)
+		printf("    - Owning jail: %s\n", rule->sr_prison);
 }
 
 void
