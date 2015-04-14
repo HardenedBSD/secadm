@@ -213,7 +213,7 @@ static int
 validateact(int argc, char *argv[])
 {
 	secadm_rule_t *rules;
-	int ch;
+	int ch, res;
 
 	if (!(configpath))
 		usage(name);
@@ -232,7 +232,9 @@ validateact(int argc, char *argv[])
 		}
 	}
 
-	return (secadm_validate_ruleset(rules));
+	res = secadm_validate_ruleset(rules);
+	secadm_free_ruleset(rules);
+	return (res);
 
 }
 

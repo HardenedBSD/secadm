@@ -102,17 +102,21 @@ load_config(const char *config)
 	if (ucl_parser_get_error(parser)) {
 		fprintf(stderr, "[-] The parser had an error: %s\n",
 		    ucl_parser_get_error(parser));
+		ucl_parser_free(parser);
 		return (NULL);
 	}
 
 	rules = parse_object(parser);
 	if (rules == NULL) {
 		fprintf(stderr, "[-] Ruleset is invalid.\n");
+		ucl_parser_free(parser);
 		return (NULL);
 	}
 
 	for (rule = rules; rule != NULL; rule = rule->sr_next)
 		rule->sr_id = id++;
+
+	ucl_parser_free(parser);
 
 	return (rules);
 }
@@ -354,8 +358,10 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		}
 
 		metadata = calloc(1, sizeof(secadm_integriforce_t));
-		if (metadata == NULL)
+		if (metadata == NULL) {
+			free(rule);
 			return (NULL);
+		}
 
 		ucldata = ucl_lookup_path(index, "hash_type");
 		if (ucldata == NULL) {
@@ -430,6 +436,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			if (sscanf(&data[i*2], "%02x", &val) == 0) {
 				free(rule);
 				free(metadata);
+				free(hash);
 				fprintf(stderr, "Invalid hash\n");
 				return (NULL);
 			}
@@ -438,12 +445,6 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		}
 
 		metadata->si_hash = hash;
-		if (!(metadata->si_hash)) {
-			free(rule);
-			free(metadata);
-			return (NULL);
-		}
-
 		metadata->si_mode = defmode;
 		ucldata = ucl_lookup_path(index, "enforcing");
 		if (ucldata != NULL)
@@ -454,6 +455,7 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 		if (feature == NULL) {
 			free(rule);
 			free(metadata);
+			free(hash);
 			return (NULL);
 		}
 
