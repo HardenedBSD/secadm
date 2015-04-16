@@ -26,8 +26,7 @@
 #
 
 # PROVIDE: secadm
-# REQUIRE: FILESYSTEMS
-# BEFORE: DAEMON sysctl
+# REQUIRE: ldconfig
 # KEYWORD: shutdown
 
 . /etc/rc.subr
