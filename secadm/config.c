@@ -347,6 +347,14 @@ parse_integriforce(const ucl_object_t *uclintegriforce)
 			return (NULL);
 		}
 
+		if (head) {
+			rule = find_rule(head, path);
+			if (rule != NULL) {
+				fprintf(stderr, "Error in Integriforce config: Duplicate path: %s\n", path);
+				return (NULL);
+			}
+		}
+
 		rule = calloc(1, sizeof(secadm_rule_t));
 		if (rule == NULL)
 			return (NULL);
