@@ -121,7 +121,6 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 		return (0);
 	}
 
-
 	total = vap->va_size;
 	while (total > 0) {
 		amt = MIN(total, 8192);
