@@ -117,7 +117,6 @@ function secadm_check_dups() {
 
 if [ ${#@} -eq 0 ]; then
 	echo "USAGE: ${0} [-c <config] [-d <directory>] [-f <file>]"
-	echo "USAGE: ${0} [-f /path/to/file] [-d /path/to/directory] [-c /path/to/config]" >&2
 	echo "ARGUMENTS:"
 	echo "    -c <file>\tCheck the configuration file for duplicate Integriforce entries."
 	echo "             \tThe Integriforce section must be the last section of the config file."
