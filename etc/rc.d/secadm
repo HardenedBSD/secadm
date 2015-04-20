@@ -27,41 +27,35 @@
 
 # PROVIDE: secadm
 # REQUIRE: ldconfig
+# BEFORE: DAEMON
 # KEYWORD: shutdown
 
 . /etc/rc.subr
 
 name="secadm"
 rcvar="secadm_enable"
+start_precmd="secadm_prestart"
 stop_cmd="secadm_stop"
-start_cmd="secadm_start"
 
-_secadm="/usr/sbin/secadm"
-
+load_rc_config $name
 : ${secadm_enable:="NO"}
+: ${secadm_rules:="/usr/local/etc/secadm.rules"}
 
-list_secadm()
+command="/usr/sbin/secadm"
+command_args="-c ${secadm_rules} set"
+
+secadm_prestart()
 {
-	${_secadm} list
-}
-
-secadm_start()
-{
-	[ -z "${secadm_rules}" ] && secadm_rules="/usr/local/etc/secadm.rules"
-
 	if [ ! -f ${secadm_rules} ]
 	then
 		echo "missing rules file: ${secadm_rules}"
 		return 1
 	fi
-
-	${_secadm} -c ${secadm_rules} set
 }
 
 secadm_stop()
 {
-	${_secadm} flush
+	${command} flush
 }
 
-load_rc_config $name
 run_rc_command "$1"
