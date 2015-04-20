@@ -58,4 +58,9 @@ secadm_stop()
 	${command} flush
 }
 
+if [ ! -x ${command} ]
+then
+    command="/usr/local/sbin/secadm"
+fi
+
 run_rc_command "$1"
