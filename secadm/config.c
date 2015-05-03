@@ -51,6 +51,8 @@
 #include "libsecadm.h"
 #include "secadm_internal.h"
 
+#include "compat.h"
+
 static secadm_rule_t * find_rule(secadm_rule_t *head,
     const char *path);
 

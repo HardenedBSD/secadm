@@ -25,6 +25,9 @@
  */
 
 #include <sys/param.h>
+
+#if __FreeBSD_version > 1100000
+
 #include <sys/acl.h>
 #include <sys/kernel.h>
 #include <sys/imgact.h>
@@ -267,3 +270,5 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 
 	return (0);
 }
+
+#endif // __FreeBSD_version
