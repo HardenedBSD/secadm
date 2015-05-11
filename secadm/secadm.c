@@ -190,8 +190,12 @@ static int
 setact(int argc, char *argv[])
 {
 	secadm_rule_t *rules;
+	struct stat sb;
 
 	if (!(configpath))
+		configpath = DEFCONFIG;
+
+	if (stat(configpath, &sb))
 		usage(name);
 
 	rules = load_config(configpath);
@@ -213,9 +217,13 @@ static int
 validateact(int argc, char *argv[])
 {
 	secadm_rule_t *rules;
+	struct stat sb;
 	int ch, res;
 
 	if (!(configpath))
+		configpath = DEFCONFIG;
+
+	if (stat(configpath, &sb))
 		usage(name);
 
 	rules = load_config(configpath);

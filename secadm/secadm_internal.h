@@ -34,6 +34,8 @@
 #ifndef _SECADM_INTERNAL_H
 #define _SECADM_INTERNAL_H
 
+#define DEFCONFIG "/usr/local/etc/secadm.rules"
+
 int kldcheck(void);
 secadm_rule_t *load_config(const char *);
 secadm_rule_t *parse_object(struct ucl_parser *);
