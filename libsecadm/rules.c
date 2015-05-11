@@ -94,13 +94,24 @@ int
 secadm_validate_rule(secadm_rule_t *rule)
 {
 	secadm_integriforce_t *p_integriforce;
-	size_t i;
+	struct stat sb;
+	size_t i, len;
 
 	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
 	    || rule->sr_nfeatures > SECADM_MAX_FEATURES)
 		return (1);
 
-	if (rule->sr_path != NULL && rule->sr_pathlen > MNAMELEN)
+	if (rule->sr_path == NULL)
+		return (1);
+
+	len = strlen(rule->sr_path);
+	if (len != rule->sr_pathlen || rule->sr_pathlen > MNAMELEN)
+		return (1);
+
+	if (stat(rule->sr_path, &sb))
+		return (1);
+
+	if (rule->sr_inode != sb.st_ino)
 		return (1);
 
 	if (!strlen(rule->sr_mount))

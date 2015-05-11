@@ -101,7 +101,10 @@ pre_validate_rule(struct thread *td, secadm_rule_t *rule)
 		return (1);
 	}
 
-	if (rule->sr_path != NULL && rule->sr_pathlen > MNAMELEN)
+	if (rule->sr_path == NULL)
+		return (1);
+
+	if (rule->sr_pathlen > MNAMELEN)
 		return (1);
 
 	return (0);
