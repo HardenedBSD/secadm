@@ -156,7 +156,9 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 		    rule->sr_mount))
 			continue;
 
-		printf("Info: A process tried to delete a file protected by a secadm rule. Returning EPERM.\n");
+		KASSERT(rule != NULL && rule->sr_path != NULL,
+		    ("%s: failed ...", __func__));
+		printf("[SECADM] Prevented to unlink %s: protected by a secadm rule.\n", rule->sr_path);
 		res=EPERM;
 		break;
 	}
