@@ -3,7 +3,7 @@
 
 #include <sys/param.h>
 
-#if __FreeBSD_version < 1100000 && __HardenedBSD_version < 21
+#if __FreeBSD_version < 1100000
 #warning reallocarry does not exists on your system, falling back to realloc!
 #define	reallocarray(p, nr, s)	realloc(p, (nr) * (s))
 #endif
