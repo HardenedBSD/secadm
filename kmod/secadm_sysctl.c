@@ -177,6 +177,7 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 
 		if (securelevel_gt(req->td->td_ucred, 0))
 			return (EPERM);
+		break;
 	default:
 		break;
 	}
