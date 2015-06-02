@@ -214,6 +214,11 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 			for (j=0; j<hashsz; j++)
 				printf("%02x", metadata->si_hash[j]);
 			printf("\n");
+		case shlibrandom_disabled:
+			printf("    - Feature[SHLIBRANDOM]: Disabled\n");
+			break;
+		case shlibrandom_enabled:
+			printf("    - Feature[SHLIBRANDOM]: Enabled\n");
 			break;
 		default:
 			printf("    - Feature %d unknown\n",
