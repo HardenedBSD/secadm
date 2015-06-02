@@ -275,6 +275,9 @@ flush_rules(struct thread *td)
 	struct secadm_prison_entry *entry;
 	secadm_rule_t *rule, *next;
 
+	printf("[SECADM] flushed rules by %u uid\n",
+	    td->td_ucred->cr_uid);
+
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
 	if (entry == NULL)
 		return;
