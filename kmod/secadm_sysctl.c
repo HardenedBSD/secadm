@@ -184,9 +184,6 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 			return (EPERM);
 		break;
 	default:
-		// XXXOP LOCKING
-		printf("[SECADM] unknown command: 0x%x by uid: %d\n",
-		    cmd.sc_type, req->td->td_ucred->cr_uid);
 		break;
 	}
 
@@ -233,6 +230,9 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 	case secadm_set_views:
 		return (ENOTSUP);
 	default:
+		// XXXOP LOCKING
+		printf("[SECADM] unknown command: 0x%x by uid: %d\n",
+		    cmd.sc_type, req->td->td_ucred->cr_uid);
 		return (EINVAL);
 	}
 
