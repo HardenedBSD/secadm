@@ -174,14 +174,17 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		 * sysctl lifecycle? */
 		// XXXOP LOCKING
 		if (req->td->td_ucred->cr_uid != 0) {
-			printf("[SECADM] disallowed command: 0x%x by uid: %d\n",
+			printf("[SECADM] Disallowed command: 0x%x by uid: %d\n",
 			    cmd.sc_type, req->td->td_ucred->cr_uid);
 			return (EPERM);
 		}
 
 		// XXXOP LOCKING
-		if (securelevel_gt(req->td->td_ucred, 0))
+		if (securelevel_gt(req->td->td_ucred, 0)) {
+			printf("[SECADM] Disallowed command: 0x%x by uid: %d\n",
+			    cmd.sc_type, req->td->td_ucred->cr_uid);
 			return (EPERM);
+		}
 		break;
 	default:
 		break;
@@ -231,7 +234,7 @@ sysctl_control(SYSCTL_HANDLER_ARGS)
 		return (ENOTSUP);
 	default:
 		// XXXOP LOCKING
-		printf("[SECADM] unknown command: 0x%x by uid: %d\n",
+		printf("[SECADM] Unknown command: 0x%x by uid: %d\n",
 		    cmd.sc_type, req->td->td_ucred->cr_uid);
 		return (EINVAL);
 	}

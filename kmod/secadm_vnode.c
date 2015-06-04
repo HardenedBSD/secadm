@@ -164,7 +164,8 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 
 		KASSERT(rule != NULL && rule->sr_path != NULL,
 		    ("%s: failed ...", __func__));
-		printf("[SECADM] Prevented to unlink %s: protected by a secadm rule.\n", rule->sr_path);
+		printf("[SECADM] Prevented to unlink %s: protected by a secadm rule.\n",
+		    rule->sr_path);
 		res=EPERM;
 		break;
 	}
@@ -208,7 +209,7 @@ secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
 		if (lookup_integriforce_feature(rule) != NULL) {
 			KASSERT(rule != NULL && rule->sr_path != NULL,
 			    ("%s: failed ...", __func__));
-			printf("Warning: A process tried to modify "
+			printf("[SECADM] Warning: A process tried to modify "
 			    "file %s, which is protected by a secadm rule. "
 			    "Returning EPERM.\n", rule->sr_path);
 			res=EPERM;
