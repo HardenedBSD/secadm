@@ -99,6 +99,8 @@ following fields:
 	   b. segvguard (boolean): toggles SEGVGUARD
 	   c. mprotect (boolean): toggles mprotect(exec) hardening
 	   d. pageexec (boolean): toggles PAGEEXEC
+	   e. shlibrandom (boolean): toggles shared object load order
+	      randomization in the RTLD.
 
 When you combine that all together, you should get the following
 example. Let's say we want to force ASLR and SEGVGUARD off with
