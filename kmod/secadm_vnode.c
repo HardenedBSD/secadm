@@ -206,9 +206,11 @@ secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
 			continue;
 
 		if (lookup_integriforce_feature(rule) != NULL) {
-			printf("Info: A process tried to modify a "
-			    "file protected by a secadm rule. "
-			    "Returning EPERM.\n");
+			KASSERT(rule != NULL && rule->sr_path != NULL,
+			    ("%s: failed ...", __func__));
+			printf("Warning: A process tried to modify "
+			    "file %s, which is protected by a secadm rule. "
+			    "Returning EPERM.\n", rule->sr_path);
 			res=EPERM;
 		}
 		break;

@@ -94,12 +94,14 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	case si_success:
 		return (0);
 	default:
+		KASSERT(rule != NULL && rule->sr_path != NULL,
+		    ("%s: failed ...", __func__));
 		switch (integriforce_p->si_mode) {
 		case si_mode_soft:
-			printf("secadm warning: hash did not match for rule %zu\n", rule->sr_id);
+			printf("secadm warning: hash did not match for file %s\n", rule->sr_path);
 			return (0);
 		default:
-			printf("secadm error: hash did not match for rule %zu. Blocking execution.\n", rule->sr_id);
+			printf("secadm error: hash did not match for file %s. Blocking execution.\n", rule->sr_path);
 			return (EPERM);
 		}
 	}
@@ -174,13 +176,15 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	}
 
 	if (memcmp(integriforce_p->si_hash, hash, hashsz)) {
+		KASSERT(rule != NULL && rule->sr_path != NULL,
+		    ("%s: failed ...", __func__));
 		switch (integriforce_p->si_mode) {
 		case si_mode_soft:
-			printf("secadm warning: hash did not match for rule %zu\n", rule->sr_id);
+			printf("secadm warning: hash did not match for file %s\n", rule->sr_path);
 			err = 0;
 			break;
 		default:
-			printf("secadm error: hash did not match for rule %zu. Blocking execution.\n", rule->sr_id);
+			printf("secadm error: hash did not match for file %s. Blocking execution.\n", rule->sr_path);
 			err = EPERM;
 			break;
 		}
