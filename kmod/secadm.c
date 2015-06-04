@@ -312,7 +312,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 		goto error;
 
 	features = malloc(sizeof(secadm_feature_t) *
-	    rule->sr_nfeatures, M_SECADM, M_WAITOK);
+	    rule->sr_nfeatures, M_SECADM, M_WAITOK | M_ZERO);
 
 	err = copyin(rule->sr_features, features,
 	    sizeof(secadm_feature_t) * rule->sr_nfeatures);
@@ -331,7 +331,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 
 			integriforce_p = malloc(
 			    sizeof(secadm_integriforce_t), M_SECADM,
-			    M_WAITOK);
+			    M_WAITOK | M_ZERO);
 
 			err = copyin(features[i].sf_metadata,
 			    integriforce_p,
@@ -399,7 +399,7 @@ read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
 		rule->sr_pathlen = 0;
 	}
 
-	kernel_metadata = malloc(sizeof(secadm_kernel_metadata_t), M_SECADM, M_WAITOK);
+	kernel_metadata = malloc(sizeof(secadm_kernel_metadata_t), M_SECADM, M_WAITOK | M_ZERO);
 	kernel_metadata->skm_owner = td->td_ucred->cr_prison;
 	rule->sr_kernel = kernel_metadata;
 	rule->sr_prison = malloc(strlen(kernel_metadata->skm_owner->pr_name)+1,
@@ -584,7 +584,7 @@ handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
 	}
 
 	written=0;
-	buf = malloc(size, M_SECADM, M_WAITOK);
+	buf = malloc(size, M_SECADM, M_WAITOK | M_ZERO);
 
 	memcpy(buf, rule, sizeof(secadm_rule_t));
 	newrule = (secadm_rule_t *)buf;
