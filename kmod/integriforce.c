@@ -26,7 +26,6 @@
 
 #include <sys/param.h>
 
-#if __FreeBSD_version > 1100000
 
 #include <sys/acl.h>
 #include <sys/kernel.h>
@@ -53,7 +52,9 @@
 
 #include <crypto/sha1.h>
 #include <crypto/sha2/sha2.h>
+#if __FreeBSD_version > 1100000
 #include <crypto/sha2/sha256.h>
+#endif
 #include <security/mac/mac_policy.h>
 
 #include "secadm.h"
@@ -270,5 +271,3 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 
 	return (0);
 }
-
-#endif // __FreeBSD_version
