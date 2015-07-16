@@ -66,7 +66,7 @@ secadm_sysctl(secadm_command_t *cmd, secadm_reply_t *reply)
 	}
 
 	if (reply->sr_code != secadm_success) {
-		fprintf(stderr, "[-] Control channel returned error code %u\n", reply->sr_errno);
+		fprintf(stderr, "[-] control channel returned error code %u\n", reply->sr_errno);
 		return (reply->sr_errno);
 	}
 
@@ -94,7 +94,7 @@ secadm_kernel_version(void)
 	if (err == 0) {
 		version = *((unsigned long *)(reply.sr_metadata));
 	} else {
-		fprintf(stderr, "[-] Could not get version: %s\n",
+		fprintf(stderr, "[-] could not get version: %s\n",
 		    strerror(errno));
 		goto error;
 	}
@@ -125,7 +125,7 @@ secadm_add_rules(secadm_rule_t *rule)
 	cmd.sc_size = sizeof(secadm_rule_t);
 
 	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Control channel received an error code: %d\n",
+		fprintf(stderr, "[-] control channel received an error code: %d\n",
 		    err);
 	}
 
@@ -146,7 +146,7 @@ secadm_flush_all_rules(void)
 	cmd.sc_type = secadm_flush_rules;
 
 	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Could not flush rules. Error code: %d\n",
+		fprintf(stderr, "[-] could not flush rules. error code: %d\n",
 		    err);
 	}
 
@@ -160,45 +160,45 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 	secadm_integriforce_t *metadata;
 	size_t hashsz, i, j;
 
-	printf("[*] Rule %zu\n", rule->sr_id);
-	printf("    - Path: %s\n", rule->sr_path);
+	printf("[*] rule: %zu - jail: %s\n", rule->sr_id, (rule->sr_prison) ? rule->sr_prison : "n/a");
+	printf("\t- path: %s\n", rule->sr_path);
 	for (i=0; i < rule->sr_nfeatures; i++) {
 		switch (rule->sr_features[i].sf_type) {
 		case pageexec_disabled:
-			printf("    - Feature[PAGEEXEC]: Disabled\n");
+			printf("\t- PAGEEXEC disabled\n");
 			break;
 		case pageexec_enabled:
-			printf("    - Feature[PAGEEXEC]: Enabled\n");
+			printf("\t- PAGEEXEC enabled\n");
 			break;
 		case mprotect_disabled:
-			printf("    - Feature[MPROTECT]: Disabled\n");
+			printf("\t- MPROTECT disabled\n");
 			break;
 		case mprotect_enabled:
-			printf("    - Feature[MPROTECT]: Enabled\n");
+			printf("\t -MPROTECT enabled\n");
 			break;
 		case segvguard_enabled:
-			printf("    - Feature[SEGVGUARD] - Enabled\n");
+			printf("\t- SEGVGUARD enabled\n");
 			break;
 		case segvguard_disabled:
-			printf("    - Feature[SEGVGUARD] - Disabled\n");
+			printf("\t- SEGVGUARD disabled\n");
 			break;
 		case aslr_disabled:
-			printf("    - Feature[ASLR]: Disabled\n");
+			printf("\t- ASLR disabled\n");
 			break;
 		case aslr_enabled:
-			printf("    - Feature[ASLR]: Enabled\n");
+			printf("\t- ASLR enabled\n");
 			break;
 		case integriforce:
 			if (rule->sr_features[i].sf_metadata == NULL) {
-				printf("    - Integriforce enabled, but NULL\n");
+				printf("\t- Integriforce enabled (no hash!)\n");
 				break;
 			}
 
 			metadata = (secadm_integriforce_t *)(rule->sr_features[i].sf_metadata);
-			printf("     - Integriforce:\n");
-			printf("       + Enforcing mode: %s\n",
+			printf("\t- Integriforce:\n");
+			printf("\t\t+ enforcing mode: %s\n",
 			    convert_from_integriforce_mode(metadata->si_mode));
-			printf("       + Hash: ");
+			printf("\t\t+ hash: ");
 			switch (metadata->si_hashtype) {
 			case si_hash_sha1:
 				hashsz=SHA1_DIGESTLEN;
@@ -215,20 +215,17 @@ secadm_debug_print_rule(secadm_rule_t *rule)
 				printf("%02x", metadata->si_hash[j]);
 			printf("\n");
 		case shlibrandom_disabled:
-			printf("    - Feature[SHLIBRANDOM]: Disabled\n");
+			printf("\t- SHLIBRANDOM disabled\n");
 			break;
 		case shlibrandom_enabled:
-			printf("    - Feature[SHLIBRANDOM]: Enabled\n");
+			printf("\t- SHLIBRANDOM enabled\n");
 			break;
 		default:
-			printf("    - Feature %d unknown\n",
+			printf("\t- feature %d unknown\n",
 			    rule->sr_features[i].sf_type);
 			break;
 		}
 	}
-
-	if (rule->sr_prison)
-		printf("    - Owning jail: %s\n", rule->sr_prison);
 }
 
 void
@@ -260,7 +257,7 @@ secadm_get_kernel_rule_size(size_t id)
 	reply.sr_size = sizeof(size_t);
 
 	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Could not get rule size for id %zu: %s\n",
+		fprintf(stderr, "[-] could not get rule size for id %zu: %s\n",
 		    id, strerror(err));
 		return (0);
 	}
@@ -286,7 +283,7 @@ secadm_get_num_kernel_rules(void)
 	reply.sr_size = sizeof(size_t);
 
 	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Could not get number of kernel rules: %s\n",
+		fprintf(stderr, "[-] could not get number of kernel rules: %s\n",
 		    strerror(err));
 		return (0);
 	}
@@ -324,7 +321,7 @@ secadm_get_kernel_rule(size_t id)
 	reply.sr_size = size;
 
 	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] Could not get rule %zu: %s\n", id,
+		fprintf(stderr, "[-] could not get rule %zu: %s\n", id,
 		    strerror(err));
 		free(buf);
 		return (NULL);
