@@ -185,7 +185,7 @@ featuresact(int argc, char *argv[])
 
 	putchar('\n');
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -198,28 +198,28 @@ enabledisableact(int argc, char *argv[], int enable)
 		if(!strcmp(argv[2], "aslr")) {
 			if (sysctlbyname("hardening.pax.aslr.status", NULL, 0, &value, sizeof(int))) {
 				fprintf(stderr, "[-] unable to %s ASLR: %s\n", what, strerror(errno));
-				return 1;
+				return (1);
 			}
 
-			return 0;
+			return (0);
 		}
 
 		if(!strcmp(argv[2], "mprotect")) {
 			if (sysctlbyname("hardening.pax.mprotect.status", NULL, 0, &value, sizeof(int))) {
 				fprintf(stderr, "[-] unable to %s MPROTECT: %s\n", what, strerror(errno));
-				return 1;
+				return (1);
 			}
 
-			return 0;
+			return (0);
 		}
 
 		if(!strcmp(argv[2], "pageexec")) {
 			if (sysctlbyname("hardening.pax.pageexec.status", NULL, 0, &value, sizeof(int))) {
 				fprintf(stderr, "[-] unable to %s PAGEEXEC: %s\n", what, strerror(errno));
-				return 1;
+				return (1);
 			}
 
-			return 0;
+			return (0);
 		}
 
 		if(!strcmp(argv[2], "segvguard")) {
@@ -227,10 +227,10 @@ enabledisableact(int argc, char *argv[], int enable)
 
 			if (sysctlbyname("hardening.pax.segvguard.status", NULL, 0, &value, sizeof(int))) {
 				fprintf(stderr, "[-] unable to %s SEGVGUARD: %s\n", what, strerror(errno));
-				return 1;
+				return (1);
 			}
 
-			return 0;
+			return (0);
 		}
 	}
 
@@ -240,19 +240,19 @@ enabledisableact(int argc, char *argv[], int enable)
 			"    pageexec\t- memory W^X enforcement\n"
 			"    segvguard\t- SEGVGUARD\n", name, what);
 
-	return 1;
+	return (1);
 }
 
 static int
 enableact(int argc, char *argv[])
 {
-	return enabledisableact(argc, argv, 1);
+	return (enabledisableact(argc, argv, 1));
 }
 
 static int
 disableact(int argc, char *argv[])
 {
-	return enabledisableact(argc, argv, 0);
+	return (enabledisableact(argc, argv, 0));
 }
 
 static int
@@ -268,7 +268,7 @@ versionact(int argc, char *argv[])
 		fprintf(stderr, "[+] secadm kernel module version: %lu\n",
 		    version);
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -279,7 +279,7 @@ listact(int argc, char *argv[])
 
 	if (kldfind(SECADM_KLDNAME) == -1) {
 		fprintf(stderr, "[-] secadm module not loaded\n");
-		return 1;
+		return (1);
 	}
 
 	nrules = secadm_get_num_kernel_rules();
@@ -288,14 +288,14 @@ listact(int argc, char *argv[])
 		if (!(rule)) {
 			fprintf(stderr, "[-] could not get rule %zu from the kernel.\n", i);
 			free(rule);
-			return 1;
+			return (1);
 		}
 
 		secadm_debug_print_rule(rule);
 		free(rule);
 	}
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -306,7 +306,7 @@ loadact(int argc, char *argv[])
 
 	if (argc < 3) {
 		usage(name);
-		return 1;
+		return (1);
 	}
 
 	rulesetpath = argv[2];
@@ -316,23 +316,23 @@ loadact(int argc, char *argv[])
 
 	if (stat(rulesetpath, &sb)) {
 		fprintf(stderr, "[-] could not open the ruleset file: %s\n", strerror(errno));
-		return 1;
+		return (1);
 	}
 
 	rules = load_config(rulesetpath);
 	if (rules == NULL) {
 		fprintf(stderr, "[-] could not load the ruleset file\n");
-		return 1;
+		return (1);
 	}
 
 	if (secadm_add_rules(rules)) {
 		fprintf(stderr, "[-] could not load the rules\n");
-		return 1;
+		return (1);
 	}
 
 	free(rules);
 
-	return 0;
+	return (0);
 }
 
 static int
@@ -344,13 +344,13 @@ validateact(int argc, char *argv[])
 
 	if(argc < 3) {
 		usage(name);
-		return 1;
+		return (1);
 	}
 
 	if(!strcmp(argv[2], "-v")) {
 		if(argc != 4) {
 			usage(name);
-			return 1;
+			return (1);
 		}
 
 		rulesetpath = argv[3];
@@ -363,13 +363,13 @@ validateact(int argc, char *argv[])
 	if (stat(rulesetpath, &sb)) {
 		fprintf(stderr, "[-] could not open the ruleset file: %s\n", strerror(errno));
 		usage(name);
-		return 1;
+		return (1);
 	}
 
 	rules = load_config(rulesetpath);
 	if (rules == NULL) {
 		fprintf(stderr, "[-] could not load the ruleset file\n");
-		return 1;
+		return (1);
 	}
 
 	if (verbose) secadm_debug_print_rules(rules);
@@ -399,7 +399,7 @@ main(int argc, char *argv[])
 
 	if (argc < 2) {
 		usage(name);
-		return 1;
+		return (1);
 	}
 
 	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++) {
@@ -407,7 +407,7 @@ main(int argc, char *argv[])
 			if (actions[i].needkld && kldfind(SECADM_KLDNAME) == -1) {
 			       	if (kldload(SECADM_KLDNAME) == -1) {
 					fprintf(stderr, "[-] secadm module not loaded\n");
-					return 1;
+					return (1);
 				}
 			}
 
@@ -417,5 +417,5 @@ main(int argc, char *argv[])
 
 	usage(name);
 
-	return 1;
+	return (1);
 }
