@@ -206,7 +206,7 @@ enabledisableact(int argc, char *argv[], int enable)
 
 		if(!strcmp(argv[2], "mprotect")) {
 			if (sysctlbyname("hardening.pax.mprotect.status", NULL, 0, &value, sizeof(int))) {
-				fprintf(stderr, "[-] unable to %s ASLR: %s\n", what, strerror(errno));
+				fprintf(stderr, "[-] unable to %s MPROTECT: %s\n", what, strerror(errno));
 				return 1;
 			}
 
@@ -215,7 +215,7 @@ enabledisableact(int argc, char *argv[], int enable)
 
 		if(!strcmp(argv[2], "pageexec")) {
 			if (sysctlbyname("hardening.pax.pageexec.status", NULL, 0, &value, sizeof(int))) {
-				fprintf(stderr, "[-] unable to %s ASLR: %s\n", what, strerror(errno));
+				fprintf(stderr, "[-] unable to %s PAGEEXEC: %s\n", what, strerror(errno));
 				return 1;
 			}
 
@@ -226,7 +226,7 @@ enabledisableact(int argc, char *argv[], int enable)
 			if (enable) value = 1;
 
 			if (sysctlbyname("hardening.pax.segvguard.status", NULL, 0, &value, sizeof(int))) {
-				fprintf(stderr, "[-] unable to %s ASLR: %s\n", what, strerror(errno));
+				fprintf(stderr, "[-] unable to %s SEGVGUARD: %s\n", what, strerror(errno));
 				return 1;
 			}
 
