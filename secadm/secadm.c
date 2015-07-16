@@ -178,10 +178,10 @@ featuresact(int argc, char *argv[])
 
 		if (value) {
 			printf(" ");
-			for(j = 0; features[i][j]; j++)
+			for (j = 0; features[i][j]; j++)
 				printf("%c", toupper(features[i][j]));
 		}
-	} while(features[++i]);
+	} while (features[++i]);
 
 	putchar('\n');
 
@@ -194,8 +194,8 @@ enabledisableact(int argc, char *argv[], int enable)
 	char *what = enable ? "enable" : "disable";
 	int value = enable ? 2 : 0;
 
-	if(argc == 3) {
-		if(!strcmp(argv[2], "aslr")) {
+	if (argc == 3) {
+		if (!strcmp(argv[2], "aslr")) {
 			if (sysctlbyname("hardening.pax.aslr.status", NULL, 0, &value, sizeof(int))) {
 				fprintf(stderr, "[-] unable to %s ASLR: %s\n", what, strerror(errno));
 				return (1);
@@ -204,7 +204,7 @@ enabledisableact(int argc, char *argv[], int enable)
 			return (0);
 		}
 
-		if(!strcmp(argv[2], "mprotect")) {
+		if (!strcmp(argv[2], "mprotect")) {
 			if (sysctlbyname("hardening.pax.mprotect.status", NULL, 0, &value, sizeof(int))) {
 				fprintf(stderr, "[-] unable to %s MPROTECT: %s\n", what, strerror(errno));
 				return (1);
@@ -213,7 +213,7 @@ enabledisableact(int argc, char *argv[], int enable)
 			return (0);
 		}
 
-		if(!strcmp(argv[2], "pageexec")) {
+		if (!strcmp(argv[2], "pageexec")) {
 			if (sysctlbyname("hardening.pax.pageexec.status", NULL, 0, &value, sizeof(int))) {
 				fprintf(stderr, "[-] unable to %s PAGEEXEC: %s\n", what, strerror(errno));
 				return (1);
@@ -222,7 +222,7 @@ enabledisableact(int argc, char *argv[], int enable)
 			return (0);
 		}
 
-		if(!strcmp(argv[2], "segvguard")) {
+		if (!strcmp(argv[2], "segvguard")) {
 			if (enable) value = 1;
 
 			if (sysctlbyname("hardening.pax.segvguard.status", NULL, 0, &value, sizeof(int))) {
@@ -342,13 +342,13 @@ validateact(int argc, char *argv[])
 	struct stat sb;
 	int ch, res, verbose = 0;
 
-	if(argc < 3) {
+	if (argc < 3) {
 		usage(name);
 		return (1);
 	}
 
-	if(!strcmp(argv[2], "-v")) {
-		if(argc != 4) {
+	if (!strcmp(argv[2], "-v")) {
+		if (argc != 4) {
 			usage(name);
 			return (1);
 		}
