@@ -172,9 +172,10 @@ featuresact(int argc, char *argv[])
 
 	printf("[+] enabled features:");
 	do {
-		sprintf(name, "hardening.pax.%s.status", features[i]);
+		snprintf(name, sizeof(name) - 1, "hardening.pax.%s.status", features[i]);
 
-		if (sysctlbyname(name, &value, &sz, NULL, 0)) continue;
+		if (sysctlbyname(name, &value, &sz, NULL, 0))
+			continue;
 
 		if (value) {
 			printf(" ");
