@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2014,2015 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * Copyright (c) 2015 Brian Salecdo <brian.salcedo@hardenedbsd.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -29,394 +30,403 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
  * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
-*/
+ */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <ctype.h>
+#include <stdlib.h>
 #include <errno.h>
-
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-#include <sys/linker.h>
 #include <sys/mount.h>
-#include <sys/pax.h>
-#include <sys/queue.h>
-#include <sys/sysctl.h>
 
-#include "ucl.h"
-#include "libsecadm.h"
-#include "secadm_internal.h"
+#include "secadm.h"
 
-typedef int (*action_t)(int, char **);
+int show_action(int, char **);
+int load_action(int, char **);
+int flush_action(int, char **);
+int add_action(int, char **);
+int delete_action(int, char **);
+int enable_action(int, char **);
+int disable_action(int, char **);
 
-static void usage(const char *);
-static void check_bsd(void);
+typedef int (*command_t)(int, char **);
 
-static int listact(int, char **);
-static int loadact(int, char **);
-static int flushact(int, char **);
-static int validateact(int, char **);
-static int featuresact(int, char **);
-static int enabledisableact(int, char **, int);
-static int enableact(int, char **);
-static int disableact(int, char **);
-static int versionact(int, char **);
-
-const char *rulesetpath=NULL;
-const char *name;
-
-struct _action {
-	const char *action;
-	const char *help;
-	int needkld;
-	action_t op;
-} actions[] = {
+struct secadm_commands {
+	const char	*subcommand;
+	const char	*options;
+	const char	*help;
+	command_t	 op;
+} commands[] = {
 	{
-		"list",
-		"\t\t- list loaded rule(s)",
-		0,
-		listact
+		"show",
+		"[-f json|xml]",
+		"show loaded ruleset",
+		show_action
 	},
 	{
 		"load",
-		"<file>\t\t- load ruleset from file",
-		1,
-		loadact
+		"<file>",
+		"load ruleset",
+		load_action
 	},
 	{
 		"flush",
-		"\t\t- flush ruleset",
-		1,
-		flushact
+		"",
+		"flush ruleset",
+		flush_action
 	},
 	{
-		"validate",
-		"[-v] <file>\t- validate ruleset",
-		0,
-		validateact
+		"add",
+		"<extended|integriforce|pax>",
+		"add rule",
+		add_action
 	},
 	{
-		"features",
-		"\t\t- list enabled HardenedBSD features",
-		1,
-		featuresact
+		"del",
+		"<id>",
+		"delete rule",
+		delete_action
 	},
 	{
 		"enable",
-		"<feature>\t- enable HardenedBSD feature",
-		1,
-		enableact
+		"<id>",
+		"enable rule",
+		enable_action
 	},
 	{
 		"disable",
-		"<feature>\t- disable HardenedDBSD feature",
-		1,
-		disableact
-	},
-	{
-		"version",
-		"\t\t- print secadm version",
-		1,
-		versionact
+		"<id>",
+		"disable rule",
+		disable_action
 	}
 };
 
-static void
-usage(const char *name)
+void
+usage(int argc, char **argv)
 {
-	size_t i;
+	int i;
 
-	fprintf(stderr, "usage: %s <subcommand> <args> ...\n", name);
-
-	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++)
-		fprintf(stderr, "    %s %s %s\n", name, actions[i].action, actions[i].help);
-}
-
-static void
-check_bsd(void)
-{
-	int version;
-	size_t sz = sizeof(int);
-
-	if (sysctlbyname("hardening.version", &version, &sz, NULL, 0)) {
-		if (errno == ENOENT) {
-			fprintf(stderr, "[-] HardenedBSD required. FreeBSD not supported.\n");
-			exit(1);
+	if (argc <= 2) {
+		printf("usage: secadm <command> [[modifiers] args]\n");
+		for (i = 0; i < sizeof(commands) /
+				sizeof(struct secadm_commands); i++) {
+			printf("    secadm %-8s%-30s- %s\n",
+			       commands[i].subcommand,
+			       commands[i].options,
+			       commands[i].help);
 		}
-	}
-}
+	} else if (argc >= 2 && !strcmp(argv[1], "add")) {
+		if (argc == 2)
+			usage(1, argv);
 
-static int
-featuresact(int argc, char *argv[])
-{
-	char *features[5] = { "aslr", "mprotect", "pageexec", "segvguard", NULL };
-	size_t sz = sizeof(int);
-	int value, i = 0, j;
-	char name[40];
-
-	printf("[+] available features:");
-	if (feature_present(FEATURE_PAX_ASLR))
-		printf(" ASLR");
-	if (feature_present(FEATURE_PAX_MPROTECT))
-		printf(" MPROTECT");
-	if (feature_present(FEATURE_PAX_PAGEEXEC))
-		printf(" PAGEEXEC");
-	if (feature_present(FEATURE_PAX_SEGVGUARD))
-		printf(" SEGVGUARD");
-
-	putchar('\n');
-
-	printf("[+] enabled features:");
-	do {
-		snprintf(name, sizeof(name) - 1, "hardening.pax.%s.status", features[i]);
-
-		if (sysctlbyname(name, &value, &sz, NULL, 0))
-			continue;
-
-		if (value) {
-			printf(" ");
-			for (j = 0; features[i][j]; j++)
-				printf("%c", toupper(features[i][j]));
+		if (argc == 3 && !strcmp(argv[2], "extended")) {
+			printf("usage: secadm add extended <args>\n");
+		} else if (argc == 3 && !strcmp(argv[2], "integriforce")) {
+			printf(
+			    "usage: secadm add integriforce "
+			    "<path> <type> <mode> <hash>\n");
+		} else if (argc == 3 && !strcmp(argv[2], "pax")) {
+			printf("usage: secadm add pax <path> <flags>\n");
+		} else {
+			usage(1, argv);
 		}
-	} while (features[++i]);
-
-	putchar('\n');
-
-	return (0);
-}
-
-static int
-enabledisableact(int argc, char *argv[], int enable)
-{
-	char *what = enable ? "enable" : "disable";
-	int value = enable ? 2 : 0;
-
-	if (argc == 3) {
-		if (!strcmp(argv[2], "aslr")) {
-			if (sysctlbyname("hardening.pax.aslr.status", NULL, 0, &value, sizeof(int))) {
-				fprintf(stderr, "[-] unable to %s ASLR: %s\n", what, strerror(errno));
-				return (1);
-			}
-
-			return (0);
-		}
-
-		if (!strcmp(argv[2], "mprotect")) {
-			if (sysctlbyname("hardening.pax.mprotect.status", NULL, 0, &value, sizeof(int))) {
-				fprintf(stderr, "[-] unable to %s MPROTECT: %s\n", what, strerror(errno));
-				return (1);
-			}
-
-			return (0);
-		}
-
-		if (!strcmp(argv[2], "pageexec")) {
-			if (sysctlbyname("hardening.pax.pageexec.status", NULL, 0, &value, sizeof(int))) {
-				fprintf(stderr, "[-] unable to %s PAGEEXEC: %s\n", what, strerror(errno));
-				return (1);
-			}
-
-			return (0);
-		}
-
-		if (!strcmp(argv[2], "segvguard")) {
-			if (enable) value = 1;
-
-			if (sysctlbyname("hardening.pax.segvguard.status", NULL, 0, &value, sizeof(int))) {
-				fprintf(stderr, "[-] unable to %s SEGVGUARD: %s\n", what, strerror(errno));
-				return (1);
-			}
-
-			return (0);
-		}
+	} else {
+		usage(1, argv);
 	}
-
-	fprintf(stderr, "usage: %s %s <feature>\n"
-			"    aslr\t- Address Space Layout Randomization\n"
-			"    mprotect\t- mprotect() hardening\n"
-			"    pageexec\t- memory W^X enforcement\n"
-			"    segvguard\t- SEGVGUARD\n", name, what);
-
-	return (1);
-}
-
-static int
-enableact(int argc, char *argv[])
-{
-	return (enabledisableact(argc, argv, 1));
-}
-
-static int
-disableact(int argc, char *argv[])
-{
-	return (enabledisableact(argc, argv, 0));
-}
-
-static int
-versionact(int argc, char *argv[])
-{
-	unsigned long version;
-
-	fprintf(stderr, "[+] secadm version: %s\n",
-	    SECADM_PRETTY_VERSION);
-
-	version = secadm_kernel_version();
-	if (version)
-		fprintf(stderr, "[+] secadm kernel module version: %lu\n",
-		    version);
-
-	return (0);
-}
-
-static int
-listact(int argc, char *argv[])
-{
-	secadm_rule_t *rule;
-	size_t nrules, i;
-
-	if (kldfind(SECADM_KLDNAME) == -1) {
-		fprintf(stderr, "[-] secadm module not loaded\n");
-		return (1);
-	}
-
-	nrules = secadm_get_num_kernel_rules();
-	for (i=0; i < nrules; i++) {
-		rule = secadm_get_kernel_rule(i);
-		if (!(rule)) {
-			fprintf(stderr, "[-] could not get rule %zu from the kernel.\n", i);
-			free(rule);
-			return (1);
-		}
-
-		secadm_debug_print_rule(rule);
-		free(rule);
-	}
-
-	return (0);
-}
-
-static int
-loadact(int argc, char *argv[])
-{
-	secadm_rule_t *rules;
-	struct stat sb;
-
-	if (argc < 3) {
-		usage(name);
-		return (1);
-	}
-
-	rulesetpath = argv[2];
-
-	if (!(rulesetpath))
-		rulesetpath = DEFCONFIG;
-
-	if (stat(rulesetpath, &sb)) {
-		fprintf(stderr, "[-] could not open the ruleset file: %s\n", strerror(errno));
-		return (1);
-	}
-
-	rules = load_config(rulesetpath);
-	if (rules == NULL) {
-		fprintf(stderr, "[-] could not load the ruleset file\n");
-		return (1);
-	}
-
-	if (secadm_add_rules(rules)) {
-		fprintf(stderr, "[-] could not load the rules\n");
-		return (1);
-	}
-
-	free(rules);
-
-	return (0);
-}
-
-static int
-validateact(int argc, char *argv[])
-{
-	secadm_rule_t *rules;
-	struct stat sb;
-	int ch, res, verbose = 0;
-
-	if (argc < 3) {
-		usage(name);
-		return (1);
-	}
-
-	if (!strcmp(argv[2], "-v")) {
-		if (argc != 4) {
-			usage(name);
-			return (1);
-		}
-
-		rulesetpath = argv[3];
-		verbose = 1;
-	} else rulesetpath = argv[2];
-
-	if (!(rulesetpath))
-		rulesetpath = DEFCONFIG;
-
-	if (stat(rulesetpath, &sb)) {
-		fprintf(stderr, "[-] could not open the ruleset file: %s\n", strerror(errno));
-		usage(name);
-		return (1);
-	}
-
-	rules = load_config(rulesetpath);
-	if (rules == NULL) {
-		fprintf(stderr, "[-] could not load the ruleset file\n");
-		return (1);
-	}
-
-	if (verbose) secadm_debug_print_rules(rules);
-
-	res = secadm_validate_ruleset(rules);
-	secadm_free_ruleset(rules);
-
-	return (res);
-}
-
-static int
-flushact(int argc, char *argv[])
-{
-	return ((int)secadm_flush_all_rules());
 }
 
 int
-main(int argc, char *argv[])
+main(int argc, char **argv)
 {
-	secadm_rule_t *rules, *rule;
-	size_t nrules, rulesize, i;
-	int ch;
-
-	name=argv[0];
-
-	check_bsd();
+	int i;
 
 	if (argc < 2) {
-		usage(name);
+		usage(argc, argv);
 		return (1);
 	}
 
-	for (i=0; i < sizeof(actions)/sizeof(struct _action); i++) {
-		if (!strcmp(argv[1], actions[i].action)) {
-			if (actions[i].needkld && kldfind(SECADM_KLDNAME) == -1) {
-			       	if (kldload(SECADM_KLDNAME) == -1) {
-					fprintf(stderr, "[-] secadm module not loaded\n");
-					return (1);
-				}
-			}
+	for (i = 0; i < sizeof(commands) /
+			sizeof(struct secadm_commands); i++) {
+		if (!strcmp(argv[1], commands[i].subcommand))
+			return (commands[i].op(argc, argv));
+	}
 
-			return (actions[i].op(argc, argv));
+	usage(argc, argv);
+
+	return (1);
+}
+
+int
+show_action(int argc, char **argv)
+{
+	int ch, f = 0, num_rules, i, j, rn;
+	secadm_rule_t **ruleset;
+	char format[5];
+
+	optind = 2;
+	while ((ch = getopt(argc, argv, "f:")) != -1) {
+		switch (ch) {
+		case 'f':
+			strncpy(format, optarg, sizeof(format) - 1);
+			f = 1;
+			break;
+
+		case '?':
+		default:
+			usage(1, argv);
+			return (1);
 		}
 	}
 
-	usage(name);
+	if ((num_rules = secadm_get_num_rules()) == -1)
+		return (1);
 
-	return (1);
+	if (num_rules == 0)
+		return (0);
+
+	if ((ruleset = calloc(num_rules, sizeof(secadm_rule_t))) == NULL) {
+		perror("calloc");
+		return (1);
+	}
+
+	for (i = 0, rn = 0; i < num_rules; i++) {
+		if ((ruleset[i] = secadm_get_rule(rn)) == NULL) {
+			for (j = 0; j < i; j++)
+				secadm_free_rule(ruleset[j]);
+
+			free(ruleset);
+			return (1);
+		}
+
+		rn = ruleset[i]->sr_id + 1;
+	}
+
+	for (i = 0; i < num_rules; i++) {
+		printf("Jail #%d Rule #%d\n", ruleset[i]->sr_jid, ruleset[i]->sr_id);
+		printf("\tEnabled: %s\n", ruleset[i]->sr_active ? "Yes" : "No");
+
+		switch (ruleset[i]->sr_type) {
+		case secadm_pax_rule:
+			printf("\tType: Feature\n");
+			break;
+
+		case secadm_integriforce_rule:
+			printf("\tType: Integriforce\n");
+			break;
+
+		case secadm_extended_rule:
+			printf("\tType: MAC\n");
+			break;
+		}
+
+		secadm_free_rule(ruleset[i]);
+	}
+
+	free(ruleset);
+	return (0);
+}
+
+int
+load_action(int argc, char **argv)
+{
+	secadm_rule_t ruleset;
+	int ch, jid = 0;
+
+	if (argc < 3) {
+		usage(1, argv);
+		return (1);
+	}
+
+	secadm_load_ruleset(&ruleset);
+
+	return (0);
+}
+
+int
+flush_action(int argc, char **argv)
+{
+	return (secadm_flush_ruleset());
+}
+
+int
+add_action(int argc, char **argv)
+{
+	secadm_rule_t *rule;
+	char *rule_type, *p;
+
+	if (argc <= 3) {
+		usage(argc, argv);
+		return (1);
+	}
+
+	if ((rule = malloc(sizeof(secadm_rule_t))) == NULL) {
+		perror("malloc");
+
+		return (errno);
+	}
+
+	memset(rule, 0, sizeof(secadm_rule_t));
+
+	rule_type = argv[2];
+
+	if (!strcmp(rule_type, "pax")) {
+		if ((rule->sr_pax_data = malloc(sizeof(secadm_pax_data_t))) == NULL) {
+			perror("malloc");
+			secadm_free_rule(rule);
+
+			return (errno);
+		}
+
+		rule->sr_pax_data->sp_path = (u_char *) argv[3];
+		rule->sr_pax_data->sp_pathsz = strlen(argv[3]);
+		rule->sr_pax_data->sp_pax = 0;
+
+		rule->sr_active = 1;
+		rule->sr_type = secadm_pax_rule;
+
+		p = argv[4];
+		do {
+			switch (*p) {
+			case 'a':
+				rule->sr_pax_data->sp_pax &=
+				    ~SECADM_PAX_ASLR;
+				break;
+
+			case 'A':
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_ASLR;
+				break;
+
+			case 'm':
+				rule->sr_pax_data->sp_pax &=
+				    ~SECADM_PAX_MPROTECT;
+				break;
+
+			case 'M':
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_MPROTECT;
+				break;
+
+			case 'p':
+				rule->sr_pax_data->sp_pax &=
+				    ~SECADM_PAX_PAGEEXEC;
+				break;
+
+			case 'P':
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_PAGEEXEC;
+				break;
+
+			case 's':
+				rule->sr_pax_data->sp_pax &=
+				    ~SECADM_PAX_SEGVGUARD;
+				break;
+
+			case 'S':
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_SEGVGUARD;
+				break;
+
+			default:
+				fprintf(stderr, "Invalid pax flag '%c'\n", *p);
+				secadm_free_rule(rule);
+
+				return (1);
+			}
+
+			p++;
+		} while (*p);
+	} else if (!strcmp(rule_type, "integriforce")) {
+		if ((rule->sr_integriforce_data =
+		     malloc(sizeof(secadm_integriforce_data_t))) == NULL) {
+			perror("malloc");
+			secadm_free_rule(rule);
+
+			return (errno);
+		}
+
+		rule->sr_integriforce_data->si_path = (u_char *) argv[1];
+		rule->sr_integriforce_data->si_pathsz = strlen(argv[1]);
+
+		rule->sr_type = secadm_integriforce_rule;
+
+		if (!strcmp(argv[2], "sha1")) {
+			rule->sr_integriforce_data->si_type = secadm_hash_sha1;
+			rule->sr_integriforce_data->si_hash = (u_char *) argv[3];
+		} else if (!strcmp(argv[2], "sha256")) {
+			rule->sr_integriforce_data->si_type = secadm_hash_sha256;
+			rule->sr_integriforce_data->si_hash = (u_char *) argv[3];
+		} else {
+			argv -= optind;
+
+			usage(3, argv);
+			secadm_free_rule(rule);
+
+			return (1);
+		}
+	} else if (!strcmp(rule_type, "mac")) {
+		printf("mac not finished yet!\n");
+		rule->sr_type = secadm_extended_rule;
+	} else {
+		secadm_free_rule(rule);
+		usage(1, argv);
+
+		return (1);
+	}
+
+	secadm_add_rule(rule);
+	secadm_free_rule(rule);
+
+	return (0);
+}
+
+int
+delete_action(int argc, char **argv)
+{
+	int ruleid;
+
+	if (argc < 3) {
+		usage(1, argv);
+		return (1);
+	}
+
+	ruleid = strtol(argv[2], (char **)NULL, 10);
+
+	secadm_del_rule(ruleid);
+
+	return (0);
+}
+
+int
+enable_action(int argc, char **argv)
+{
+	int ruleid;
+
+	if (argc < 3) {
+		usage(1, argv);
+		return (1);
+	}
+
+	ruleid = strtol(argv[2], (char **)NULL, 10);
+
+	secadm_enable_rule(ruleid);
+
+	return (0);
+}
+
+int
+disable_action(int argc, char **argv)
+{
+	int ruleid;
+
+	if (argc < 3) {
+		usage(1, argv);
+		return (1);
+	}
+
+	ruleid = strtol(argv[2], (char **)NULL, 10);
+
+	secadm_disable_rule(ruleid);
+
+	return (0);
 }

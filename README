@@ -1,9 +1,16 @@
 secadm
 ======
-Author: Shawn Webb <shawn.webb@hardenedbsd.org>
+Authors: Shawn Webb <shawn.webb@hardenedbsd.org>, Brian Salcedo <brian.salcedo@hardenedbsd.org>
 Copyright (c) 2014 Shawn Webb
 License: 2-Clause BSD License
 https://github.com/HardenedBSD/secadm
+
+Re-write in progress
+====================
+
+This is currently under a full re-write. The code in this branch
+may or may not compile and is definitely going to break stuff.
+Use at your own peril!
 
 Introduction
 ============

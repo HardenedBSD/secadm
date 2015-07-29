@@ -1,6 +1,5 @@
 PROG=	secadm
-SRCS=	config.c \
-	secadm.c
+SRCS=	secadm.c
 
 .if defined(PREFIX)
 BINDIR?=	${PREFIX}/sbin
@@ -8,11 +7,11 @@ BINDIR?=	${PREFIX}/sbin
 BINDIR?=	/usr/sbin
 .endif
 
-LDADD=	-lucl -lm -lsecadm
+LDADD=	-lsecadm
 WANTS_PIE=	yes
 
 CFLAGS+=	-I${.CURDIR}/../libsecadm -I/usr/local/include
-LDFLAGS+=	-L${.CURDIR}/../libsecadm/obj -L/usr/local/lib
+LDFLAGS+=	-L${.CURDIR}/../libsecadm -L/usr/local/lib
 
 NO_MAN=	"yes"
 

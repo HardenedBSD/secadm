@@ -1,331 +1,322 @@
 /*-
  * Copyright (c) 2014,2015 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * Copyright (c) 2015 Brian Salcedo <brian.salcedo@hardenedbsd.org>
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
  * are met:
- * 1. Redistributions of source code must retain the above
- *    copyright notice, this list of conditions and the following
- *    disclaimer.
- * 2. Redistributions in binary form must reproduce the above
- *    copyright notice, this list of conditions and the following
- *    disclaimer in the documentation and/or other materials
- *    provided with the distribution.
- * 3. The name of the author may not be used to endorse or promote
- *    products derived from this software without specific prior
- *    written permission.
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
  *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND
- * CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
- * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
- * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF
- * USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
-*/
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <errno.h>
-
 #include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-#include <sys/linker.h>
-#include <sys/mount.h>
-#include <sys/queue.h>
 #include <sys/sysctl.h>
+#include <stdlib.h>
+#include <malloc_np.h>
+#include <sys/mount.h>
 
 #include "secadm.h"
-#include "libsecadm.h"
 
 int
-secadm_sysctl(secadm_command_t *cmd, secadm_reply_t *reply)
+_secadm_sysctl(secadm_command_t *cmd, secadm_reply_t *reply)
 {
-	int err;
 	size_t cmdsz, replysz;
+	int err;
 
 	cmdsz = sizeof(secadm_command_t);
 	replysz = sizeof(secadm_reply_t);
 
-	err = sysctlbyname("hardening.secadm.control", reply, &replysz, cmd,
-	    cmdsz);
+	err = sysctlbyname("hardening.secadm.control", reply, &replysz,
+			   cmd, cmdsz);
 
 	if (err) {
 		perror("sysctlbyname");
 		return (err);
 	}
 
-	if (reply->sr_code != secadm_success) {
-		fprintf(stderr, "[-] control channel returned error code %u\n", reply->sr_errno);
-		return (reply->sr_errno);
+	if (reply->sr_code != secadm_reply_success) {
+		fprintf(stderr, "control channel returned error code %d\n", reply->sr_code);
+		return (reply->sr_code);
 	}
 
 	return (0);
 }
 
-unsigned long
-secadm_kernel_version(void)
+int
+secadm_flush_ruleset(void)
 {
-	secadm_command_t cmd;
-	secadm_reply_t reply;
-	int err;
-	unsigned long version=0;
-
-	memset(&cmd, 0x00, sizeof(secadm_command_t));
-	cmd.sc_version = SECADM_VERSION;
-	cmd.sc_type = secadm_get_version;
-	cmd.sc_buf = calloc(1, sizeof(unsigned long));
-	if (!(cmd.sc_buf))
-		return (0);
-
-	cmd.sc_bufsize = sizeof(unsigned long);
-
-	err = secadm_sysctl(&cmd, &reply);
-	if (err == 0) {
-		version = *((unsigned long *)(reply.sr_metadata));
-	} else {
-		fprintf(stderr, "[-] could not get version: %s\n",
-		    strerror(errno));
-		goto error;
-	}
-
-error:
-	if (cmd.sc_buf != NULL)
-		free(cmd.sc_buf);
-
-	return (version);
-}
-
-unsigned int
-secadm_add_rules(secadm_rule_t *rule)
-{
-	secadm_command_t cmd;
-	secadm_reply_t reply;
-	int err=0;
-
-	if (secadm_validate_ruleset(rule))
-		return ((unsigned int)EINVAL);
-
-	memset(&cmd, 0x00, sizeof(secadm_command_t));
-	memset(&reply, 0x00, sizeof(secadm_reply_t));
-
-	cmd.sc_version = SECADM_VERSION;
-	cmd.sc_type = secadm_set_rules;
-	cmd.sc_metadata = rule;
-	cmd.sc_size = sizeof(secadm_rule_t);
-
-	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] control channel received an error code: %d\n",
-		    err);
-	}
-
-	return ((unsigned int)err);
-}
-
-unsigned int
-secadm_flush_all_rules(void)
-{
-	secadm_command_t cmd;
-	secadm_reply_t reply;
-	int err=0;
-
-	memset(&cmd, 0x00, sizeof(secadm_command_t));
-	memset(&reply, 0x00, sizeof(secadm_reply_t));
-
-	cmd.sc_version = SECADM_VERSION;
-	cmd.sc_type = secadm_flush_rules;
-
-	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] could not flush rules. error code: %d\n",
-		    err);
-	}
-
-	return ((unsigned int)err);
-}
-
-void
-secadm_debug_print_rule(secadm_rule_t *rule)
-{
-	secadm_feature_t *feature;
-	secadm_integriforce_t *metadata;
-	size_t hashsz, i, j;
-
-	printf("[*] rule: %zu - jail: %s\n", rule->sr_id, (rule->sr_prison) ? rule->sr_prison : "n/a");
-	printf("\t- path: %s\n", rule->sr_path);
-	for (i=0; i < rule->sr_nfeatures; i++) {
-		switch (rule->sr_features[i].sf_type) {
-		case pageexec_disabled:
-			printf("\t- PAGEEXEC disabled\n");
-			break;
-		case pageexec_enabled:
-			printf("\t- PAGEEXEC enabled\n");
-			break;
-		case mprotect_disabled:
-			printf("\t- MPROTECT disabled\n");
-			break;
-		case mprotect_enabled:
-			printf("\t -MPROTECT enabled\n");
-			break;
-		case segvguard_enabled:
-			printf("\t- SEGVGUARD enabled\n");
-			break;
-		case segvguard_disabled:
-			printf("\t- SEGVGUARD disabled\n");
-			break;
-		case aslr_disabled:
-			printf("\t- ASLR disabled\n");
-			break;
-		case aslr_enabled:
-			printf("\t- ASLR enabled\n");
-			break;
-		case integriforce:
-			if (rule->sr_features[i].sf_metadata == NULL) {
-				printf("\t- Integriforce enabled (no hash!)\n");
-				break;
-			}
-
-			metadata = (secadm_integriforce_t *)(rule->sr_features[i].sf_metadata);
-			printf("\t- Integriforce:\n");
-			printf("\t\t+ enforcing mode: %s\n",
-			    convert_from_integriforce_mode(metadata->si_mode));
-			printf("\t\t+ hash: ");
-			switch (metadata->si_hashtype) {
-			case si_hash_sha1:
-				hashsz=SHA1_DIGESTLEN;
-				break;
-			case si_hash_sha256:
-				hashsz=SHA256_DIGESTLEN;
-				break;
-			default:
-				hashsz=0;
-				break;
-			}
-
-			for (j=0; j<hashsz; j++)
-				printf("%02x", metadata->si_hash[j]);
-			printf("\n");
-		case shlibrandom_disabled:
-			printf("\t- SHLIBRANDOM disabled\n");
-			break;
-		case shlibrandom_enabled:
-			printf("\t- SHLIBRANDOM enabled\n");
-			break;
-		default:
-			printf("\t- feature %d unknown\n",
-			    rule->sr_features[i].sf_type);
-			break;
-		}
-	}
-}
-
-void
-secadm_debug_print_rules(secadm_rule_t *rules)
-{
-	secadm_rule_t *rule;
-
-	for (rule = rules; rule != NULL; rule = rule->sr_next)
-		secadm_debug_print_rule(rule);
-}
-
-size_t
-secadm_get_kernel_rule_size(size_t id)
-{
-	secadm_command_t cmd;
-	secadm_reply_t reply;
-	size_t size;
 	int err;
 
-	memset(&cmd, 0x00, sizeof(secadm_command_t));
-	memset(&reply, 0x00, sizeof(secadm_reply_t));
+	SECADM_SYSCTL_ARGS(secadm_cmd_flush_ruleset);
 
-	cmd.sc_version = SECADM_VERSION;
-	cmd.sc_type = secadm_get_rule_size;
-	cmd.sc_buf = &id;
-	cmd.sc_bufsize = sizeof(size_t);
+	if ((err = _secadm_sysctl(&cmd, &reply)))
+		fprintf(stderr, "could not flush rules. error code: %d\n", err);
 
-	reply.sr_metadata = &size;
-	reply.sr_size = sizeof(size_t);
-
-	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] could not get rule size for id %zu: %s\n",
-		    id, strerror(err));
-		return (0);
-	}
-
-	return (size);
+	return (err);
 }
 
-size_t
-secadm_get_num_kernel_rules(void)
+int
+_secadm_rule_ops(secadm_rule_t *rule, secadm_command_type_t cmd_type)
 {
-	secadm_command_t cmd;
-	secadm_reply_t reply;
-	size_t size;
 	int err;
 
-	memset(&cmd, 0x00, sizeof(secadm_command_t));
-	memset(&reply, 0x00, sizeof(secadm_reply_t));
+	SECADM_SYSCTL_ARGS(cmd_type);
 
-	cmd.sc_version = SECADM_VERSION;
-	cmd.sc_type = secadm_get_num_rules;
+	cmd.sc_data = rule;
 
-	reply.sr_metadata = &size;
-	reply.sr_size = sizeof(size_t);
+	if ((err = _secadm_sysctl(&cmd, &reply)))
+		fprintf(stderr, "secadm_rule_ops. error code: %d\n", err);
 
-	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] could not get number of kernel rules: %s\n",
-		    strerror(err));
-		return (0);
+	return (err);
+}
+
+int
+secadm_load_ruleset(secadm_rule_t *ruleset)
+{
+	return (_secadm_rule_ops(ruleset, secadm_cmd_load_ruleset));
+}
+
+int
+secadm_add_rule(secadm_rule_t *rule)
+{
+	return (_secadm_rule_ops(rule, secadm_cmd_add_rule));
+}
+
+int
+secadm_del_rule(int rule_id)
+{
+	secadm_rule_t rule;
+
+	memset(&rule, 0, sizeof(secadm_rule_t));
+	rule.sr_id = rule_id;
+
+	return (_secadm_rule_ops(&rule, secadm_cmd_del_rule));
+}
+
+int
+secadm_enable_rule(int rule_id)
+{
+	secadm_rule_t rule;
+
+	memset(&rule, 0, sizeof(secadm_rule_t));
+	rule.sr_id = rule_id;
+
+	return (_secadm_rule_ops(&rule, secadm_cmd_enable_rule));
+}
+
+int
+secadm_disable_rule(int rule_id)
+{
+	secadm_rule_t rule;
+
+	memset(&rule, 0, sizeof(secadm_rule_t));
+	rule.sr_id = rule_id;
+
+	return (_secadm_rule_ops(&rule, secadm_cmd_disable_rule));
+}
+
+void *
+_secadm_get_rule_data(secadm_rule_t *rule, size_t size)
+{
+	void *rule_data;
+	int err;
+
+	SECADM_SYSCTL_ARGS(secadm_cmd_get_rule_data);
+
+	if ((rule_data = malloc(size)) == NULL) {
+		perror("malloc");
+		return NULL;
 	}
 
-	return (size);
+	cmd.sc_data = rule;
+	reply.sr_data = rule_data;
 
+	printf("_secadm_get_rule_data()\n");
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "unable to get rule data. error code: %d\n", err);
+		return NULL;
+	}
+
+	return (rule_data);
+}
+
+u_char *
+_secadm_get_rule_path(secadm_rule_t *rule)
+{
+	u_char *rule_path;
+	int err;
+
+	SECADM_SYSCTL_ARGS(secadm_cmd_get_rule_path);
+
+	if ((rule_path = malloc(MAXPATHLEN + 1)) == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+
+	memset(rule_path, 0, MAXPATHLEN);
+
+	cmd.sc_data = rule;
+	reply.sr_data = rule_path;
+
+	printf("_secadm_get_rule_path()\n");
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "unable to get rule path. error code: %d\n", err);
+		return NULL;
+	}
+
+	return (rule_path);
+}
+
+u_char *
+_secadm_get_rule_hash(secadm_rule_t *rule)
+{
+	u_char *rule_hash;
+	int err;
+
+	SECADM_SYSCTL_ARGS(secadm_cmd_get_rule_hash);
+
+	if ((rule_hash = malloc(SECADM_SHA256_DIGEST_LEN + 1)) == NULL) {
+		perror("malloc");
+		return NULL;
+	}
+
+	memset(rule_hash, 0, SECADM_SHA256_DIGEST_LEN);
+	cmd.sc_data = rule;
+	reply.sr_data = rule_hash;
+
+	printf("_secadm_get_rule_hash()\n");
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "unable to get rule hash. error code: %d\n", err);
+		return NULL;
+	}
+
+	return (rule_hash);
 }
 
 secadm_rule_t *
-secadm_get_kernel_rule(size_t id)
+secadm_get_rule(int rule_id)
 {
-	secadm_command_t cmd;
-	secadm_reply_t reply;
-	void *buf;
+	secadm_rule_t *rule;
 	size_t size;
 	int err;
 
-	size = secadm_get_kernel_rule_size(id);
-	if (size == 0)
-		return (NULL);
+	SECADM_SYSCTL_ARGS(secadm_cmd_get_rule);
 
-	buf = calloc(1, size);
-	if (buf == NULL)
-		return (NULL);
-
-	memset(&cmd, 0x00, sizeof(secadm_command_t));
-	memset(&reply, 0x00, sizeof(secadm_reply_t));
-
-	cmd.sc_version = SECADM_VERSION;
-	cmd.sc_type = secadm_get_rule;
-	cmd.sc_buf = &id;
-	cmd.sc_bufsize = sizeof(size_t);
-
-	reply.sr_metadata = buf;
-	reply.sr_size = size;
-
-	if ((err = secadm_sysctl(&cmd, &reply))) {
-		fprintf(stderr, "[-] could not get rule %zu: %s\n", id,
-		    strerror(err));
-		free(buf);
+	if ((rule = malloc(sizeof(secadm_rule_t))) == NULL) {
+		perror("malloc");
 		return (NULL);
 	}
 
-	return ((secadm_rule_t *)buf);
+	memset(rule, 0, sizeof(secadm_rule_t));
+
+	rule->sr_id = rule_id;
+	cmd.sc_data = rule;
+	reply.sr_data = rule;
+
+	printf("secadm_get_rule()\n");
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "unable to get rule. error code: %d\n", err);
+		secadm_free_rule(rule);
+
+		return (NULL);
+	}
+
+	printf("rule_id: %d\n", rule_id);
+	printf("rule id: %d\n", rule->sr_id);
+
+	switch (rule->sr_type) {
+	case secadm_integriforce_rule:
+		rule->sr_integriforce_data =
+		    _secadm_get_rule_data(rule, sizeof(secadm_integriforce_data_t));
+		rule->sr_integriforce_data->si_path = _secadm_get_rule_path(rule);
+		rule->sr_integriforce_data->si_hash = _secadm_get_rule_hash(rule);
+
+		break;
+	case secadm_pax_rule:
+		rule->sr_pax_data =
+		    _secadm_get_rule_data(rule, sizeof(secadm_pax_data_t));
+		rule->sr_pax_data->sp_path = _secadm_get_rule_path(rule);
+
+		break;
+	case secadm_extended_rule:
+		rule->sr_extended_data = _secadm_get_rule_data(rule, sizeof(secadm_extended_data_t));
+
+		if (rule->sr_extended_data->sm_object.mo_pathsz)
+			rule->sr_extended_data->sm_object.mo_path =
+			    _secadm_get_rule_path(rule);
+	}
+
+	return (rule);
+}
+
+int
+secadm_get_num_rules(void)
+{
+	int err, num_rules = -1;
+	secadm_command_t cmd;
+	secadm_reply_t reply;
+
+	memset(&cmd, 0, sizeof(secadm_command_t));
+	memset(&reply, 0, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_get_num_rules;
+	reply.sr_data = &num_rules;
+
+	printf("cmd.sc_data = %p\n", cmd.sc_data);
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "unable to get rules. error code: %d\n", err);
+		return (-1);
+	}
+
+	printf("num_rules = %d\n", num_rules);
+	return (num_rules);
+}
+
+void
+secadm_free_rule(secadm_rule_t *rule)
+{
+	switch (rule->sr_type) {
+	case secadm_integriforce_rule:
+		if (rule->sr_integriforce_data)
+			free(rule->sr_integriforce_data);
+
+		break;
+
+	case secadm_pax_rule:
+		if (rule->sr_pax_data)
+			free(rule->sr_pax_data);
+
+		break;
+
+	case secadm_extended_rule:
+		if (rule->sr_extended_data)
+			free(rule->sr_extended_data);
+
+		break;
+	}
+
+	free(rule);
 }
