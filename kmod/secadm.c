@@ -75,8 +75,6 @@ get_prison_list_entry(int jid)
 	}
 	RM_PL_RUNLOCK(tracker);
 
-	printf("creating prison list entry: %d\n", jid);
-
 	entry = malloc(sizeof(secadm_prison_entry_t),
 	    M_SECADM, M_WAITOK | M_ZERO);
 
@@ -236,6 +234,9 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule)
 
 	RM_PE_RLOCK(entry, tracker);
 	RB_FOREACH(r, secadm_rules_tree, &(entry->sp_rules)) {
+		if (r->sr_type != rule->sr_type)
+			continue;
+
 		switch (r->sr_type) {
 		case secadm_integriforce_rule:
 			if (!strncmp(r->sr_integriforce_data->si_mntonname,
@@ -243,7 +244,7 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule)
 			    MAXPATHLEN) && r->sr_integriforce_data->si_fileid ==
 			    rule->sr_integriforce_data->si_fileid) {
 				RM_PE_RUNLOCK(entry, tracker);
-				return (1);
+				return (EEXIST);
 			}
 
 			break;
@@ -254,7 +255,7 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule)
 			    MAXPATHLEN) && r->sr_pax_data->sp_fileid ==
 			    rule->sr_pax_data->sp_fileid) {
 				RM_PE_RUNLOCK(entry, tracker);
-				return (1);
+				return (EEXIST);
 			}
 
 			break;
@@ -372,9 +373,23 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 				return (EINVAL);
 			}
+
+			break;
+
+		default:
+			kernel_free_rule(r);
+			return (EINVAL);
+		}
+
+		if (!(rule->sr_integriforce_data->si_mode == 0 ||
+		      rule->sr_integriforce_data->si_mode == 1)) {
+			kernel_free_rule(r);
+			return (EINVAL);
 		}
 
 		r->sr_integriforce_data->si_hash = hash;
+		r->sr_integriforce_data->si_cache = 0;
+
 		break;
 
 	case secadm_pax_rule:

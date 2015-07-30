@@ -89,7 +89,7 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 		return (0);
 
 	default:
-		if (rule->sr_integriforce_data->si_mode) {
+		if (rule->sr_integriforce_data->si_mode == 0) {
 			printf("[SECADM] Warning: hash did not match for file"
 			       " (%s)\n", rule->sr_integriforce_data->si_path);
 			return (0);

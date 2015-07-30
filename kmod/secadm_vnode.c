@@ -58,22 +58,26 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	if ((err = VOP_GETATTR(imgp->vp, &vap, ucred)))
 		return (err);
 
-
-	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
-
-	RM_PE_RLOCK(entry, tracker);
 	key.sk_jid = ucred->cr_prison->pr_id;
 	key.sk_fileid = vap.va_fileid;
 	strncpy(key.sk_mntonname,
 	    imgp->vp->v_mount->mnt_stat.f_mntonname, MNAMELEN);
 
+	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
+
+	RM_PE_RLOCK(entry, tracker);
 	if (entry->sp_num_integriforce_rules) {
 		key.sk_type = secadm_integriforce_rule;
 		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
 		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
 		if (rule != NULL) {
+			if (rule->sr_active == 0)
+				goto rule_inactive;
+
+			RM_PE_RUNLOCK(entry, tracker);
 			err = do_integriforce_check(rule, &vap, imgp->vp, ucred);
+			RM_PE_RLOCK(entry, tracker);
 
 			if (err) {
 				RM_PE_RUNLOCK(entry, tracker);
@@ -89,6 +93,9 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
 		if (rule) {
+			if (rule->sr_active == 0)
+				goto rule_inactive;
+
 			if (rule->sr_pax_data->sp_pax &
 			    SECADM_PAX_PAGEEXEC) {
 				flags |= PAX_NOTE_PAGEEXEC;
@@ -126,6 +133,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 #endif
 		}
 	}
+rule_inactive:
 	RM_PE_RUNLOCK(entry, tracker);
 
 	if (err == 0 && flags)
