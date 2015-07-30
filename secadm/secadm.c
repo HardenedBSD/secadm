@@ -209,7 +209,30 @@ show_action(int argc, char **argv)
 		} else if (!strncmp(format, "xml", sizeof(format))) {
 			xo_set_style(NULL, XO_STYLE_XML);
 		} else if (!strncmp(format, "ucl", sizeof(format))) {
-			printf("nope :)\n");
+			printf("secadm {\n");
+			for (i = 0; i < num_rules; i++) {
+				if (ruleset[i]->sr_type ==
+				    secadm_pax_rule) {
+					printf(
+					    "\tpax = {\n"
+					    "\t\tpath = \"%s\";\n"
+					    "\t\taslr = %s;\n"
+					    "\t\tmprotect = %s;\n"
+					    "\t\tpageexec = %s;\n"
+					    "\t\tsegvguard = %s;\n\t}\n",
+					    ruleset[i]->sr_pax_data->sp_path,
+					    (ruleset[i]->sr_pax_data->sp_pax &
+					     SECADM_PAX_ASLR ? "true" : "false"),
+					    (ruleset[i]->sr_pax_data->sp_pax &
+					     SECADM_PAX_MPROTECT ? "true" : "false"),
+					    (ruleset[i]->sr_pax_data->sp_pax &
+					     SECADM_PAX_PAGEEXEC ? "true" : "false"),
+					    (ruleset[i]->sr_pax_data->sp_pax &
+					     SECADM_PAX_SEGVGUARD ? "true" : "false"));
+				}
+			}
+			printf("}\n");
+
 			return (0);
 		}
 
