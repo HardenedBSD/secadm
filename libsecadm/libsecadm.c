@@ -149,7 +149,6 @@ _secadm_get_rule_data(secadm_rule_t *rule, size_t size)
 	cmd.sc_data = rule;
 	reply.sr_data = rule_data;
 
-	printf("_secadm_get_rule_data()\n");
 	if ((err = _secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "unable to get rule data. error code: %d\n", err);
 		return NULL;
@@ -176,8 +175,6 @@ _secadm_get_rule_path(secadm_rule_t *rule)
 	cmd.sc_data = rule;
 	reply.sr_data = rule_path;
 
-	printf("_secadm_get_rule_path()\n");
-
 	if ((err = _secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "unable to get rule path. error code: %d\n", err);
 		return NULL;
@@ -202,8 +199,6 @@ _secadm_get_rule_hash(secadm_rule_t *rule)
 	memset(rule_hash, 0, SECADM_SHA256_DIGEST_LEN);
 	cmd.sc_data = rule;
 	reply.sr_data = rule_hash;
-
-	printf("_secadm_get_rule_hash()\n");
 
 	if ((err = _secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "unable to get rule hash. error code: %d\n", err);
@@ -233,17 +228,12 @@ secadm_get_rule(int rule_id)
 	cmd.sc_data = rule;
 	reply.sr_data = rule;
 
-	printf("secadm_get_rule()\n");
-
 	if ((err = _secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "unable to get rule. error code: %d\n", err);
 		secadm_free_rule(rule);
 
 		return (NULL);
 	}
-
-	printf("rule_id: %d\n", rule_id);
-	printf("rule id: %d\n", rule->sr_id);
 
 	switch (rule->sr_type) {
 	case secadm_integriforce_rule:
@@ -284,14 +274,11 @@ secadm_get_num_rules(void)
 	cmd.sc_type = secadm_cmd_get_num_rules;
 	reply.sr_data = &num_rules;
 
-	printf("cmd.sc_data = %p\n", cmd.sc_data);
-
 	if ((err = _secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "unable to get rules. error code: %d\n", err);
 		return (-1);
 	}
 
-	printf("num_rules = %d\n", num_rules);
 	return (num_rules);
 }
 

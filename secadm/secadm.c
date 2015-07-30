@@ -39,6 +39,8 @@
 #include <errno.h>
 #include <sys/mount.h>
 
+#include <libxo/xo.h>
+
 #include "secadm.h"
 
 int show_action(int, char **);
@@ -52,14 +54,14 @@ int disable_action(int, char **);
 typedef int (*command_t)(int, char **);
 
 struct secadm_commands {
-	const char	*subcommand;
+	const char	*command;
 	const char	*options;
 	const char	*help;
 	command_t	 op;
 } commands[] = {
 	{
 		"show",
-		"[-f json|xml]",
+		"[-f json|ucl|xml]",
 		"show loaded ruleset",
 		show_action
 	},
@@ -111,7 +113,7 @@ usage(int argc, char **argv)
 		for (i = 0; i < sizeof(commands) /
 				sizeof(struct secadm_commands); i++) {
 			printf("    secadm %-8s%-30s- %s\n",
-			       commands[i].subcommand,
+			       commands[i].command,
 			       commands[i].options,
 			       commands[i].help);
 		}
@@ -147,7 +149,7 @@ main(int argc, char **argv)
 
 	for (i = 0; i < sizeof(commands) /
 			sizeof(struct secadm_commands); i++) {
-		if (!strcmp(argv[1], commands[i].subcommand))
+		if (!strcmp(argv[1], commands[i].command))
 			return (commands[i].op(argc, argv));
 	}
 
@@ -201,21 +203,104 @@ show_action(int argc, char **argv)
 		rn = ruleset[i]->sr_id + 1;
 	}
 
+	if (f) {
+		if (!strncmp(format, "json", sizeof(format))) {
+			xo_set_style(NULL, XO_STYLE_JSON);
+		} else if (!strncmp(format, "xml", sizeof(format))) {
+			xo_set_style(NULL, XO_STYLE_XML);
+		} else if (!strncmp(format, "ucl", sizeof(format))) {
+			printf("nope :)\n");
+			return (0);
+		}
+
+		xo_set_flags(NULL, XOF_DTRT | XOF_PRETTY | XOF_FLUSH);
+
+		xo_open_container("secadm");
+		xo_open_list("pax");
+		for (i = 0; i < num_rules; i++) {
+			if (ruleset[i]->sr_type ==
+			    secadm_pax_rule) {
+				xo_open_instance("pax");
+				xo_emit(
+				    "{:path/%s}/"
+				    "{:aslr/%d}/"
+				    "{:mprotect/%d}/"
+				    "{:pageexec/%d}/"
+				    "{:segvguard/%d}/",
+				    ruleset[i]->sr_pax_data->sp_path,
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				     SECADM_PAX_ASLR ? 1 : 0),
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				     SECADM_PAX_MPROTECT ? 1 : 0),
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				     SECADM_PAX_PAGEEXEC ? 1 : 0),
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				     SECADM_PAX_SEGVGUARD ? 1 : 0 ));
+				xo_close_instance_d();
+			}
+		}
+		xo_close_list_d();
+		for (i = 0; i < num_rules; i++) {
+			if (ruleset[i]->sr_type ==
+			    secadm_integriforce_rule) {
+				xo_open_instance("integriforce");
+				xo_emit(
+				    "{:path/%s}"
+				    "{:hash/%s}"
+				    "{:mode/%s}"
+				    "{:type/%s}",
+				    ruleset[i]->sr_integriforce_data->si_path,
+				    ruleset[i]->sr_integriforce_data->si_hash,
+				    (ruleset[i]->sr_integriforce_data->si_type
+				     == 0 ? "soft" : "hard"),
+				    (ruleset[i]->sr_integriforce_data->si_mode
+				     == secadm_hash_sha1 ? "sha1" : "sha256"));
+				xo_close_instance_d();
+			}
+		}
+		xo_close_list_d();
+		xo_close_container_d();
+		xo_finish();
+
+		for (i = 0; i < num_rules; i++)
+			secadm_free_rule(ruleset[i]);
+
+		free(ruleset);
+		return (0);
+	}
+
 	for (i = 0; i < num_rules; i++) {
-		printf("Jail #%d Rule #%d\n", ruleset[i]->sr_jid, ruleset[i]->sr_id);
-		printf("\tEnabled: %s\n", ruleset[i]->sr_active ? "Yes" : "No");
+		printf("%c%d: ",
+		    (ruleset[i]->sr_active ? '+' : '-'), ruleset[i]->sr_id);
 
 		switch (ruleset[i]->sr_type) {
 		case secadm_pax_rule:
-			printf("\tType: Feature\n");
+			printf("pax %s %c%c%c%c\n",
+			    ruleset[i]->sr_pax_data->sp_path,
+			    (ruleset[i]->sr_pax_data->sp_pax &
+			     SECADM_PAX_ASLR ? 'A' : 'a'),
+			    (ruleset[i]->sr_pax_data->sp_pax &
+			     SECADM_PAX_MPROTECT ? 'M' : 'm'),
+			    (ruleset[i]->sr_pax_data->sp_pax &
+			     SECADM_PAX_PAGEEXEC ? 'P' : 'p'),
+			    (ruleset[i]->sr_pax_data->sp_pax &
+			     SECADM_PAX_SEGVGUARD ? 'S' : 's'));
+
 			break;
 
 		case secadm_integriforce_rule:
-			printf("\tType: Integriforce\n");
+			printf("integriforce %s %s %s %s\n",
+			    ruleset[i]->sr_integriforce_data->si_path,
+			    (ruleset[i]->sr_integriforce_data->si_type ==
+			     secadm_hash_sha1 ? "sha1" : "sha256"),
+			    (ruleset[i]->sr_integriforce_data->si_mode ==
+			     0 ? "soft" : "hard"),
+			    ruleset[i]->sr_integriforce_data->si_hash);
+
 			break;
 
 		case secadm_extended_rule:
-			printf("\tType: MAC\n");
+			printf("extended\n");
 			break;
 		}
 

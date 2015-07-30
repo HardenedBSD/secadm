@@ -75,11 +75,14 @@ get_prison_list_entry(int jid)
 	}
 	RM_PL_RUNLOCK(tracker);
 
+	printf("creating prison list entry: %d\n", jid);
+
 	entry = malloc(sizeof(secadm_prison_entry_t),
 	    M_SECADM, M_WAITOK | M_ZERO);
 
 	RM_PE_INIT(entry);
 	RM_PE_WLOCK(entry);
+	entry->sp_id = jid;
 	RB_INIT(&(entry->sp_rules));
 	RB_INIT(&(entry->sp_staging));
 	RM_PE_WUNLOCK(entry);
@@ -507,6 +510,20 @@ kernel_del_rule(struct thread *td, secadm_rule_t *rule)
 		if (r->sr_id == v->sr_id) {
 			RB_REMOVE(secadm_rules_tree, &(entry->sp_rules), v);
 			entry->sp_num_rules--;
+
+			switch (v->sr_type) {
+			case secadm_integriforce_rule:
+				entry->sp_num_integriforce_rules--;
+				break;
+
+			case secadm_extended_rule:
+				entry->sp_num_extended_rules--;
+				break;
+
+			case secadm_pax_rule:
+				entry->sp_num_pax_rules--;
+				break;
+			}
 
 			kernel_free_rule(v);
 			break;
