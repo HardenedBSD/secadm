@@ -137,17 +137,17 @@ usage(int argc, char **argv)
 			       commands[i].options,
 			       commands[i].help);
 		}
-	} else if (argc >= 2 && !strcmp(argv[1], "add")) {
+	} else if (argc >= 2 && !strncmp(argv[1], "add", 3)) {
 		if (argc == 2)
 			usage(1, argv);
 
-		if (argc == 3 && !strcmp(argv[2], "extended")) {
+		if (argc == 3 && !strncmp(argv[2], "extended", 8)) {
 			printf("usage: secadm add extended <args>\n");
-		} else if (argc == 3 && !strcmp(argv[2], "integriforce")) {
+		} else if (argc == 3 && !strncmp(argv[2], "integriforce", 12)) {
 			printf(
 			    "usage: secadm add integriforce "
 			    "<path> <type> <mode> <hash>\n");
-		} else if (argc == 3 && !strcmp(argv[2], "pax")) {
+		} else if (argc == 3 && !strncmp(argv[2], "pax", 3)) {
 			printf("usage: secadm add pax <path> <flags>\n");
 		} else {
 			usage(1, argv);
@@ -169,7 +169,7 @@ main(int argc, char **argv)
 
 	for (i = 0; i < sizeof(commands) /
 			sizeof(struct secadm_commands); i++) {
-		if (!strcmp(argv[1], commands[i].command))
+		if (!strncmp(argv[1], commands[i].command, 9))
 			return (commands[i].op(argc, argv));
 	}
 
@@ -307,7 +307,7 @@ load_action(int argc, char **argv)
 	secadm_rule_t *ruleset, *rule;
 	ucl_object_iter_t it = NULL;
 	struct ucl_parser *parser;
-	int n = 0;
+	int n = 0, err;
 
 	if (argc < 3) {
 		usage(1, argv);
@@ -362,10 +362,19 @@ load_action(int argc, char **argv)
 				memset(rule, 0, sizeof(secadm_rule_t));
 			}
 
+			rule->sr_type = secadm_pax_rule;
 			if (parse_pax_object(cur, rule)) {
 				ucl_parser_free(parser);
 				free_ruleset(ruleset);
+
 				return (1);
+			}
+
+			if ((err = secadm_validate_rule(rule))) {
+				ucl_parser_free(parser);
+				free_ruleset(ruleset);
+
+				return (err);
 			}
 
 			n++;
@@ -400,10 +409,18 @@ load_action(int argc, char **argv)
 				memset(rule, 0, sizeof(secadm_rule_t));
 			}
 
+			rule->sr_type = secadm_integriforce_rule;
 			if (parse_integriforce_object(cur, rule)) {
 				ucl_parser_free(parser);
 				free_ruleset(ruleset);
 				return (1);
+			}
+
+			if ((err = secadm_validate_rule(rule))) {
+				ucl_parser_free(parser);
+				free_ruleset(ruleset);
+
+				return (err);
 			}
 
 			n++;
@@ -461,7 +478,14 @@ add_action(int argc, char **argv)
 
 	rule_type = argv[2];
 
-	if (!strcmp(rule_type, "pax")) {
+	if (!strncmp(rule_type, "pax", 3)) {
+		if (argc < 5) {
+			usage(3, argv);
+			secadm_free_rule(rule);
+
+			return (1);
+		}
+
 		if ((rule->sr_pax_data = malloc(sizeof(secadm_pax_data_t))) == NULL) {
 			perror("malloc");
 			secadm_free_rule(rule);
@@ -501,7 +525,7 @@ add_action(int argc, char **argv)
 
 			case 'p':
 				rule->sr_pax_data->sp_pax &=
-				    ~SECADM_PAX_PAGEEXEC;
+				    ~SECADM_PAX_MPROTECT;
 				break;
 
 			case 'P':
@@ -528,7 +552,7 @@ add_action(int argc, char **argv)
 
 			p++;
 		} while (*p);
-	} else if (!strcmp(rule_type, "integriforce")) {
+	} else if (!strncmp(rule_type, "integriforce", 12)) {
 		if (argc < 6) {
 			usage(3, argv);
 			secadm_free_rule(rule);
@@ -549,9 +573,9 @@ add_action(int argc, char **argv)
 
 		rule->sr_type = secadm_integriforce_rule;
 
-		if (!strcmp(argv[4], "sha1")) {
+		if (!strncmp(argv[4], "sha1", 4)) {
 			rule->sr_integriforce_data->si_type = secadm_hash_sha1;
-		} else if (!strcmp(argv[4], "sha256")) {
+		} else if (!strncmp(argv[4], "sha256", 6)) {
 			rule->sr_integriforce_data->si_type = secadm_hash_sha256;
 		} else {
 			usage(3, argv);
@@ -560,9 +584,9 @@ add_action(int argc, char **argv)
 			return (1);
 		}
 
-		if (!strcmp(argv[5], "soft")) {
+		if (!strncmp(argv[5], "soft", 4)) {
 			rule->sr_integriforce_data->si_mode = 0;
-		} else if (!strcmp(argv[5], "hard")) {
+		} else if (!strncmp(argv[5], "hard", 4)) {
 			rule->sr_integriforce_data->si_mode = 1;
 		} else {
 			usage(3, argv);
@@ -616,8 +640,8 @@ add_action(int argc, char **argv)
 				    (val & 0xff);
 			}
 		}
-	} else if (!strcmp(rule_type, "mac")) {
-		printf("mac not finished yet!\n");
+	} else if (!strncmp(rule_type, "extended", 8)) {
+		printf("extended not finished yet!\n");
 		rule->sr_type = secadm_extended_rule;
 	} else {
 		secadm_free_rule(rule);
@@ -863,50 +887,18 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 		}
 	}
 
-	if (rule->sr_pax_data->sp_path == NULL) {
-		fprintf(stderr, "PaX rule has no path specified.\n");
-		return (1);
-	}
-
-	if (strlen((const char *)rule->sr_pax_data->sp_path) > MAXPATHLEN) {
-		fprintf(stderr, "PaX rule path is too long: %s\n",
-		    rule->sr_pax_data->sp_path);
-		return (1);
-	}
-
-	if (rule->sr_pax_data->sp_path[0] != '/') {
-		fprintf(stderr, "PaX rule not a full path: %s\n",
-		    rule->sr_pax_data->sp_path);
-		return (1);
-	}
-
-	if (stat((const char *)rule->sr_pax_data->sp_path, &sb) < 0) {
-		fprintf(stderr, "PaX rule path invalid: %s: %s\n",
-		    rule->sr_pax_data->sp_path, strerror(errno));
-		return (1);
-	}
-
-	if (!S_ISREG(sb.st_mode)) {
-		fprintf(stderr, "PaX rule path is not a regular file: %s\n",
-		    rule->sr_pax_data->sp_path);
-		return (1);
-	}
-
-	rule->sr_pax_data->sp_pathsz =
-	    strlen((const char *)rule->sr_pax_data->sp_path);
-
-	if (aslr)
+	if (aslr == 1)
 		rule->sr_pax_data->sp_pax |= SECADM_PAX_ASLR;
 
-	if (mprotect) {
-		rule->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
+	if (mprotect == 1) {
 		rule->sr_pax_data->sp_pax |= SECADM_PAX_MPROTECT;
+		rule->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
 	}
 
-	if (pageexec)
+	if (pageexec == 1)
 		rule->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
 
-	if (segvguard)
+	if (segvguard == 1)
 		rule->sr_pax_data->sp_pax |= SECADM_PAX_SEGVGUARD;
 
 	return (0);
@@ -914,11 +906,12 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 
 int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 {
+	const char *mode, *type, *hash;
 	ucl_object_iter_t it = NULL;
 	const ucl_object_t *cur;
-	const char *mode, *type;
 	const char *key;
 	struct stat sb;
+	u_int val;
 	int i;
 
 	if ((rule->sr_integriforce_data =
@@ -936,8 +929,7 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 			rule->sr_integriforce_data->si_path =
 			    (u_char *)ucl_object_tostring(cur);
 		} else if (!strncmp(key, "hash", 4)) {
-			rule->sr_integriforce_data->si_hash =
-			    (u_char *)ucl_object_tostring(cur);
+			hash = ucl_object_tostring(cur);
 		} else if (!strncmp(key, "type", 4)) {
 			type = ucl_object_tostring(cur);
 		} else if (!strncmp(key, "mode", 4)) {
@@ -949,104 +941,13 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 		}
 	}
 
-	if (rule->sr_integriforce_data->si_path == NULL) {
-		fprintf(stderr, "Integriforce rule has no path specified.\n");
-		return (1);
-	}
-
-	if (strlen((const char *)rule->sr_integriforce_data->si_path) >
-	    MAXPATHLEN) {
-		fprintf(stderr, "Integriforce rule path is too long: %s\n",
-		    rule->sr_integriforce_data->si_path);
-		return (1);
-	}
-
-	if (rule->sr_integriforce_data->si_path[0] != '/') {
-		fprintf(stderr, "Integriforce rule not a full path: %s\n",
-		    rule->sr_integriforce_data->si_path);
-		return (1);
-	}
-
-	if (stat((const char *)rule->sr_integriforce_data->si_path, &sb) < 0) {
-		fprintf(stderr, "Integriforce rule path invalid: %s: %s\n",
-		    rule->sr_integriforce_data->si_path, strerror(errno));
-		return (1);
-	}
-
-	if (!S_ISREG(sb.st_mode)) {
-		fprintf(stderr,
-		    "Integriforce rule path is not a regular file: %s\n",
-		    rule->sr_integriforce_data->si_path);
-		return (1);
-	}
-
-	if (type == NULL) {
-		fprintf(stderr,
-		    "No hash type specified for Integriforce rule: %s\n",
-		    rule->sr_integriforce_data->si_path);
-		return (1);
-	}
-
 	if (!strncmp(type, "sha1", 4)) {
 		rule->sr_integriforce_data->si_type = secadm_hash_sha1;
 	} else if (!strncmp(type, "sha256", 6)) {
 		rule->sr_integriforce_data->si_type = secadm_hash_sha256;
 	} else {
-		fprintf(stderr,
-		    "Invalid hash type '%s' for Integriforce rule.\n",
-		    type);
+		fprintf(stderr, "Integriforce rule has invalid hash type.\n");
 		return (1);
-	}
-
-	if (rule->sr_integriforce_data->si_hash == NULL) {
-		fprintf(stderr,
-		    "Integriforce rule has no hash specified: %s\n",
-		    rule->sr_integriforce_data->si_path);
-		return (1);
-	}
-
-	switch (rule->sr_integriforce_data->si_type) {
-	case secadm_hash_sha1:
-		if (strlen((const char *)rule->sr_integriforce_data->si_hash) !=
-		    SECADM_SHA1_DIGEST_LEN * 2) {
-			fprintf(stderr,
-			    "Integriforce rule has invalid hash: %s\n",
-			    rule->sr_integriforce_data->si_hash);
-			return (1);
-		}
-
-		for (i = 0; i < SECADM_SHA1_DIGEST_LEN * 2; i++) {
-			if (!((rule->sr_integriforce_data->si_hash[i] >= '0' &&
-			       rule->sr_integriforce_data->si_hash[i] <= '9') ||
-			      (rule->sr_integriforce_data->si_hash[i] >= 'a' &&
-			       rule->sr_integriforce_data->si_hash[i] <= 'f'))) {
-				fprintf(stderr,
-				    "Integriforce rule has invalid hash: %s\n",
-				    rule->sr_integriforce_data->si_hash);
-				return (1);
-			}
-		}
-
-		break;
-	case secadm_hash_sha256:
-		if (strlen((const char *)rule->sr_integriforce_data->si_hash) !=
-		    SECADM_SHA256_DIGEST_LEN * 2) {
-			fprintf(stderr,
-			    "Integriforce rule has invalid hash: %s\n",
-			    rule->sr_integriforce_data->si_hash);
-		}
-
-		for (i = 0; i < SECADM_SHA1_DIGEST_LEN * 2; i++) {
-			if (!((rule->sr_integriforce_data->si_hash[i] >= '0' &&
-			       rule->sr_integriforce_data->si_hash[i] <= '9') ||
-			      (rule->sr_integriforce_data->si_hash[i] >= 'a' &&
-			       rule->sr_integriforce_data->si_hash[i] <= 'f'))) {
-				fprintf(stderr,
-				    "Integriforce rule has invalid hash: %s\n",
-				    rule->sr_integriforce_data->si_hash);
-				return (1);
-			}
-		}
 	}
 
 	if (!strncmp(mode, "soft", 4)) {
@@ -1054,9 +955,48 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 	} else if (!strncmp(mode, "hard", 4)) {
 		rule->sr_integriforce_data->si_mode = 1;
 	} else {
-		fprintf(stderr, "Invalid mode for Integriforce rule: %s\n",
-		    rule->sr_integriforce_data->si_path);
+		fprintf(stderr, "Integriforce rule has invalid mode.\n");
 		return (1);
+	}
+
+	switch (rule->sr_integriforce_data->si_type) {
+	case secadm_hash_sha1:
+		if ((rule->sr_integriforce_data->si_hash =
+		     malloc(SECADM_SHA1_DIGEST_LEN)) == NULL) {
+			perror("malloc");
+			secadm_free_rule(rule);
+
+			return (1);
+		}
+
+		for (i = 0; i < 40; i += 2) {
+			if (sscanf(hash, "%02x", &val) == 0) {
+				fprintf(stderr, "Invalid hash.\n");
+				return (1);
+			}
+
+			rule->sr_integriforce_data->si_hash[i / 2] =
+			    (val & 0xff);
+		}
+
+		break;
+
+	case secadm_hash_sha256:
+		if ((rule->sr_integriforce_data->si_hash =
+		     malloc(SECADM_SHA256_DIGEST_LEN)) == NULL) {
+			perror("malloc");
+			return (1);
+		}
+
+		for (i = 0; i < 64; i += 2) {
+			if (sscanf(hash, "%02x", &val) == 0) {
+				fprintf(stderr, "Invalid hash.\n");
+				return (1);
+			}
+
+			rule->sr_integriforce_data->si_hash[i / 2] =
+			    (val & 0xff);
+		}
 	}
 
 	return (0);

@@ -29,9 +29,11 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/sysctl.h>
+#include <sys/stat.h>
 #include <stdlib.h>
 #include <malloc_np.h>
 #include <sys/mount.h>
+#include <errno.h>
 
 #include "secadm.h"
 
@@ -97,6 +99,11 @@ secadm_load_ruleset(secadm_rule_t *ruleset)
 int
 secadm_add_rule(secadm_rule_t *rule)
 {
+	int err;
+
+	if ((err = secadm_validate_rule(rule)))
+		return (err);
+
 	return (_secadm_rule_ops(rule, secadm_cmd_add_rule));
 }
 
@@ -306,4 +313,168 @@ secadm_free_rule(secadm_rule_t *rule)
 	}
 
 	free(rule);
+}
+
+int
+secadm_validate_rule(secadm_rule_t *rule)
+{
+	struct stat sb;
+	char *path;
+
+	switch (rule->sr_type) {
+	case secadm_integriforce_rule:
+		if (rule->sr_integriforce_data == NULL) {
+			fprintf(stderr, "Invalid Integriforce rule.\n");
+			return (1);
+		}
+
+		if (rule->sr_integriforce_data->si_path == NULL) {
+			fprintf(stderr,
+			    "Integriforce rule has no path specified.\n");
+			return (1);
+		}
+
+		if (strlen((const char *)rule->sr_integriforce_data->si_path) >
+		    MAXPATHLEN) {
+			fprintf(stderr, "Integriforce rule path is too long: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			return (1);
+		}
+
+		if (rule->sr_integriforce_data->si_path[0] != '/') {
+			fprintf(stderr, "Integriforce rule is not a full path: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			return (1);
+		}
+
+		if ((path = realpath(
+		     (const char *)rule->sr_integriforce_data->si_path,
+		     NULL)) == NULL) {
+			fprintf(stderr,
+			    "Integriforce rule path is invalid: %s: %s\n",
+			    rule->sr_integriforce_data->si_path,
+			    strerror(errno));
+			return (1);
+		}
+
+		if (strncmp((const char *)rule->sr_integriforce_data->si_path,
+		    path, strlen(
+		    (const char *)rule->sr_integriforce_data->si_path))) {
+			fprintf(stderr,
+			    "Integriforce rule path is invalid: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			return (1);
+		}
+
+		if (stat((const char *)rule->sr_integriforce_data->si_path, &sb)
+		    < 0) {
+			fprintf(stderr,
+			    "Integriforce rule path is invalid: %s: %s\n",
+			    rule->sr_integriforce_data->si_path, strerror(errno));
+			return (1);
+		}
+
+		if (!S_ISREG(sb.st_mode)) {
+			fprintf(stderr,
+			    "Integriforce rule path is not a regular file: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			return (1);
+		}
+
+		if (rule->sr_integriforce_data->si_type < secadm_hash_sha1 ||
+		    rule->sr_integriforce_data->si_type > secadm_hash_sha256) {
+			fprintf(stderr,
+			    "Integriforce rule type invalid: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			return (1);
+		}
+
+		if (rule->sr_integriforce_data->si_mode < 0 ||
+		    rule->sr_integriforce_data->si_mode > 1) {
+			fprintf(stderr,
+			    "Integriforce rule mode invalid: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			return (1);
+		}
+
+		if (rule->sr_integriforce_data->si_hash == NULL) {
+			fprintf(stderr,
+			    "Integriforce rule has no hash specified: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			return (1);
+		}
+
+		rule->sr_integriforce_data->si_pathsz =
+		    strlen(
+		        (const char *)rule->sr_integriforce_data->si_path);
+
+		break;
+
+	case secadm_pax_rule:
+		if (rule->sr_pax_data == NULL) {
+			fprintf(stderr, "Invalid PaX rule.\n");
+			return (1);
+		}
+
+		if (rule->sr_pax_data->sp_path == NULL) {
+			fprintf(stderr,
+			    "PaX rule has no path specified.\n");
+			return (1);
+		}
+
+		if (strlen((const char *)rule->sr_pax_data->sp_path) >
+		    MAXPATHLEN) {
+			fprintf(stderr, "PaX rule path is too long: %s\n",
+			    rule->sr_pax_data->sp_path);
+			return (1);
+		}
+
+		if (rule->sr_pax_data->sp_path[0] != '/') {
+			fprintf(stderr, "PaX rule is not a full path: %s\n",
+			    rule->sr_pax_data->sp_path);
+			return (1);
+		}
+
+		if ((path = realpath(
+		     (const char *)rule->sr_pax_data->sp_path, NULL)) == NULL) {
+			fprintf(stderr,
+			    "PaX rule path is invalid: %s: %s\n",
+			    rule->sr_pax_data->sp_path,
+			    strerror(errno));
+			return (1);
+		}
+
+		if (strncmp((const char *)rule->sr_pax_data->sp_path,
+		    path, strlen((const char *)rule->sr_pax_data->sp_path))) {
+			fprintf(stderr,
+			    "PaX rule path is invalid: %s\n",
+			    rule->sr_pax_data->sp_path);
+			return (1);
+		}
+
+		if (stat((const char *)rule->sr_pax_data->sp_path, &sb)
+		    < 0) {
+			fprintf(stderr,
+			    "PaX rule path is invalid: %s: %s\n",
+			    rule->sr_pax_data->sp_path, strerror(errno));
+			return (1);
+		}
+
+		if (!S_ISREG(sb.st_mode)) {
+			fprintf(stderr,
+			    "PaX rule path is not a regular file: %s\n",
+			    rule->sr_pax_data->sp_path);
+			return (1);
+		}
+
+		rule->sr_pax_data->sp_pathsz =
+		    strlen((const char *)rule->sr_pax_data->sp_path);
+
+		break;
+
+	case secadm_extended_rule:
+		return (1);
+	}
+
+	return (0);
 }
