@@ -970,7 +970,7 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 		}
 
 		for (i = 0; i < 40; i += 2) {
-			if (sscanf(hash, "%02x", &val) == 0) {
+			if (sscanf(&hash[i], "%02x", &val) == 0) {
 				fprintf(stderr, "Invalid hash.\n");
 				return (1);
 			}
@@ -989,7 +989,7 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 		}
 
 		for (i = 0; i < 64; i += 2) {
-			if (sscanf(hash, "%02x", &val) == 0) {
+			if (sscanf(&hash[i], "%02x", &val) == 0) {
 				fprintf(stderr, "Invalid hash.\n");
 				return (1);
 			}
