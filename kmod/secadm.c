@@ -184,6 +184,9 @@ kernel_flush_ruleset(int jid)
 	}
 
 	entry->sp_num_rules = 0;
+	entry->sp_num_integriforce_rules = 0;
+	entry->sp_num_pax_rules = 0;
+	entry->sp_num_extended_rules = 0;
 	RM_PE_WUNLOCK(entry);
 }
 
@@ -274,25 +277,77 @@ int
 kernel_load_ruleset(struct thread *td, secadm_rule_t *rule)
 {
 	secadm_rule_t *r = rule, *r2;
+	secadm_prison_entry_t *entry;
 	int err;
 
 	r2 = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
 
 	do {
-		if (kernel_add_rule(td, r, 1)) {
+		if ((err = kernel_add_rule(td, r, 1))) {
 			free(r2, M_SECADM);
-			return (EINVAL);
+			goto ruleset_load_fail;
 		}
 
-		if ((err = copyin(r, r2, sizeof(secadm_rule_t))))
-			break;
+		if ((err = copyin(r, r2, sizeof(secadm_rule_t)))) {
+			free(r2, M_SECADM);
+			goto ruleset_load_fail;
+		}
 
 		r = r2->sr_next;
 	} while (r != NULL);
 
 	free(r2, M_SECADM);
 
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
+	kernel_flush_ruleset(entry->sp_id);
+
+	RM_PE_WLOCK(entry);
+	RB_FOREACH(r, secadm_rules_tree, &(entry->sp_staging)) {
+		r->sr_id = entry->sp_last_id++;
+		entry->sp_num_rules++;
+
+		switch (r->sr_type) {
+		case secadm_integriforce_rule:
+			entry->sp_num_integriforce_rules++;
+			break;
+
+		case secadm_pax_rule:
+			entry->sp_num_pax_rules++;
+			break;
+
+		case secadm_extended_rule:
+			entry->sp_num_extended_rules++;
+			break;
+		}
+
+		RB_INSERT(secadm_rules_tree, &(entry->sp_rules), r);
+	}
+
+	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_staging));
+	     r != NULL; r = r2) {
+		r2 = RB_NEXT(secadm_rules_tree, &(entry->sp_staging), r);
+		RB_REMOVE(secadm_rules_tree, &(entry->sp_staging), r);
+	}
+
+	entry->sp_loaded = 1;
+	RM_PE_WUNLOCK(entry);
+
 	return (0);
+
+ruleset_load_fail:
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
+
+	RM_PE_WLOCK(entry);
+	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_staging));
+	     r != NULL; r = r2) {
+		r2 = RB_NEXT(secadm_rules_tree, &(entry->sp_staging), r);
+		RB_REMOVE(secadm_rules_tree, &(entry->sp_staging), r);
+
+		kernel_free_rule(r);
+	}
+	RM_PE_WUNLOCK(entry);
+
+	return (err);
 }
 
 int
@@ -425,6 +480,9 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		path[r->sr_pax_data->sp_pathsz] = '\0';
 		r->sr_pax_data->sp_path = path;
 
+		if (r->sr_pax_data->sp_pax & SECADM_PAX_MPROTECT)
+			r->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
+
 		break;
 
 	case secadm_extended_rule:
@@ -474,7 +532,6 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 	RM_PE_WLOCK(entry);
 	if (ruleset) {
-		r->sr_id = entry->sp_last_staged_id++;
 		RB_INSERT(secadm_rules_tree, &(entry->sp_staging), r);
 	} else {
 		r->sr_id = entry->sp_last_id++;

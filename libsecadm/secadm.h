@@ -271,12 +271,12 @@ typedef struct secadm_key {
 typedef struct secadm_prison_entry {
 	struct secadm_rules_tree		 sp_rules;
 	struct secadm_rules_tree		 sp_staging;
-	size_t					 sp_last_staged_id;
 	size_t					 sp_num_rules;
 	size_t					 sp_last_id;
 	size_t					 sp_num_integriforce_rules;
 	size_t					 sp_num_pax_rules;
 	size_t					 sp_num_extended_rules;
+	int					 sp_loaded;
 	int					 sp_id;
 	struct rmlock				 sp_lock;
 	SLIST_ENTRY(secadm_prison_entry)	 sp_entries;

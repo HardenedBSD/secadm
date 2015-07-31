@@ -78,12 +78,22 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 
 	switch (cmd.sc_type) {
 	case secadm_cmd_flush_ruleset:
+		if (securelevel_gt(req->td->td_ucred, 1))
+			return (EPERM);
+
 		kernel_flush_ruleset(req->td->td_ucred->cr_prison->pr_id);
 		reply.sr_code = secadm_reply_success;
 
 		break;
 
 	case secadm_cmd_load_ruleset:
+		entry = get_prison_list_entry(
+		    req->td->td_ucred->cr_prison->pr_id);
+
+		if (entry->sp_loaded &&
+		    securelevel_gt(req->td->td_ucred, 1))
+			return (EPERM);
+
 		err = kernel_load_ruleset(req->td,
 		    (secadm_rule_t *) cmd.sc_data);
 
@@ -96,6 +106,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		break;
 
 	case secadm_cmd_add_rule:
+		if (securelevel_gt(req->td->td_ucred, 1))
+			return (EPERM);
+
 		err = kernel_add_rule(req->td, (secadm_rule_t *) cmd.sc_data, 0);
 
 		if (err) {
@@ -107,18 +120,27 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		break;
 
 	case secadm_cmd_del_rule:
+		if (securelevel_gt(req->td->td_ucred, 0))
+			return (EPERM);
+
 		kernel_del_rule(req->td, (secadm_rule_t *) cmd.sc_data);
 		reply.sr_code = secadm_reply_success;
 
 		break;
 
 	case secadm_cmd_enable_rule:
+		if (securelevel_gt(req->td->td_ucred, 0))
+			return (EPERM);
+
 		kernel_active_rule(req->td, (secadm_rule_t *) cmd.sc_data, 1);
 		reply.sr_code = secadm_reply_success;
 
 		break;
 
 	case secadm_cmd_disable_rule:
+		if (securelevel_gt(req->td->td_ucred, 0))
+			return (EPERM);
+
 		kernel_active_rule(req->td, (secadm_rule_t *) cmd.sc_data, 0);
 		reply.sr_code = secadm_reply_success;
 
