@@ -363,6 +363,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 	r = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
 
 	if (copyin(rule, r, sizeof(secadm_rule_t))) {
+		memset(r, 0, sizeof(secadm_rule_t));
 		kernel_free_rule(r);
 		return (EINVAL);
 	}
@@ -374,6 +375,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 		if (copyin(r->sr_integriforce_data, ptr,
 	    	    sizeof(secadm_integriforce_data_t))) {
+			r->sr_integriforce_data = NULL;
 			free(ptr, M_SECADM);
 			kernel_free_rule(r);
 
@@ -384,7 +386,9 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 		if (r->sr_integriforce_data->si_pathsz == 0 ||
 		    r->sr_integriforce_data->si_pathsz >= MAXPATHLEN) {
+			r->sr_integriforce_data->si_path = NULL;
 			kernel_free_rule(r);
+
 			return (EINVAL);
 		}
 
@@ -393,6 +397,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 		if (copyin(r->sr_integriforce_data->si_path, path,
 			   r->sr_integriforce_data->si_pathsz)) {
+			r->sr_integriforce_data->si_path = NULL;
 			free(path, M_SECADM);
 			kernel_free_rule(r);
 
@@ -409,6 +414,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 			if (copyin(r->sr_integriforce_data->si_hash, hash,
 				   SECADM_SHA1_DIGEST_LEN)) {
+				r->sr_integriforce_data->si_hash = NULL;
 				free(hash, M_SECADM);
 				kernel_free_rule(r);
 
@@ -423,6 +429,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 			if (copyin(r->sr_integriforce_data->si_hash, hash,
 				   SECADM_SHA256_DIGEST_LEN)) {
+				r->sr_integriforce_data->si_hash = NULL;
 				free(hash, M_SECADM);
 				kernel_free_rule(r);
 
@@ -436,14 +443,14 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 			return (EINVAL);
 		}
 
+		r->sr_integriforce_data->si_hash = hash;
+		r->sr_integriforce_data->si_cache =0;
+
 		if (!(rule->sr_integriforce_data->si_mode == 0 ||
 		      rule->sr_integriforce_data->si_mode == 1)) {
 			kernel_free_rule(r);
 			return (EINVAL);
 		}
-
-		r->sr_integriforce_data->si_hash = hash;
-		r->sr_integriforce_data->si_cache = 0;
 
 		break;
 
@@ -462,6 +469,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 		if (r->sr_pax_data->sp_pathsz == 0 ||
 		    r->sr_pax_data->sp_pathsz >= MAXPATHLEN) {
+			r->sr_pax_data->sp_path = NULL;
 			kernel_free_rule(r);
 			return (EINVAL);
 		}
@@ -471,6 +479,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 		if (copyin(r->sr_pax_data->sp_path, path,
 			   r->sr_pax_data->sp_pathsz)) {
+			r->sr_pax_data->sp_path = NULL;
 			free(path, M_SECADM);
 			kernel_free_rule(r);
 
