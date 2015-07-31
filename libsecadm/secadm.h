@@ -221,7 +221,7 @@ void secadm_free_rule(secadm_rule_t *);
 int get_mntonname_vattr(struct thread *, u_char *, char *, struct vattr *);
 void kernel_free_rule(secadm_rule_t *);
 void kernel_flush_ruleset(int);
-int kernel_finalize_rule(struct thread *, secadm_rule_t *);
+int kernel_finalize_rule(struct thread *, secadm_rule_t *, int);
 int kernel_load_ruleset(struct thread *, secadm_rule_t *);
 int kernel_add_rule(struct thread *, secadm_rule_t *, int);
 void kernel_del_rule(struct thread *, secadm_rule_t *);

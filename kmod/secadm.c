@@ -191,8 +191,9 @@ kernel_flush_ruleset(int jid)
 }
 
 int
-kernel_finalize_rule(struct thread *td, secadm_rule_t *rule)
+kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 {
+	struct secadm_rules_tree *head;
 	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t *r;
@@ -236,7 +237,13 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule)
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
 	RM_PE_RLOCK(entry, tracker);
-	RB_FOREACH(r, secadm_rules_tree, &(entry->sp_rules)) {
+	if (ruleset) {
+		head = &(entry->sp_staging);
+	} else {
+		head = &(entry->sp_rules);
+	}
+
+	RB_FOREACH(r, secadm_rules_tree, head) {
 		if (r->sr_type != rule->sr_type)
 			continue;
 
@@ -503,7 +510,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		return (EINVAL);
 	}
 
-	if ((error = kernel_finalize_rule(td, r))) {
+	if ((error = kernel_finalize_rule(td, r, ruleset))) {
 		kernel_free_rule(r);
 
 		return (EINVAL);
