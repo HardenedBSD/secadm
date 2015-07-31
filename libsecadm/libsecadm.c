@@ -65,9 +65,15 @@ _secadm_sysctl(secadm_command_t *cmd, secadm_reply_t *reply)
 int
 secadm_flush_ruleset(void)
 {
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	int err;
 
-	SECADM_SYSCTL_ARGS(secadm_cmd_flush_ruleset);
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_flush_ruleset;
 
 	if ((err = _secadm_sysctl(&cmd, &reply)))
 		fprintf(stderr, "could not flush rules. error code: %d\n", err);
@@ -78,10 +84,15 @@ secadm_flush_ruleset(void)
 int
 _secadm_rule_ops(secadm_rule_t *rule, secadm_command_type_t cmd_type)
 {
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	int err;
 
-	SECADM_SYSCTL_ARGS(cmd_type);
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = cmd_type;
 	cmd.sc_data = rule;
 
 	if ((err = _secadm_sysctl(&cmd, &reply)))
@@ -143,10 +154,16 @@ secadm_disable_rule(int rule_id)
 void *
 _secadm_get_rule_data(secadm_rule_t *rule, size_t size)
 {
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	void *rule_data;
 	int err;
 
-	SECADM_SYSCTL_ARGS(secadm_cmd_get_rule_data);
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_get_rule_data;
 
 	if ((rule_data = malloc(size)) == NULL) {
 		perror("malloc");
@@ -167,10 +184,16 @@ _secadm_get_rule_data(secadm_rule_t *rule, size_t size)
 u_char *
 _secadm_get_rule_path(secadm_rule_t *rule)
 {
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	u_char *rule_path;
 	int err;
 
-	SECADM_SYSCTL_ARGS(secadm_cmd_get_rule_path);
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_get_rule_path;
 
 	if ((rule_path = malloc(MAXPATHLEN + 1)) == NULL) {
 		perror("malloc");
@@ -193,10 +216,16 @@ _secadm_get_rule_path(secadm_rule_t *rule)
 u_char *
 _secadm_get_rule_hash(secadm_rule_t *rule)
 {
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	u_char *rule_hash;
 	int err;
 
-	SECADM_SYSCTL_ARGS(secadm_cmd_get_rule_hash);
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_get_rule_hash;
 
 	if ((rule_hash = malloc(SECADM_SHA256_DIGEST_LEN + 1)) == NULL) {
 		perror("malloc");
@@ -218,11 +247,17 @@ _secadm_get_rule_hash(secadm_rule_t *rule)
 secadm_rule_t *
 secadm_get_rule(int rule_id)
 {
+	secadm_command_t cmd;
+	secadm_reply_t reply;
 	secadm_rule_t *rule;
 	size_t size;
 	int err;
 
-	SECADM_SYSCTL_ARGS(secadm_cmd_get_rule);
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_get_rule;
 
 	if ((rule = malloc(sizeof(secadm_rule_t))) == NULL) {
 		perror("malloc");

@@ -53,15 +53,6 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 	secadm_rule_t *rule;
 	int err, i, rn;
 
-	if (req->td->td_ucred->cr_uid) {
-		printf("[SECADM] Denied attempt to sysctl by "
-		       "(%s) uid:%d jail:%d\n",
-		       req->td->td_name, req->td->td_ucred->cr_uid,
-		       req->td->td_ucred->cr_prison->pr_id);
-
-		return (EACCES);
-	}
-
 	if (!(req->newptr) || (req->newlen != sizeof(secadm_command_t)))
 		return (EINVAL);
 
@@ -75,6 +66,28 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		return (err);
 
 	reply.sr_version = SECADM_VERSION;
+
+	switch (cmd.sc_type) {
+	case secadm_cmd_flush_ruleset:
+	case secadm_cmd_load_ruleset:
+	case secadm_cmd_add_rule:
+	case secadm_cmd_del_rule:
+	case secadm_cmd_enable_rule:
+	case secadm_cmd_disable_rule:
+		if (req->td->td_ucred->cr_uid) {
+			printf("[SECADM] Denied attempt to sysctl by "
+			       "(%s) uid:%d jail:%d\n",
+			       req->td->td_name, req->td->td_ucred->cr_uid,
+			       req->td->td_ucred->cr_prison->pr_id);
+
+			reply.sr_code = secadm_reply_fail;
+			SYSCTL_OUT(req, &reply, sizeof(secadm_reply_t));
+
+			return (EPERM);
+		}
+
+	default:
+	}
 
 	switch (cmd.sc_type) {
 	case secadm_cmd_flush_ruleset:

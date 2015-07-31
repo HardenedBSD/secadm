@@ -605,6 +605,13 @@ add_action(int argc, char **argv)
 				return (1);
 			}
 
+			if (strlen(argv[6]) != SECADM_SHA1_DIGEST_LEN * 2) {
+				fprintf(stderr, "Invalid hash.\n");
+				secadm_free_rule(rule);
+
+				return (1);
+			}
+
 			for (i = 0; i < 40; i += 2) {
 				if (sscanf(&argv[6][i], "%02x", &val) == 0) {
 					fprintf(stderr, "Invalid hash.\n");
@@ -623,6 +630,13 @@ add_action(int argc, char **argv)
 			if ((rule->sr_integriforce_data->si_hash =
 			     malloc(SECADM_SHA256_DIGEST_LEN)) == NULL) {
 				perror("malloc");
+				secadm_free_rule(rule);
+
+				return (1);
+			}
+
+			if (strlen(argv[6]) != SECADM_SHA256_DIGEST_LEN * 2) {
+				fprintf(stderr, "Invalid hash.\n");
 				secadm_free_rule(rule);
 
 				return (1);
@@ -969,6 +983,15 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 			return (1);
 		}
 
+		if (strlen(hash) != SECADM_SHA1_DIGEST_LEN * 2) {
+			fprintf(stderr,
+			    "Integriforce rule has invalid hash: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			secadm_free_rule(rule);
+
+			return (1);
+		}
+
 		for (i = 0; i < 40; i += 2) {
 			if (sscanf(&hash[i], "%02x", &val) == 0) {
 				fprintf(stderr, "Invalid hash.\n");
@@ -985,6 +1008,15 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 		if ((rule->sr_integriforce_data->si_hash =
 		     malloc(SECADM_SHA256_DIGEST_LEN)) == NULL) {
 			perror("malloc");
+			return (1);
+		}
+
+		if (strlen(hash) != SECADM_SHA256_DIGEST_LEN * 2) {
+			fprintf(stderr,
+			    "Integriforce rule has invalid hash: %s\n",
+			    rule->sr_integriforce_data->si_path);
+			secadm_free_rule(rule);
+
 			return (1);
 		}
 

@@ -113,7 +113,7 @@ get_mntonname_vattr(struct thread *td, u_char *path, char *mntonname,
 	if ((error = namei(&nd)))
 		return (error);
 
-	strncpy(mntonname,
+	strlcpy(mntonname,
 	    nd.ni_vp->v_mount->mnt_stat.f_mntonname, MNAMELEN);
 
 	error = VOP_GETATTR(nd.ni_vp, vap, td->td_ucred);
@@ -239,11 +239,10 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
 	RM_PE_RLOCK(entry, tracker);
-	if (ruleset == 1) {
+	if (ruleset == 1)
 		head = &(entry->sp_staging);
-	} else {
+	else
 		head = &(entry->sp_rules);
-	}
 
 	RB_FOREACH(r, secadm_rules_tree, head) {
 		if (r->sr_type != rule->sr_type)
@@ -367,7 +366,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 	void *ptr;
 	int error;
 
-	r = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
+	r = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK | M_ZERO);
 
 	if (copyin(rule, r, sizeof(secadm_rule_t))) {
 		memset(r, 0, sizeof(secadm_rule_t));
@@ -512,7 +511,6 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 	if ((error = kernel_finalize_rule(td, r, ruleset))) {
 		kernel_free_rule(r);
-
 		return (EINVAL);
 	}
 
