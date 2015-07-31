@@ -38,21 +38,32 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <sys/mount.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #include <libxo/xo.h>
+#include <ucl.h>
 
 #include "secadm.h"
 
 int show_action(int, char **);
 int load_action(int, char **);
+int validate_action(int, char **);
 int flush_action(int, char **);
 int add_action(int, char **);
 int delete_action(int, char **);
 int enable_action(int, char **);
 int disable_action(int, char **);
 
+void free_ruleset(secadm_rule_t *);
+
 void emit_rules_xo(secadm_rule_t **, int, int);
 void emit_rules_ucl(secadm_rule_t **, int);
+
+int parse_pax_object(const ucl_object_t *, secadm_rule_t *);
+int parse_integriforce_object(const ucl_object_t *, secadm_rule_t *);
+
+static int validate = 0;
 
 typedef int (*command_t)(int, char **);
 
@@ -73,6 +84,12 @@ struct secadm_commands {
 		"<file>",
 		"load ruleset",
 		load_action
+	},
+	{
+		"validate",
+		"<file>",
+		"validate ruleset",
+		validate_action
 	},
 	{
 		"flush",
@@ -115,7 +132,7 @@ usage(int argc, char **argv)
 		printf("usage: secadm <command> [[modifiers] args]\n");
 		for (i = 0; i < sizeof(commands) /
 				sizeof(struct secadm_commands); i++) {
-			printf("    secadm %-8s%-30s- %s\n",
+			printf("    secadm %-9s%-30s- %s\n",
 			       commands[i].command,
 			       commands[i].options,
 			       commands[i].help);
@@ -286,17 +303,133 @@ show_action(int argc, char **argv)
 int
 load_action(int argc, char **argv)
 {
-	secadm_rule_t ruleset;
-	int ch, jid = 0;
+	const ucl_object_t *top, *section, *cur;
+	secadm_rule_t *ruleset, *rule;
+	ucl_object_iter_t it = NULL;
+	struct ucl_parser *parser;
+	int n = 0;
 
 	if (argc < 3) {
 		usage(1, argv);
 		return (1);
 	}
 
-	secadm_load_ruleset(&ruleset);
+	parser = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
+	if (parser == NULL) {
+		fprintf(stderr, "Could not create new parser.\n");
+		return (1);
+	}
+
+	if ((ucl_parser_add_file(parser, argv[2])) == 0) {
+		fprintf(stderr, "%s\n", ucl_parser_get_error(parser));
+		ucl_parser_free(parser);
+
+		return (1);
+	}
+
+	top = ucl_parser_get_object(parser);
+	if (top == NULL) {
+		fprintf(stderr, "Nothing to load.\n");
+		ucl_parser_free(parser);
+
+		return (1);
+	}
+
+	section = ucl_lookup_path(top, "secadm.pax");
+	if (section) {
+		while ((cur = ucl_iterate_object(section, &it, false))) {
+			if (n == 0) {
+				if ((rule = malloc(sizeof(secadm_rule_t)))
+				    == NULL) {
+					perror("malloc");
+					ucl_parser_free(parser);
+					return (1);
+				}
+
+				memset(rule, 0, sizeof(secadm_rule_t));
+				ruleset = rule;
+			} else {
+				if ((rule->sr_next =
+				     malloc(sizeof(secadm_rule_t))) == NULL) {
+					perror("malloc");
+					ucl_parser_free(parser);
+					free_ruleset(ruleset);
+
+					return (1);
+				}
+
+				rule = rule->sr_next;
+				memset(rule, 0, sizeof(secadm_rule_t));
+			}
+
+			if (parse_pax_object(cur, rule)) {
+				ucl_parser_free(parser);
+				free_ruleset(ruleset);
+				return (1);
+			}
+
+			n++;
+		}
+	}
+
+	it = NULL;
+	section = ucl_lookup_path(top, "secadm.integriforce");
+	if (section) {
+		while ((cur = ucl_iterate_object(section, &it, false))) {
+			if (n == 0) {
+				if ((rule = malloc(sizeof(secadm_rule_t)))
+				    == NULL) {
+					perror("malloc");
+					ucl_parser_free(parser);
+					return (1);
+				}
+
+				memset(rule, 0, sizeof(secadm_rule_t));
+				ruleset = rule;
+			} else {
+				if ((rule->sr_next =
+				    malloc(sizeof(secadm_rule_t))) == NULL) {
+					perror("malloc");
+					ucl_parser_free(parser);
+					free_ruleset(ruleset);
+
+					return (1);
+				}
+
+				rule = rule->sr_next;
+				memset(rule, 0, sizeof(secadm_rule_t));
+			}
+
+			if (parse_integriforce_object(cur, rule)) {
+				ucl_parser_free(parser);
+				free_ruleset(ruleset);
+				return (1);
+			}
+
+			n++;
+		}
+	}
+
+	if (n == 0) {
+		fprintf(stderr, "No rules.\n");
+		ucl_parser_free(parser);
+
+		return (1);
+	}
+
+	ucl_parser_free(parser);
+
+	if (validate == 0)
+		secadm_load_ruleset(ruleset);
 
 	return (0);
+}
+
+int
+validate_action(int argc, char **argv)
+{
+	validate = 1;
+	return (load_action(argc, argv));
 }
 
 int
@@ -674,4 +807,257 @@ emit_rules_ucl(secadm_rule_t **ruleset, int num_rules)
 	}
 
 	printf("}\n");
+}
+
+void
+free_ruleset(secadm_rule_t *ruleset)
+{
+	secadm_rule_t *rule, *next;
+
+	if (ruleset == NULL)
+		return;
+
+	rule = next = ruleset;
+
+	do {
+		next = rule->sr_next;
+		secadm_free_rule(rule);
+		rule = next;
+	} while (rule != NULL);
+}
+
+int
+parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
+{
+	int aslr = 1, mprotect = 1, pageexec = 1, segvguard = 1;
+	ucl_object_iter_t it = NULL;
+	const ucl_object_t *cur;
+	const char *key;
+	struct stat sb;
+
+	if ((rule->sr_pax_data = malloc(sizeof(secadm_pax_data_t))) == NULL) {
+		perror("malloc");
+		return (1);
+	}
+
+	memset(rule->sr_pax_data, 0, sizeof(secadm_pax_data_t));
+
+	while ((cur = ucl_iterate_object(obj, &it, true))) {
+		key = ucl_object_key(cur);
+
+		if (!strncmp(key, "path", 4)) {
+			rule->sr_pax_data->sp_path =
+			    (u_char *)ucl_object_tostring(cur);
+		} else if (!strncmp(key, "aslr", 4)) {
+			aslr = ucl_object_toboolean(cur);
+		} else if (!strncmp(key, "mprotect", 8)) {
+			mprotect = ucl_object_toboolean(cur);
+		} else if (!strncmp(key, "pageexec", 8)) {
+			pageexec = ucl_object_toboolean(cur);
+		} else if (!strncmp(key, "segvguard", 9)) {
+			segvguard = ucl_object_toboolean(cur);
+		} else {
+			fprintf(stderr,
+			    "Unknown attribute '%s' of PaX rule.\n", key);
+			return (1);
+		}
+	}
+
+	if (rule->sr_pax_data->sp_path == NULL) {
+		fprintf(stderr, "PaX rule has no path specified.\n");
+		return (1);
+	}
+
+	if (strlen((const char *)rule->sr_pax_data->sp_path) > MAXPATHLEN) {
+		fprintf(stderr, "PaX rule path is too long: %s\n",
+		    rule->sr_pax_data->sp_path);
+		return (1);
+	}
+
+	if (rule->sr_pax_data->sp_path[0] != '/') {
+		fprintf(stderr, "PaX rule not a full path: %s\n",
+		    rule->sr_pax_data->sp_path);
+		return (1);
+	}
+
+	if (stat((const char *)rule->sr_pax_data->sp_path, &sb) < 0) {
+		fprintf(stderr, "PaX rule path invalid: %s: %s\n",
+		    rule->sr_pax_data->sp_path, strerror(errno));
+		return (1);
+	}
+
+	if (!S_ISREG(sb.st_mode)) {
+		fprintf(stderr, "PaX rule path is not a regular file: %s\n",
+		    rule->sr_pax_data->sp_path);
+		return (1);
+	}
+
+	rule->sr_pax_data->sp_pathsz =
+	    strlen((const char *)rule->sr_pax_data->sp_path);
+
+	if (aslr)
+		rule->sr_pax_data->sp_pax |= SECADM_PAX_ASLR;
+
+	if (mprotect) {
+		rule->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
+		rule->sr_pax_data->sp_pax |= SECADM_PAX_MPROTECT;
+	}
+
+	if (pageexec)
+		rule->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
+
+	if (segvguard)
+		rule->sr_pax_data->sp_pax |= SECADM_PAX_SEGVGUARD;
+
+	return (0);
+}
+
+int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
+{
+	ucl_object_iter_t it = NULL;
+	const ucl_object_t *cur;
+	const char *mode, *type;
+	const char *key;
+	struct stat sb;
+	int i;
+
+	if ((rule->sr_integriforce_data =
+	     malloc(sizeof(secadm_integriforce_data_t))) == NULL) {
+		perror("malloc");
+		return (1);
+	}
+
+	memset(rule->sr_integriforce_data, 0, sizeof(secadm_integriforce_data_t));
+
+	while ((cur = ucl_iterate_object(obj, &it, true))) {
+		key = ucl_object_key(cur);
+
+		if (!strncmp(key, "path", 4)) {
+			rule->sr_integriforce_data->si_path =
+			    (u_char *)ucl_object_tostring(cur);
+		} else if (!strncmp(key, "hash", 4)) {
+			rule->sr_integriforce_data->si_hash =
+			    (u_char *)ucl_object_tostring(cur);
+		} else if (!strncmp(key, "type", 4)) {
+			type = ucl_object_tostring(cur);
+		} else if (!strncmp(key, "mode", 4)) {
+			mode = ucl_object_tostring(cur);
+		} else {
+			fprintf(stderr,
+			    "Unknown attribute '%s' of Integriforce rule.\n", key);
+			return (1);
+		}
+	}
+
+	if (rule->sr_integriforce_data->si_path == NULL) {
+		fprintf(stderr, "Integriforce rule has no path specified.\n");
+		return (1);
+	}
+
+	if (strlen((const char *)rule->sr_integriforce_data->si_path) >
+	    MAXPATHLEN) {
+		fprintf(stderr, "Integriforce rule path is too long: %s\n",
+		    rule->sr_integriforce_data->si_path);
+		return (1);
+	}
+
+	if (rule->sr_integriforce_data->si_path[0] != '/') {
+		fprintf(stderr, "Integriforce rule not a full path: %s\n",
+		    rule->sr_integriforce_data->si_path);
+		return (1);
+	}
+
+	if (stat((const char *)rule->sr_integriforce_data->si_path, &sb) < 0) {
+		fprintf(stderr, "Integriforce rule path invalid: %s: %s\n",
+		    rule->sr_integriforce_data->si_path, strerror(errno));
+		return (1);
+	}
+
+	if (!S_ISREG(sb.st_mode)) {
+		fprintf(stderr,
+		    "Integriforce rule path is not a regular file: %s\n",
+		    rule->sr_integriforce_data->si_path);
+		return (1);
+	}
+
+	if (type == NULL) {
+		fprintf(stderr,
+		    "No hash type specified for Integriforce rule: %s\n",
+		    rule->sr_integriforce_data->si_path);
+		return (1);
+	}
+
+	if (!strncmp(type, "sha1", 4)) {
+		rule->sr_integriforce_data->si_type = secadm_hash_sha1;
+	} else if (!strncmp(type, "sha256", 6)) {
+		rule->sr_integriforce_data->si_type = secadm_hash_sha256;
+	} else {
+		fprintf(stderr,
+		    "Invalid hash type '%s' for Integriforce rule.\n",
+		    type);
+		return (1);
+	}
+
+	if (rule->sr_integriforce_data->si_hash == NULL) {
+		fprintf(stderr,
+		    "Integriforce rule has no hash specified: %s\n",
+		    rule->sr_integriforce_data->si_path);
+		return (1);
+	}
+
+	switch (rule->sr_integriforce_data->si_type) {
+	case secadm_hash_sha1:
+		if (strlen((const char *)rule->sr_integriforce_data->si_hash) !=
+		    SECADM_SHA1_DIGEST_LEN * 2) {
+			fprintf(stderr,
+			    "Integriforce rule has invalid hash: %s\n",
+			    rule->sr_integriforce_data->si_hash);
+			return (1);
+		}
+
+		for (i = 0; i < SECADM_SHA1_DIGEST_LEN * 2; i++) {
+			if (!((rule->sr_integriforce_data->si_hash[i] >= '0' &&
+			       rule->sr_integriforce_data->si_hash[i] <= '9') ||
+			      (rule->sr_integriforce_data->si_hash[i] >= 'a' &&
+			       rule->sr_integriforce_data->si_hash[i] <= 'f'))) {
+				fprintf(stderr,
+				    "Integriforce rule has invalid hash: %s\n",
+				    rule->sr_integriforce_data->si_hash);
+				return (1);
+			}
+		}
+
+		break;
+	case secadm_hash_sha256:
+		if (strlen((const char *)rule->sr_integriforce_data->si_hash) !=
+		    SECADM_SHA256_DIGEST_LEN * 2) {
+			fprintf(stderr,
+			    "Integriforce rule has invalid hash: %s\n",
+			    rule->sr_integriforce_data->si_hash);
+		}
+
+		for (i = 0; i < SECADM_SHA1_DIGEST_LEN * 2; i++) {
+			if (!((rule->sr_integriforce_data->si_hash[i] >= '0' &&
+			       rule->sr_integriforce_data->si_hash[i] <= '9') ||
+			      (rule->sr_integriforce_data->si_hash[i] >= 'a' &&
+			       rule->sr_integriforce_data->si_hash[i] <= 'f'))) {
+				fprintf(stderr,
+				    "Integriforce rule has invalid hash: %s\n",
+				    rule->sr_integriforce_data->si_hash);
+				return (1);
+			}
+		}
+	}
+
+	if (!strncmp(mode, "soft", 4)) {
+		rule->sr_integriforce_data->si_mode = 0;
+	} else if (!strncmp(mode, "hard", 4)) {
+		rule->sr_integriforce_data->si_mode = 1;
+	} else {
+		fprintf(stderr, "Invalid mode for Integriforce rule: %s\n",
+		    rule->sr_integriforce_data->si_path);
+		return (1);
+	}
+
+	return (0);
 }

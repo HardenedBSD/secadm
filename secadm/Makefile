@@ -9,10 +9,10 @@ BINDIR?=	${PREFIX}/sbin
 BINDIR?=	/usr/sbin
 .endif
 
-LDADD=	-lutil -lsecadm -lxo
+LDADD=	-lutil -lsecadm -lxo -lucl
 WANTS_PIE=	yes
 
-CFLAGS+=	-I${.CURDIR}/../libsecadm -I/usr/local/include
+CFLAGS+=	-g -I${.CURDIR}/../libsecadm -I/usr/local/include
 LDFLAGS+=	-L${.CURDIR}/../libsecadm -L/usr/local/lib
 
 NO_MAN=	"yes"
