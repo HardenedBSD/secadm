@@ -43,6 +43,8 @@
 
 #include "secadm.h"
 
+FEATURE(secadm, "HardenedBSD Security Administration (secadm)");
+
 MALLOC_DEFINE(M_SECADM, "secadm", "HardenedBSD SECADM data");
 RB_GENERATE(secadm_rules_tree, secadm_rule, sr_tree, secadm_rule_cmp);
 
@@ -237,7 +239,7 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
 	RM_PE_RLOCK(entry, tracker);
-	if (ruleset) {
+	if (ruleset == 1) {
 		head = &(entry->sp_staging);
 	} else {
 		head = &(entry->sp_rules);
@@ -309,7 +311,11 @@ kernel_load_ruleset(struct thread *td, secadm_rule_t *rule)
 	kernel_flush_ruleset(entry->sp_id);
 
 	RM_PE_WLOCK(entry);
-	RB_FOREACH(r, secadm_rules_tree, &(entry->sp_staging)) {
+	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_staging));
+	     r != NULL; r = r2) {
+		r2 = RB_NEXT(secadm_rules_tree, &(entry->sp_staging), r);
+		RB_REMOVE(secadm_rules_tree, &(entry->sp_staging), r);
+
 		r->sr_id = entry->sp_last_id++;
 		entry->sp_num_rules++;
 
@@ -328,12 +334,6 @@ kernel_load_ruleset(struct thread *td, secadm_rule_t *rule)
 		}
 
 		RB_INSERT(secadm_rules_tree, &(entry->sp_rules), r);
-	}
-
-	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_staging));
-	     r != NULL; r = r2) {
-		r2 = RB_NEXT(secadm_rules_tree, &(entry->sp_staging), r);
-		RB_REMOVE(secadm_rules_tree, &(entry->sp_staging), r);
 	}
 
 	entry->sp_loaded = 1;
@@ -547,7 +547,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
 	RM_PE_WLOCK(entry);
-	if (ruleset) {
+	if (ruleset == 1) {
 		RB_INSERT(secadm_rules_tree, &(entry->sp_staging), r);
 	} else {
 		r->sr_id = entry->sp_last_id++;
