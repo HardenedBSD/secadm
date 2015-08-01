@@ -12,8 +12,8 @@ BINDIR?=	/usr/sbin
 LDADD=	-lutil -lsecadm -lxo -lucl
 WANTS_PIE=	yes
 
-CFLAGS+=	-g -I${.CURDIR}/../libsecadm -I/usr/local/include
-LDFLAGS+=	-L${.CURDIR}/../libsecadm -L/usr/local/lib
+CFLAGS+=	-I${.CURDIR}/../libsecadm -I/usr/local/include
+LDFLAGS+=	-L${.CURDIR}/../libsecadm/obj -L/usr/local/lib
 
 NO_MAN=	"yes"
 

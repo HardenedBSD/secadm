@@ -87,6 +87,7 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		}
 
 	default:
+		break;
 	}
 
 	switch (cmd.sc_type) {
