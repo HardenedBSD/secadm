@@ -1,6 +1,6 @@
 {
-	"path": "/usr/local/sbin/privoxy",
-	"features": {
+	path: "/usr/local/sbin/privoxy",
+	features: {
 		"shlibrandom" : false,
 	}
 }

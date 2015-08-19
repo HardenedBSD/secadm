@@ -1,6 +1,6 @@
 {
-	"path": "/usr/local/bin/xpdf",
-	"features": {
+	path: "/usr/local/bin/xpdf",
+	features: {
 		"shlibrandom" : false,
 	}
 }
