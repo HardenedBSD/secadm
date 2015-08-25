@@ -110,7 +110,10 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	if (err)
 		return (0);
 
-	buf = malloc(8192, M_SECADM, M_WAITOK);
+	buf = malloc(8192, M_SECADM, M_NOWAIT);
+
+	if (buf == NULL)
+		return (0);
 
 	switch (integriforce_p->si_hashtype) {
 	case si_hash_sha1:
@@ -163,7 +166,11 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	free(buf, M_SECADM);
 	VOP_CLOSE(vp, FREAD, ucred, curthread);
 
-	hash = malloc(hashsz, M_SECADM, M_WAITOK);
+	hash = malloc(hashsz, M_SECADM, M_NOWAIT);
+
+	if (hash == NULL)
+		return (0);
+
 	switch (integriforce_p->si_hashtype) {
 	case si_hash_sha1:
 		SHA1Final(hash, &sha1ctx);
@@ -249,12 +256,20 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 		return (error);
 	}
 
+	if ((error = vn_lock(nd.ni_vp, LK_SHARED | LK_RETRY)) != 0) {
+		free(integriforce_so, M_SECADM);
+		NDFREE(&nd, 0);
+		return (error);
+	}
+
 	error = VOP_GETATTR(nd.ni_vp, &vap, req->td->td_ucred);
 	if (error) {
 		free(integriforce_so, M_SECADM);
 		NDFREE(&nd, 0);
 		return (error);
 	}
+
+	VOP_UNLOCK(nd.ni_vp, 0);
 
 	SPL_RLOCK(pr, tracker);
 	for (rule = pr->spl_rules; rule != NULL; rule = rule->sr_next) {
