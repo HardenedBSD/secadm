@@ -117,6 +117,14 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 				flags |= PAX_NOTE_NOSHLIBRANDOM;
 				break;
 #endif
+#if __HardenedBSD_version > 29
+			case map32bit_protect_enabled:
+				flags |= PAX_NOTE_MAP32_PROTECT;
+				break;
+			case map32bit_protect_disabled:
+				flags |= PAX_NOTE_NOMAP32_PROTECT;
+				break;
+#endif
 			default:
 				break;
 			}

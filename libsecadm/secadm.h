@@ -31,7 +31,7 @@
 
 #include <sys/param.h>
 
-#define SECADM_VERSION			2015060401UL
+#define SECADM_VERSION			2015090501UL
 #define SECADM_PRETTY_VERSION		"0.2.4"
 
 #define SECADM_KLDNAME			"secadm"
@@ -41,6 +41,7 @@
 #define	FEATURE_PAX_SEGVGUARD		"segvguard"
 #define	FEATURE_PAX_ASLR		"aslr"
 #define	FEATURE_PAX_SHLIBRANDOM		"aslr"
+#define FEATURE_PAX_HARDENING		"pax_hardening"
 
 /* These flags are unused right now */
 #define SECADM_RULE_FLAGS_NONE		0x00000000
@@ -48,7 +49,7 @@
 #define SECADM_RULE_FLAGS_GID_DEFINED	0x00000002
 #define SECADM_RULE_FLAGS_INODE_DEFINED	0x00000004
 
-#define SECADM_MAX_FEATURES	6
+#define SECADM_MAX_FEATURES	7
 
 #define SHA1_DIGESTLEN		20
 #define SHA256_DIGESTLEN	32
@@ -65,7 +66,9 @@ typedef enum secadm_feature_type {
 	aslr_enabled,
 	integriforce,
 	shlibrandom_disabled,
-	shlibrandom_enabled
+	shlibrandom_enabled,
+	map32bit_protect_enabled,
+	map32bit_protect_disabled
 } secadm_feature_type_t;
 
 typedef enum secadm_hash_type {
