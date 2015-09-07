@@ -41,6 +41,7 @@
 #define	FEATURE_PAX_SEGVGUARD		"segvguard"
 #define	FEATURE_PAX_ASLR		"aslr"
 #define	FEATURE_PAX_SHLIBRANDOM		"aslr"
+#define	FEATURE_PAX_DISALLOWMAP32BIT	"aslr"
 #define FEATURE_PAX_HARDENING		"pax_hardening"
 
 /* These flags are unused right now */
@@ -67,8 +68,13 @@ typedef enum secadm_feature_type {
 	integriforce,
 	shlibrandom_disabled,
 	shlibrandom_enabled,
+#if __HardenedBSD_version == 30
 	map32bit_protect_enabled,
 	map32bit_protect_disabled
+#else
+	disallow_map32bit_enabled,
+	disallow_map32bit_disabled
+#endif
 } secadm_feature_type_t;
 
 typedef enum secadm_hash_type {

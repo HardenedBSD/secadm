@@ -214,6 +214,7 @@ add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t 
 			feature_name = FEATURE_PAX_SHLIBRANDOM;
 		}
 		break;
+#if __HardenedBSD_version == 30
 	case map32bit_protect_enabled:
 	case map32bit_protect_disabled:
 		if (feature_present(FEATURE_PAX_HARDENING)) {
@@ -222,6 +223,17 @@ add_feature(secadm_rule_t *rule, const ucl_object_t *obj, secadm_feature_type_t 
 			valid_feature = false;
 			feature_name = FEATURE_PAX_HARDENING;
 		}
+#endif
+#if __HardenedBSD_version > 30
+	case disallow_map32bit_enabled:
+	case disallow_map32bit_disabled:
+		if (feature_present(FEATURE_PAX_DISALLOWMAP32BIT)) {
+			valid_feature = true;
+		} else {
+			valid_feature = false;
+			feature_name = FEATURE_PAX_DISALLOWMAP32BIT;
+		}
+#endif
 		break;
 	default:
 		valid_feature = false;
@@ -323,12 +335,21 @@ parse_applications_object(secadm_rule_t *head, const ucl_object_t *obj)
 					return (NULL);
 		}
 
+#if __HardenedBSD_version == 30
 		if ((ucl_feature = ucl_lookup_path(appindex, "features.map32bit_protect")) != NULL) {
 			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
 				if (add_feature(apprule, ucl_feature,
 				    enabled ? map32bit_protect_enabled : map32bit_protect_disabled))
 					return (NULL);
 		}
+#else
+		if ((ucl_feature = ucl_lookup_path(appindex, "features.disallow_map32bit")) != NULL) {
+			if (ucl_object_toboolean_safe(ucl_feature, &enabled) == true)
+				if (add_feature(apprule, ucl_feature,
+				    enabled ? disallow_map32bit_enabled : disallow_map32bit_disabled))
+					return (NULL);
+		}
+#endif
 
 		if (needadd) {
 			if (head) {

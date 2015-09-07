@@ -181,8 +181,14 @@ listact(int argc, char *argv[])
 			printf("    pageexec:\t(bool) - Opt an application in to or out of PAGEEXEC\n");
 		if (feature_present(FEATURE_PAX_SEGVGUARD))
 			printf("    segvguard:\t(bool) - Opt an application in to or out of SEGVGUARD\n");
+#if __HardenedBSD_version == 30
 		if (feature_present(FEATURE_PAX_HARDENING))
 			printf("    map32_protect:\t(bool) - Opt an application in to or out of MAP_32BIT protection\n");
+#endif
+#if __HardenedBSD_version > 30
+		if (feature_present(FEATURE_PAX_DISALLOWMAP32BIT))
+			printf("    disallow_map32bit:\t(bool) - Opt an application in to or out of MAP_32BIT mode mmap(2) restriction\n");
+#endif
 	}
 
 	return (0);
