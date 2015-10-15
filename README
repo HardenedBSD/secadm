@@ -107,7 +107,7 @@ installed into, or be accessible by, each jail individually in order to
 enforce security policies inside of the jail.
 
 Note: if jails are setup to use a read-only basejail, manual installation
-of libsecadm.0.so into the basejail's /var/lib directory is required.
+of libsecadm.0.so into the basejail's /usr/lib directory is required.
 
 Writing Application Rules
 =========================
