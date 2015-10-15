@@ -73,6 +73,15 @@ To verify that your ruleset loaded successfully:
 To flush rules:
 # secadm flush
 
+Installing to a Jail
+------------------------
+The libsecadm shared library and secadm userland application must both be
+installed into, or be accessible by, each jail individually in order to
+enforce security policies inside of the jail.
+
+Note: if jails are setup to use a read-only basejail, manual installation
+of libsecadm.0.so into the basejail's /var/lib directory is required.
+
 Writing Application Rules
 =========================
 
