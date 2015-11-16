@@ -131,15 +131,16 @@ usage(int argc, char **argv)
 	if (argc <= 2) {
 		printf("usage: secadm <command> [[modifiers] args]\n");
 		for (i = 0; i < sizeof(commands) /
-				sizeof(struct secadm_commands); i++) {
+		    sizeof(struct secadm_commands); i++) {
 			printf("    secadm %-9s%-30s- %s\n",
-			       commands[i].command,
-			       commands[i].options,
-			       commands[i].help);
+			    commands[i].command,
+			    commands[i].options,
+			    commands[i].help);
 		}
 	} else if (argc >= 2 && !strncmp(argv[1], "add", 3)) {
-		if (argc == 2)
+		if (argc == 2) {
 			usage(1, argv);
+		}
 
 		if (argc == 3 && !strncmp(argv[2], "extended", 8)) {
 			printf("usage: secadm add extended <args>\n");
@@ -168,9 +169,10 @@ main(int argc, char **argv)
 	}
 
 	for (i = 0; i < sizeof(commands) /
-			sizeof(struct secadm_commands); i++) {
-		if (!strncmp(argv[1], commands[i].command, 9))
+	    sizeof(struct secadm_commands); i++) {
+		if (!strncmp(argv[1], commands[i].command, 9)) {
 			return (commands[i].op(argc, argv));
+		}
 	}
 
 	usage(argc, argv);
@@ -190,6 +192,7 @@ show_action(int argc, char **argv)
 		switch (ch) {
 		case 'f':
 			strncpy(format, optarg, sizeof(format) - 1);
+			format[sizeof(format) - 1] = '\0';
 			f = 1;
 			break;
 
@@ -200,11 +203,13 @@ show_action(int argc, char **argv)
 		}
 	}
 
-	if ((num_rules = secadm_get_num_rules()) == -1)
+	if ((num_rules = secadm_get_num_rules()) == -1) {
 		return (1);
+	}
 
-	if (num_rules == 0)
+	if (num_rules == 0) {
 		return (0);
+	}
 
 	if ((ruleset = calloc(num_rules, sizeof(secadm_rule_t))) == NULL) {
 		perror("calloc");
@@ -213,8 +218,9 @@ show_action(int argc, char **argv)
 
 	for (i = 0, rn = 0; i < num_rules; i++) {
 		if ((ruleset[i] = secadm_get_rule(rn)) == NULL) {
-			for (j = 0; j < i; j++)
+			for (j = 0; j < i; j++) {
 				secadm_free_rule(ruleset[j]);
+			}
 
 			free(ruleset);
 			return (1);
@@ -235,8 +241,9 @@ show_action(int argc, char **argv)
 			usage(1, argv);
 		}
 
-		for (i = 0; i < num_rules; i++)
+		for (i = 0; i < num_rules; i++) {
 			secadm_free_rule(ruleset[i]);
+		}
 
 		free(ruleset);
 		return (0);
@@ -350,7 +357,7 @@ load_action(int argc, char **argv)
 				ruleset = rule;
 			} else {
 				if ((rule->sr_next =
-				     malloc(sizeof(secadm_rule_t))) == NULL) {
+				    malloc(sizeof(secadm_rule_t))) == NULL) {
 					perror("malloc");
 					ucl_parser_free(parser);
 					free_ruleset(ruleset);
@@ -561,7 +568,7 @@ add_action(int argc, char **argv)
 		}
 
 		if ((rule->sr_integriforce_data =
-		     malloc(sizeof(secadm_integriforce_data_t))) == NULL) {
+		    malloc(sizeof(secadm_integriforce_data_t))) == NULL) {
 			perror("malloc");
 			secadm_free_rule(rule);
 
@@ -598,7 +605,7 @@ add_action(int argc, char **argv)
 		switch (rule->sr_integriforce_data->si_type) {
 		case secadm_hash_sha1:
 			if ((rule->sr_integriforce_data->si_hash =
-			     malloc(SECADM_SHA1_DIGEST_LEN)) == NULL) {
+			    malloc(SECADM_SHA1_DIGEST_LEN)) == NULL) {
 				perror("malloc");
 				secadm_free_rule(rule);
 
@@ -628,7 +635,7 @@ add_action(int argc, char **argv)
 
 		case secadm_hash_sha256:
 			if ((rule->sr_integriforce_data->si_hash =
-			     malloc(SECADM_SHA256_DIGEST_LEN)) == NULL) {
+			    malloc(SECADM_SHA256_DIGEST_LEN)) == NULL) {
 				perror("malloc");
 				secadm_free_rule(rule);
 
@@ -873,6 +880,11 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 	const char *key;
 	struct stat sb;
 
+	/*
+	 * TODO (lattera): Do we want to enable all features by
+	 * default? Does this function allow disabling features?
+	 */
+
 	if ((rule->sr_pax_data = malloc(sizeof(secadm_pax_data_t))) == NULL) {
 		perror("malloc");
 		return (1);
@@ -929,7 +941,7 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 	int i;
 
 	if ((rule->sr_integriforce_data =
-	     malloc(sizeof(secadm_integriforce_data_t))) == NULL) {
+	    malloc(sizeof(secadm_integriforce_data_t))) == NULL) {
 		perror("malloc");
 		return (1);
 	}
@@ -976,7 +988,7 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 	switch (rule->sr_integriforce_data->si_type) {
 	case secadm_hash_sha1:
 		if ((rule->sr_integriforce_data->si_hash =
-		     malloc(SECADM_SHA1_DIGEST_LEN)) == NULL) {
+		    malloc(SECADM_SHA1_DIGEST_LEN)) == NULL) {
 			perror("malloc");
 			secadm_free_rule(rule);
 

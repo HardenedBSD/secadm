@@ -249,10 +249,12 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 	RM_PE_RLOCK(entry, tracker);
 	rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
-	if (rule)
+	if (rule) {
 		integriforce_so->isc_result =
 		    do_integriforce_check(rule, &vap, nd.ni_vp,
 		    req->td->td_ucred);
+	}
+
 	RM_PE_RUNLOCK(entry, tracker);
 
 	SYSCTL_OUT(req, integriforce_so, sizeof(integriforce_so_check_t));

@@ -192,7 +192,7 @@ typedef struct secadm_rule {
 	};
 	int					 sr_active;
 	Fnv32_t					 sr_key;
-	struct secadm_rule			*sr_next;	// for loading only
+	struct secadm_rule			*sr_next;	/* XXX for loading only */
 	RB_ENTRY(secadm_rule)			 sr_tree;
 } secadm_rule_t;
 

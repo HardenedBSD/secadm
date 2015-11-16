@@ -53,17 +53,21 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 	secadm_rule_t *rule;
 	int err, i, rn;
 
-	if (!(req->newptr) || (req->newlen != sizeof(secadm_command_t)))
+	if (!(req->newptr) || (req->newlen != sizeof(secadm_command_t))) {
 		return (EINVAL);
+	}
 
-	if (!(req->oldptr) || (req->oldlen) != sizeof(secadm_reply_t))
+	if (!(req->oldptr) || (req->oldlen) != sizeof(secadm_reply_t)) {
 		return (EINVAL);
+	}
 
-	if ((err = SYSCTL_IN(req, &cmd, sizeof(secadm_command_t))))
+	if ((err = SYSCTL_IN(req, &cmd, sizeof(secadm_command_t)))) {
 		return (err);
+	}
 
-	if ((err = copyin(req->oldptr, &reply, sizeof(reply))))
+	if ((err = copyin(req->oldptr, &reply, sizeof(reply)))) {
 		return (err);
+	}
 
 	reply.sr_version = SECADM_VERSION;
 
@@ -76,9 +80,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 	case secadm_cmd_disable_rule:
 		if (req->td->td_ucred->cr_uid) {
 			printf("[SECADM] Denied attempt to sysctl by "
-			       "(%s) uid:%d jail:%d\n",
-			       req->td->td_name, req->td->td_ucred->cr_uid,
-			       req->td->td_ucred->cr_prison->pr_id);
+			    "(%s) uid:%d jail:%d\n",
+			    req->td->td_name, req->td->td_ucred->cr_uid,
+			    req->td->td_ucred->cr_prison->pr_id);
 
 			reply.sr_code = secadm_reply_fail;
 			SYSCTL_OUT(req, &reply, sizeof(secadm_reply_t));
@@ -92,8 +96,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 
 	switch (cmd.sc_type) {
 	case secadm_cmd_flush_ruleset:
-		if (securelevel_gt(req->td->td_ucred, 1))
+		if (securelevel_gt(req->td->td_ucred, 1)) {
 			return (EPERM);
+		}
 
 		kernel_flush_ruleset(req->td->td_ucred->cr_prison->pr_id);
 		reply.sr_code = secadm_reply_success;
@@ -120,8 +125,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		break;
 
 	case secadm_cmd_add_rule:
-		if (securelevel_gt(req->td->td_ucred, 1))
+		if (securelevel_gt(req->td->td_ucred, 1)) {
 			return (EPERM);
+		}
 
 		err = kernel_add_rule(req->td, (secadm_rule_t *) cmd.sc_data, 0);
 
@@ -134,8 +140,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		break;
 
 	case secadm_cmd_del_rule:
-		if (securelevel_gt(req->td->td_ucred, 0))
+		if (securelevel_gt(req->td->td_ucred, 0)) {
 			return (EPERM);
+		}
 
 		kernel_del_rule(req->td, (secadm_rule_t *) cmd.sc_data);
 		reply.sr_code = secadm_reply_success;
@@ -143,8 +150,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		break;
 
 	case secadm_cmd_enable_rule:
-		if (securelevel_gt(req->td->td_ucred, 0))
+		if (securelevel_gt(req->td->td_ucred, 0)) {
 			return (EPERM);
+		}
 
 		kernel_active_rule(req->td, (secadm_rule_t *) cmd.sc_data, 1);
 		reply.sr_code = secadm_reply_success;
@@ -152,8 +160,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		break;
 
 	case secadm_cmd_disable_rule:
-		if (securelevel_gt(req->td->td_ucred, 0))
+		if (securelevel_gt(req->td->td_ucred, 0)) {
 			return (EPERM);
+		}
 
 		kernel_active_rule(req->td, (secadm_rule_t *) cmd.sc_data, 0);
 		reply.sr_code = secadm_reply_success;
@@ -169,16 +178,18 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 			entry = get_prison_list_entry(
 			    req->td->td_ucred->cr_prison->pr_id);
 
-			if (rn >= entry->sp_last_id)
+			if (rn >= entry->sp_last_id) {
 				break;
+			}
 
 			for (i = rn; i < entry->sp_last_id; i++) {
 				((secadm_rule_t *) cmd.sc_data)->sr_id = i;
 				rule = kernel_get_rule(req->td,
 				    (secadm_rule_t *) cmd.sc_data);
 
-				if (rule != NULL)
+				if (rule != NULL) {
 					break;
+				}
 			}
 		}
 
@@ -188,7 +199,7 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		}
 
 		if ((err = copyout(rule,
-		     reply.sr_data, sizeof(secadm_rule_t)))) {
+		    reply.sr_data, sizeof(secadm_rule_t)))) {
 			reply.sr_code = secadm_reply_fail;
 		} else {
 			reply.sr_code = secadm_reply_success;
@@ -208,8 +219,8 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		switch (rule->sr_type) {
 		case secadm_integriforce_rule:
 			if ((err = copyout(rule->sr_integriforce_data,
-			     reply.sr_data,
-			     sizeof(secadm_integriforce_data_t)))) {
+			    reply.sr_data,
+			    sizeof(secadm_integriforce_data_t)))) {
 				reply.sr_code = secadm_reply_fail;
 			} else {
 				reply.sr_code = secadm_reply_success;
@@ -219,8 +230,8 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 
 		case secadm_pax_rule:
 			if ((err = copyout(rule->sr_pax_data,
-			     reply.sr_data,
-			     sizeof(secadm_pax_data_t)))) {
+			    reply.sr_data,
+			    sizeof(secadm_pax_data_t)))) {
 				reply.sr_code = secadm_reply_fail;
 			} else {
 				reply.sr_code = secadm_reply_success;
@@ -245,8 +256,8 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		switch (rule->sr_type) {
 		case secadm_integriforce_rule:
 			if ((err = copyout(rule->sr_integriforce_data->si_path,
-			     reply.sr_data,
-			     rule->sr_integriforce_data->si_pathsz))) {
+			    reply.sr_data,
+			    rule->sr_integriforce_data->si_pathsz))) {
 				reply.sr_code = secadm_reply_fail;
 			} else {
 				reply.sr_code = secadm_reply_success;
@@ -256,8 +267,8 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 
 		case secadm_pax_rule:
 			if ((err = copyout(rule->sr_pax_data->sp_path,
-			     reply.sr_data,
-			     rule->sr_pax_data->sp_pathsz))) {
+			    reply.sr_data,
+			    rule->sr_pax_data->sp_pathsz))) {
 				reply.sr_code = secadm_reply_fail;
 			} else {
 				reply.sr_code = secadm_reply_success;
@@ -287,7 +298,7 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		switch (rule->sr_integriforce_data->si_type) {
 		case secadm_hash_sha1:
 			if ((err = copyout(rule->sr_integriforce_data->si_hash,
-			     reply.sr_data, SECADM_SHA1_DIGEST_LEN))) {
+			    reply.sr_data, SECADM_SHA1_DIGEST_LEN))) {
 				reply.sr_code = secadm_reply_fail;
 			} else {
 				reply.sr_code = secadm_reply_success;
@@ -297,7 +308,7 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 
 		case secadm_hash_sha256:
 			if ((err = copyout(rule->sr_integriforce_data->si_hash,
-			     reply.sr_data, SECADM_SHA256_DIGEST_LEN))) {
+			    reply.sr_data, SECADM_SHA256_DIGEST_LEN))) {
 				reply.sr_code = secadm_reply_fail;
 			} else {
 				reply.sr_code = secadm_reply_success;
@@ -312,10 +323,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		entry = get_prison_list_entry(
 		    req->td->td_ucred->cr_prison->pr_id);
 
-
 		RM_PE_RLOCK(entry, tracker);
 		if ((err = copyout(&(entry->sp_num_rules), reply.sr_data,
-		     sizeof(size_t)))) {
+		    sizeof(size_t)))) {
 			reply.sr_code = secadm_reply_fail;
 		} else {
 			reply.sr_code = secadm_reply_success;

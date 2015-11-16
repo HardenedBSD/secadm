@@ -55,8 +55,9 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	secadm_key_t key;
 	struct vattr vap;
 
-	if ((err = VOP_GETATTR(imgp->vp, &vap, ucred)))
+	if ((err = VOP_GETATTR(imgp->vp, &vap, ucred))) {
 		return (err);
+	}
 
 	key.sk_jid = ucred->cr_prison->pr_id;
 	key.sk_fileid = vap.va_fileid;
@@ -72,8 +73,9 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
 		if (rule != NULL) {
-			if (rule->sr_active == 0)
+			if (rule->sr_active == 0) {
 				goto rule_inactive;
+			}
 
 			RM_PE_RUNLOCK(entry, tracker);
 			err = do_integriforce_check(rule, &vap, imgp->vp, ucred);
@@ -93,8 +95,9 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
 		if (rule) {
-			if (rule->sr_active == 0)
+			if (rule->sr_active == 0) {
 				goto rule_inactive;
+			}
 
 			if (rule->sr_pax_data->sp_pax &
 			    SECADM_PAX_PAGEEXEC) {
@@ -136,8 +139,9 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 rule_inactive:
 	RM_PE_RUNLOCK(entry, tracker);
 
-	if (err == 0 && flags)
+	if (err == 0 && flags) {
 		err = pax_elf(imgp, flags);
+	}
 
 	return (err);
 }
@@ -153,11 +157,13 @@ secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
 	struct vattr vap;
 	int err;
 
-	if (!(accmode & (VWRITE | VAPPEND)))
+	if (!(accmode & (VWRITE | VAPPEND))) {
 		return (0);
+	}
 
-	if ((err = VOP_GETATTR(vp, &vap, ucred)))
+	if ((err = VOP_GETATTR(vp, &vap, ucred))) {
 		return (err);
+	}
 
 	key.sk_jid = ucred->cr_prison->pr_id;
 	key.sk_fileid = vap.va_fileid;
@@ -217,8 +223,9 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 	struct vattr vap;
 	int err;
 
-	if ((err = VOP_GETATTR(vp, &vap, ucred)))
+	if ((err = VOP_GETATTR(vp, &vap, ucred))) {
 		return (err);
+	}
 
 	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
 

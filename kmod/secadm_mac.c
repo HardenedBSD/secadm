@@ -52,7 +52,7 @@ secadm_destroy(struct mac_policy_conf *mpc)
 	SLIST_FOREACH(entry, &(secadm_prisons_list.sp_prison), sp_entries) {
 		RM_PE_WLOCK(entry);
 		for (r = RB_MIN(secadm_rules_tree, &(entry->sp_rules));
-		     r != NULL; r = next) {
+		    r != NULL; r = next) {
 			next = RB_NEXT(secadm_rules_tree,
 			    &(entry->sp_rules), r);
 			RB_REMOVE(secadm_rules_tree, &(entry->sp_rules), r);
@@ -92,7 +92,7 @@ secadm_prison_destroy(struct prison *prison)
 		if (entry->sp_id == prison->pr_id) {
 			RM_PE_WLOCK(entry);
 			for (r = RB_MIN(secadm_rules_tree, &(entry->sp_rules));
-			     r != NULL; r = next) {
+			    r != NULL; r = next) {
 				next = RB_NEXT(secadm_rules_tree,
 				    &(entry->sp_rules), r);
 				RB_REMOVE(secadm_rules_tree,

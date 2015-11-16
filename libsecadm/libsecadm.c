@@ -47,7 +47,7 @@ _secadm_sysctl(secadm_command_t *cmd, secadm_reply_t *reply)
 	replysz = sizeof(secadm_reply_t);
 
 	err = sysctlbyname("hardening.secadm.control", reply, &replysz,
-			   cmd, cmdsz);
+	    cmd, cmdsz);
 
 	if (err) {
 		perror("sysctlbyname");
@@ -75,8 +75,9 @@ secadm_flush_ruleset(void)
 	cmd.sc_version = SECADM_VERSION;
 	cmd.sc_type = secadm_cmd_flush_ruleset;
 
-	if ((err = _secadm_sysctl(&cmd, &reply)))
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "could not flush rules. error code: %d\n", err);
+	}
 
 	return (err);
 }
@@ -95,8 +96,9 @@ _secadm_rule_ops(secadm_rule_t *rule, secadm_command_type_t cmd_type)
 	cmd.sc_type = cmd_type;
 	cmd.sc_data = rule;
 
-	if ((err = _secadm_sysctl(&cmd, &reply)))
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
 		fprintf(stderr, "secadm_rule_ops. error code: %d\n", err);
+	}
 
 	return (err);
 }
@@ -112,8 +114,9 @@ secadm_add_rule(secadm_rule_t *rule)
 {
 	int err;
 
-	if ((err = secadm_validate_rule(rule)))
+	if ((err = secadm_validate_rule(rule))) {
 		return (err);
+	}
 
 	return (_secadm_rule_ops(rule, secadm_cmd_add_rule));
 }
@@ -294,9 +297,14 @@ secadm_get_rule(int rule_id)
 	case secadm_extended_rule:
 		rule->sr_extended_data = _secadm_get_rule_data(rule, sizeof(secadm_extended_data_t));
 
-		if (rule->sr_extended_data->sm_object.mo_pathsz)
+		if (rule->sr_extended_data->sm_object.mo_pathsz) {
 			rule->sr_extended_data->sm_object.mo_path =
 			    _secadm_get_rule_path(rule);
+		}
+
+		break;
+	default:
+		/* TODO */
 	}
 
 	return (rule);
@@ -439,9 +447,8 @@ secadm_validate_rule(secadm_rule_t *rule)
 			return (1);
 		}
 
-		rule->sr_integriforce_data->si_pathsz =
-		    strlen(
-		        (const char *)rule->sr_integriforce_data->si_path);
+		rule->sr_integriforce_data->si_pathsz = strlen(
+		    (const char *)rule->sr_integriforce_data->si_path);
 
 		break;
 
