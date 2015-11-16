@@ -203,7 +203,7 @@ int secadm_del_rule(int);
 int secadm_enable_rule(int);
 int secadm_disable_rule(int);
 secadm_rule_t *secadm_get_rule(int);
-int secadm_get_num_rules(void);
+size_t secadm_get_num_rules(void);
 void secadm_free_rule(secadm_rule_t *);
 int secadm_validate_rule(secadm_rule_t *);
 

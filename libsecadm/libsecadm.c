@@ -311,13 +311,15 @@ secadm_get_rule(int rule_id)
 	return (rule);
 }
 
-int
+size_t
 secadm_get_num_rules(void)
 {
-	int err, num_rules = -1;
+	int err;
 	secadm_command_t cmd;
 	secadm_reply_t reply;
+	size_t num_rules;
 
+	num_rules = 0;
 	memset(&cmd, 0, sizeof(secadm_command_t));
 	memset(&reply, 0, sizeof(secadm_reply_t));
 

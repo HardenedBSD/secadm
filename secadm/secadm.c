@@ -183,8 +183,9 @@ main(int argc, char **argv)
 int
 show_action(int argc, char **argv)
 {
-	int ch, f = 0, num_rules, i, j, rn;
+	int ch, f = 0;
 	secadm_rule_t **ruleset;
+	size_t num_rules, i, j, rn;
 	char format[5];
 
 	optind = 2;
