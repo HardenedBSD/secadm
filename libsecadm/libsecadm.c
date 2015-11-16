@@ -305,6 +305,7 @@ secadm_get_rule(int rule_id)
 		break;
 	default:
 		/* TODO */
+		break;
 	}
 
 	return (rule);
