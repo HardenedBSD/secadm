@@ -40,7 +40,7 @@
 #include <sys/pax.h>
 #endif /* !_SYS_PAX_H */
 
-#define SECADM_VERSION			2015072001UL
+#define SECADM_VERSION			2015112201UL
 #define SECADM_PRETTY_VERSION		"0.3.0"
 
 #define SECADM_EXT_TYPE_ANY		0x0000007f
