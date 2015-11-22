@@ -45,8 +45,8 @@
 
 int
 secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
-			 struct label *vplabel, struct image_params *imgp,
-			 struct label *execlabel)
+    struct label *vplabel, struct image_params *imgp,
+    struct label *execlabel)
 {
 	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
@@ -99,41 +99,67 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 				goto rule_inactive;
 			}
 
-			if (rule->sr_pax_data->sp_pax &
-			    SECADM_PAX_PAGEEXEC) {
-				flags |= PAX_NOTE_PAGEEXEC;
-			} else {
-				flags |= PAX_NOTE_NOPAGEEXEC;
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PAGEEXEC_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_PAGEEXEC) {
+					flags |= PAX_NOTE_PAGEEXEC;
+				} else {
+					flags |= PAX_NOTE_NOPAGEEXEC;
+				}
 			}
 
-			if (rule->sr_pax_data->sp_pax &
-			    SECADM_PAX_MPROTECT) {
-				flags |= PAX_NOTE_MPROTECT;
-			} else {
-				flags |= PAX_NOTE_NOMPROTECT;
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MPROTECT_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_MPROTECT) {
+					flags |= PAX_NOTE_MPROTECT;
+				} else {
+					flags |= PAX_NOTE_NOMPROTECT;
+				}
 			}
 
-			if (rule->sr_pax_data->sp_pax &
-			    SECADM_PAX_ASLR) {
-				flags |= PAX_NOTE_ASLR;
-			} else {
-				flags |= PAX_NOTE_NOASLR;
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_ASLR_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_ASLR) {
+					flags |= PAX_NOTE_ASLR;
+				} else {
+					flags |= PAX_NOTE_NOASLR;
+				}
 			}
 
-			if (rule->sr_pax_data->sp_pax &
-			    SECADM_PAX_SEGVGUARD) {
-				flags |= PAX_NOTE_SEGVGUARD;
-			} else {
-				flags |= PAX_NOTE_NOSEGVGUARD;
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SEGVGUARD_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_SEGVGUARD) {
+					flags |= PAX_NOTE_SEGVGUARD;
+				} else {
+					flags |= PAX_NOTE_NOSEGVGUARD;
+				}
 			}
-#if __HardenedBSD_version > 21
-			if (rule->sr_pax_data->sp_pax &
-			    SECADM_PAX_SHLIBRANDOM) {
-				flags |= PAX_NOTE_SHLIBRANDOM;
-			} else {
-				flags |= PAX_NOTE_NOSHLIBRANDOM;
+
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SHLIBRANDOM_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_SHLIBRANDOM) {
+					flags |= PAX_NOTE_SHLIBRANDOM;
+				} else {
+					flags |= PAX_NOTE_NOSHLIBRANDOM;
+				}
 			}
-#endif
+
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MAP32) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_MAP32) {
+					flags |=
+					    PAX_NOTE_DISALLOWMAP32BIT;
+				} else {
+					flags |=
+					    PAX_NOTE_NODISALLOWMAP32BIT;
+				}
+			}
 		}
 	}
 rule_inactive:
@@ -148,7 +174,7 @@ rule_inactive:
 
 int
 secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
-			struct label *vplabel, accmode_t accmode)
+    struct label *vplabel, accmode_t accmode)
 {
 	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
@@ -213,8 +239,8 @@ secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
 
 int
 secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
-			  struct label *dvplabel, struct vnode *vp,
-			  struct label *vplabel, struct componentname *cnp)
+    struct label *dvplabel, struct vnode *vp,
+    struct label *vplabel, struct componentname *cnp)
 {
 	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;

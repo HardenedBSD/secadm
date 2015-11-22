@@ -57,8 +57,8 @@ int disable_action(int, char **);
 
 void free_ruleset(secadm_rule_t *);
 
-void emit_rules_xo(secadm_rule_t **, int, int);
-void emit_rules_ucl(secadm_rule_t **, int);
+void emit_rules_xo(secadm_rule_t **, size_t, int);
+void emit_rules_ucl(secadm_rule_t **, size_t);
 
 int parse_pax_object(const ucl_object_t *, secadm_rule_t *);
 int parse_integriforce_object(const ucl_object_t *, secadm_rule_t *);
@@ -256,16 +256,51 @@ show_action(int argc, char **argv)
 
 		switch (ruleset[i]->sr_type) {
 		case secadm_pax_rule:
-			printf("pax %s %c%c%c%c\n",
-			    ruleset[i]->sr_pax_data->sp_path,
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_ASLR ? 'A' : 'a'),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_MPROTECT ? 'M' : 'm'),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_PAGEEXEC ? 'P' : 'p'),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_SEGVGUARD ? 'S' : 's'));
+			printf("pax %s ",
+			    ruleset[i]->sr_pax_data->sp_path);
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_ASLR_SET) {
+				printf("%c",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_ASLR ? 'A' : 'a'));
+			}
+
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MAP32_SET) {
+				printf("%c",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_MAP32 ? 'B' : 'b'));
+			}
+
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SHLIBRANDOM_SET) {
+				printf("%c",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_SHLIBRANDOM ? 'L' : 'l'));
+			}
+
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MPROTECT_SET) {
+				printf("%c",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_MPROTECT ? 'M' : 'm'));
+			}
+
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PAGEEXEC_SET) {
+				printf("%c",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_PAGEEXEC ? 'P' : 'p'));
+			}
+
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SEGVGUARD_SET) {
+				printf("%c",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_SEGVGUARD ? 'S' : 's'));
+			}
+
+			printf("\n");
 
 			break;
 
@@ -328,8 +363,8 @@ load_action(int argc, char **argv)
 		return (1);
 	}
 
-	if ((ucl_parser_add_file(parser, argv[2])) == 0) {
-		fprintf(stderr, "%s\n", ucl_parser_get_error(parser));
+	if (ucl_parser_add_file(parser, argv[2]) == false) {
+		fprintf(stderr, "Could not parse: %s\n", ucl_parser_get_error(parser));
 		ucl_parser_free(parser);
 
 		return (1);
@@ -514,41 +549,89 @@ add_action(int argc, char **argv)
 			case 'a':
 				rule->sr_pax_data->sp_pax &=
 				    ~SECADM_PAX_ASLR;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_ASLR_SET;
 				break;
 
 			case 'A':
 				rule->sr_pax_data->sp_pax |=
 				    SECADM_PAX_ASLR;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_ASLR_SET;
+				break;
+			case 'b':
+				rule->sr_pax_data->sp_pax &=
+				    ~(SECADM_PAX_MAP32);
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_MAP32_SET;
+				break;
+
+			case 'B':
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_MAP32;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_MAP32_SET;
+				break;
+
+			case 'l':
+				rule->sr_pax_data->sp_pax &=
+				    ~SECADM_PAX_SHLIBRANDOM;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_SHLIBRANDOM_SET;
+				break;
+
+			case 'L':
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_SHLIBRANDOM;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_SHLIBRANDOM_SET;
 				break;
 
 			case 'm':
 				rule->sr_pax_data->sp_pax &=
 				    ~SECADM_PAX_MPROTECT;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_MPROTECT_SET;
 				break;
 
 			case 'M':
 				rule->sr_pax_data->sp_pax |=
 				    SECADM_PAX_MPROTECT;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_MPROTECT_SET;
 				break;
 
 			case 'p':
+				/* mprotect requires pageexec */
 				rule->sr_pax_data->sp_pax &=
 				    ~SECADM_PAX_MPROTECT;
+				rule->sr_pax_data->sp_pax &=
+				    ~SECADM_PAX_PAGEEXEC;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_MPROTECT_SET;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_PAGEEXEC_SET;
 				break;
 
 			case 'P':
 				rule->sr_pax_data->sp_pax |=
 				    SECADM_PAX_PAGEEXEC;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_PAGEEXEC_SET;
 				break;
 
 			case 's':
 				rule->sr_pax_data->sp_pax &=
 				    ~SECADM_PAX_SEGVGUARD;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_SEGVGUARD_SET;
 				break;
 
 			case 'S':
 				rule->sr_pax_data->sp_pax |=
 				    SECADM_PAX_SEGVGUARD;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_SEGVGUARD_SET;
 				break;
 
 			default:
@@ -730,7 +813,7 @@ disable_action(int argc, char **argv)
 }
 
 void
-emit_rules_xo(secadm_rule_t **ruleset, int num_rules, int style)
+emit_rules_xo(secadm_rule_t **ruleset, size_t num_rules, int style)
 {
 	char hash[SECADM_SHA256_DIGEST_LEN * 2 + 1];
 	int i, j;
@@ -744,21 +827,46 @@ emit_rules_xo(secadm_rule_t **ruleset, int num_rules, int style)
 	for (i = 0; i < num_rules; i++) {
 		if (ruleset[i]->sr_type == secadm_pax_rule) {
 			xo_open_instance("pax");
-			xo_emit(
-			    "{:path/%s}/"
-			    "{:aslr/%d}/"
-			    "{:mprotect/%d}/"
-			    "{:pageexec/%d}/"
-			    "{:segvguard/%d}/",
-			    ruleset[i]->sr_pax_data->sp_path,
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_ASLR ? 1 : 0),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_MPROTECT ? 1 : 0),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_PAGEEXEC ? 1 : 0),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_SEGVGUARD ? 1 : 0 ));
+			xo_emit( "{:path/%s}/",
+			    ruleset[i]->sr_pax_data->sp_path);
+
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_ASLR_SET) {
+				xo_emit("{:aslr/%d}/",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_ASLR ? 1 : 0));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MAP32_SET) {
+				xo_emit("{:disallow_map32bit/%d/}",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_MAP32 ? 1 : 0));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MPROTECT_SET) {
+				xo_emit("{:mprotect/%d}/",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_MPROTECT ? 1 : 0));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PAGEEXEC_SET) {
+				xo_emit("{:pageexec/%d}/",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_PAGEEXEC ? 1 : 0));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SEGVGUARD_SET) {
+				xo_emit("{:segvguard/%d}/",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_SEGVGUARD ? 1 : 0 ));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SHLIBRANDOM_SET) {
+				xo_emit("{:shlibrandom/%d/",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_SHLIBRANDOM ? 1 : 0));
+			}
+
 			xo_close_instance_d();
 		}
 	}
@@ -798,31 +906,57 @@ emit_rules_xo(secadm_rule_t **ruleset, int num_rules, int style)
 }
 
 void
-emit_rules_ucl(secadm_rule_t **ruleset, int num_rules)
+emit_rules_ucl(secadm_rule_t **ruleset, size_t num_rules)
 {
 	char hash[SECADM_SHA256_DIGEST_LEN * 2 + 1];
-	int i, j;
+	size_t i, j;
 
 	printf("secadm {\n");
 
 	for (i = 0; i < num_rules; i++) {
 		if (ruleset[i]->sr_type == secadm_pax_rule) {
-			printf(
-			    "    pax = {\n"
-			    "        path = \"%s\";\n"
-			    "        aslr = %s;\n"
-			    "        mprotect = %s;\n"
-			    "        pageexec = %s;\n"
-			    "        segvguard = %s;\n    }\n",
-			    ruleset[i]->sr_pax_data->sp_path,
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_ASLR ? "true" : "false"),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_MPROTECT ? "true" : "false"),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_PAGEEXEC ? "true" : "false"),
-			    (ruleset[i]->sr_pax_data->sp_pax &
-			     SECADM_PAX_SEGVGUARD ? "true" : "false"));
+			printf("    pax = {\n"
+			    "        path = \"%s\";\n",
+			    ruleset[i]->sr_pax_data->sp_path);
+
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_ASLR_SET) {
+				printf( "        aslr = %s;\n",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_ASLR ? "true" : "false"));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MAP32_SET) {
+				printf("        disallow_map32bit = %s;\n",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_MAP32 ? "true" : "false"));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MPROTECT_SET) {
+				printf("        mprotect = %s;\n",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_MPROTECT ? "true" : "false"));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PAGEEXEC_SET) {
+				printf("        pageexec = %s;\n",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_PAGEEXEC ? "true" : "false"));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SEGVGUARD_SET) {
+				printf("        segvguard = %s;\n",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_SEGVGUARD ? "true" : "false"));
+			}
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SHLIBRANDOM_SET) {
+				printf("        shlibrandom = %s;\n",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_SHLIBRANDOM ? "true" : "false"));
+			}
+
+			printf("    }\n");
 		}
 	}
 
@@ -875,16 +1009,10 @@ free_ruleset(secadm_rule_t *ruleset)
 int
 parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 {
-	int aslr = 1, mprotect = 1, pageexec = 1, segvguard = 1;
 	ucl_object_iter_t it = NULL;
 	const ucl_object_t *cur;
 	const char *key;
 	struct stat sb;
-
-	/*
-	 * TODO (lattera): Do we want to enable all features by
-	 * default? Does this function allow disabling features?
-	 */
 
 	if ((rule->sr_pax_data = malloc(sizeof(secadm_pax_data_t))) == NULL) {
 		perror("malloc");
@@ -900,33 +1028,54 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 			rule->sr_pax_data->sp_path =
 			    (u_char *)ucl_object_tostring(cur);
 		} else if (!strncmp(key, "aslr", 4)) {
-			aslr = ucl_object_toboolean(cur);
+			rule->sr_pax_data->sp_pax_set |=
+			    SECADM_PAX_ASLR_SET;
+			if (ucl_object_toboolean(cur))
+				rule->sr_pax_data->sp_pax |= SECADM_PAX_ASLR;
 		} else if (!strncmp(key, "mprotect", 8)) {
-			mprotect = ucl_object_toboolean(cur);
+			rule->sr_pax_data->sp_pax_set |=
+			    SECADM_PAX_MPROTECT_SET;
+			if (ucl_object_toboolean(cur))
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_MPROTECT;
 		} else if (!strncmp(key, "pageexec", 8)) {
-			pageexec = ucl_object_toboolean(cur);
+			rule->sr_pax_data->sp_pax_set |=
+			    (SECADM_PAX_MPROTECT_SET &
+			    SECADM_PAX_MPROTECT_SET);
+			if (ucl_object_toboolean(cur)) {
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_PAGEEXEC;
+			} else {
+				/* PaX mprotect requires pagexec */
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_MPROTECT_SET;
+				rule->sr_pax_data->sp_pax &=
+				    ~(SECADM_PAX_MPROTECT);
+			}
 		} else if (!strncmp(key, "segvguard", 9)) {
-			segvguard = ucl_object_toboolean(cur);
+			rule->sr_pax_data->sp_pax_set |=
+			    SECADM_PAX_SEGVGUARD_SET;
+			if (ucl_object_toboolean(cur))
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_SEGVGUARD;
+		} else if (!strncmp(key, "shlibrandom", 11)) {
+			rule->sr_pax_data->sp_pax_set |=
+			    SECADM_PAX_SHLIBRANDOM_SET;
+			if (ucl_object_toboolean(cur))
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_SHLIBRANDOM;
+		} else if (!strncmp(key, "disallow_map32bit", 17)) {
+			rule->sr_pax_data->sp_pax_set |=
+			    SECADM_PAX_MAP32_SET;
+			if (ucl_object_toboolean(cur))
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_MAP32;
 		} else {
 			fprintf(stderr,
 			    "Unknown attribute '%s' of PaX rule.\n", key);
 			return (1);
 		}
 	}
-
-	if (aslr == 1)
-		rule->sr_pax_data->sp_pax |= SECADM_PAX_ASLR;
-
-	if (mprotect == 1) {
-		rule->sr_pax_data->sp_pax |= SECADM_PAX_MPROTECT;
-		rule->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
-	}
-
-	if (pageexec == 1)
-		rule->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
-
-	if (segvguard == 1)
-		rule->sr_pax_data->sp_pax |= SECADM_PAX_SEGVGUARD;
 
 	return (0);
 }
