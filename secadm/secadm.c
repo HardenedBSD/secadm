@@ -54,6 +54,7 @@ int add_action(int, char **);
 int delete_action(int, char **);
 int enable_action(int, char **);
 int disable_action(int, char **);
+int version_action(int, char **);
 
 void free_ruleset(secadm_rule_t *);
 
@@ -90,6 +91,12 @@ struct secadm_commands {
 		"<file>",
 		"validate ruleset",
 		validate_action
+	},
+	{
+		"version",
+		"",
+		"show version number",
+		version_action
 	},
 	{
 		"flush",
@@ -809,6 +816,13 @@ disable_action(int argc, char **argv)
 
 	secadm_disable_rule(ruleid);
 
+	return (0);
+}
+
+int
+version_action(int argc, char **argv)
+{
+	printf("%s\n", SECADM_PRETTY_VERSION);
 	return (0);
 }
 
