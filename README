@@ -54,7 +54,7 @@ and disabled with the `secadm enable` and `secadm disable` commands.
 The flags that can be passed to `secadm add pax` are:
 
 * A, a: Enable, disable ASLR
-* B, b: Enable, disable mmap(MAP_32BIT)
+* B, b: Enable, disable mmap(MAP_32BIT) protection
 * L, l: Enable, disable SHLIBRANDOM
 * M, m: Enable, disable MPROTECT
 * P, p: Enable, disable PAGEEXEC
@@ -124,43 +124,18 @@ JSON format, though libucl supports different syntaxes. Please refer
 to libucl's documentation for help in learning the different possible
 syntaxes.
 
-In the root object, secadm expects an applications array. Each entry
-in the applications array must be an object. That object must have the
-following fields:
-
-	1. path (string): The fully-qualified path of the program
-	2. features (object): An object that describes each of the
-	   features we are toggling. Supported features:
-	   a. aslr (boolean): toggles ASLR
-	   b. segvguard (boolean): toggles SEGVGUARD
-	   c. mprotect (boolean): toggles mprotect(exec) hardening
-	   d. pageexec (boolean): toggles PAGEEXEC
-	   e. shlibrandom (boolean): toggles shared object load order
-	      randomization in the RTLD.
-
-When you combine that all together, you should get the following
-example. Let's say we want to force ASLR and SEGVGUARD off with
-/bin/ls and force mprotect(exec) hardening and PAGEEXEC on with
-/bin/pwd. This is what you would write:
-
 ==== Start of Example ====
-{
-	"applications": [
-		{
-			"path": "/bin/ls",
-			"features": {
-				"aslr": false,
-				"segvguard": false
-			}
-		},
-		{
-			"path": "/bin/pwd",
-			"features": {
-				"mprotect": true,
-				"pageexec": true
-			}
-		}
-	]
+secadm {
+	pax {
+		path: "/bin/ls",
+		aslr: false,
+		segvguard: false
+	},
+	pax {
+		path: "/bin/pwd",
+		mprotect: true,
+		pageexec: true
+	}
 }
 ==== End of Example ====
 
