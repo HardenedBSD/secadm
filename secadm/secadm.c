@@ -81,6 +81,12 @@ struct secadm_commands {
 		show_action
 	},
 	{
+		"list",
+		"[-f json|ucl|xml]",
+		"alias for \"show\" command",
+		show_action
+	},
+	{
 		"load",
 		"<file>",
 		"load ruleset",
