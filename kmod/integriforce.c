@@ -77,7 +77,7 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	SHA1_CTX sha1ctx;
 	struct iovec iov;
 	struct uio uio;
-	unsigned char *buf, *hash;
+	unsigned char *buf, hash[SHA256_DIGEST_LENGTH];
 	size_t total, amt, hashsz;
 	int err;
 
@@ -108,6 +108,7 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 
 	buf = malloc(8192, M_SECADM, M_NOWAIT);
 	if (buf == NULL) {
+		VOP_CLOSE(vp, FREAD, ucred, curthread);
 		return (0);
 	}
 
@@ -162,11 +163,6 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	free(buf, M_SECADM);
 	VOP_CLOSE(vp, FREAD, ucred, curthread);
 
-	hash = malloc(hashsz, M_SECADM, M_NOWAIT);
-	if (hash == NULL) {
-		return (0);
-	}
-
 	switch (rule->sr_integriforce_data->si_type) {
 	case secadm_hash_sha1:
 		SHA1Final(hash, &sha1ctx);
@@ -199,7 +195,6 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 		rule->sr_integriforce_data->si_cache = 1;
 	}
 
-	free(hash, M_SECADM);
 	return (err);
 }
 

@@ -383,8 +383,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 	r = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK | M_ZERO);
 
 	if (copyin(rule, r, sizeof(secadm_rule_t))) {
-		memset(r, 0, sizeof(secadm_rule_t));
-		kernel_free_rule(r);
+		free(r, M_SECADM);
 		return (EINVAL);
 	}
 
@@ -397,7 +396,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		    sizeof(secadm_integriforce_data_t))) {
 			r->sr_integriforce_data = NULL;
 			free(ptr, M_SECADM);
-			kernel_free_rule(r);
+			free(r, M_SECADM);
 
 			return (EINVAL);
 		}
@@ -406,7 +405,8 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 		if (r->sr_integriforce_data->si_pathsz == 0 ||
 		    r->sr_integriforce_data->si_pathsz >= MAXPATHLEN) {
-			r->sr_integriforce_data->si_path = NULL;
+			memset(r->sr_integriforce_data, 0x00,
+			    sizeof(secadm_integriforce_data_t));
 			kernel_free_rule(r);
 
 			return (EINVAL);
@@ -417,7 +417,8 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 		if (copyin(r->sr_integriforce_data->si_path, path,
 		    r->sr_integriforce_data->si_pathsz)) {
-			r->sr_integriforce_data->si_path = NULL;
+			memset(r->sr_integriforce_data, 0x00,
+			    sizeof(secadm_integriforce_data_t));
 			free(path, M_SECADM);
 			kernel_free_rule(r);
 
@@ -480,7 +481,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		if (copyin(r->sr_pax_data, ptr,
 		    sizeof(secadm_pax_data_t))) {
 			free(ptr, M_SECADM);
-			kernel_free_rule(r);
+			free(r, M_SECADM);
 
 			return (EINVAL);
 		}
@@ -515,8 +516,25 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		path[r->sr_pax_data->sp_pathsz] = '\0';
 		r->sr_pax_data->sp_path = path;
 
-		if (r->sr_pax_data->sp_pax & SECADM_PAX_MPROTECT) {
-			r->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
+		if (r->sr_pax_data->sp_pax_set &
+		    SECADM_PAX_MPROTECT_SET) {
+			if (r->sr_pax_data->sp_pax & SECADM_PAX_MPROTECT) {
+				r->sr_pax_data->sp_pax |=
+				    SECADM_PAX_PAGEEXEC;
+				r->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_PAGEEXEC_SET;
+			}
+		}
+
+		if (r->sr_pax_data->sp_pax_set &
+		    SECADM_PAX_PAGEEXEC_SET) {
+			if (!(r->sr_pax_data->sp_pax &
+			    SECADM_PAX_PAGEEXEC)) {
+				r->sr_pax_data->sp_pax &=
+				    ~(SECADM_PAX_MPROTECT);
+				r->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_MPROTECT_SET;
+			}
 		}
 
 		break;
