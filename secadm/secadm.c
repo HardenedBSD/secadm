@@ -354,7 +354,7 @@ int
 load_action(int argc, char **argv)
 {
 	const ucl_object_t *top, *section, *cur;
-	secadm_rule_t *ruleset, *rule;
+	secadm_rule_t *ruleset, *rule, *r;
 	ucl_object_iter_t it = NULL;
 	struct ucl_parser *parser;
 	int n = 0, err;
@@ -388,43 +388,37 @@ load_action(int argc, char **argv)
 	section = ucl_lookup_path(top, "secadm.pax");
 	if (section) {
 		while ((cur = ucl_iterate_object(section, &it, false))) {
-			if (n == 0) {
-				if ((rule = malloc(sizeof(secadm_rule_t)))
-				    == NULL) {
-					perror("malloc");
-					ucl_parser_free(parser);
-					return (1);
-				}
-
-				memset(rule, 0, sizeof(secadm_rule_t));
-				ruleset = rule;
-			} else {
-				if ((rule->sr_next =
-				    malloc(sizeof(secadm_rule_t))) == NULL) {
-					perror("malloc");
-					ucl_parser_free(parser);
-					free_ruleset(ruleset);
-
-					return (1);
-				}
-
-				rule = rule->sr_next;
-				memset(rule, 0, sizeof(secadm_rule_t));
-			}
-
-			rule->sr_type = secadm_pax_rule;
-			if (parse_pax_object(cur, rule)) {
+			if ((r =
+				malloc(sizeof(secadm_rule_t))) == NULL) {
+				perror("malloc");
 				ucl_parser_free(parser);
 				free_ruleset(ruleset);
 
 				return (1);
 			}
 
-			if ((err = secadm_validate_rule(rule))) {
+			memset(r, 0x00, sizeof(secadm_rule_t));
+
+			r->sr_type = secadm_pax_rule;
+			if (parse_pax_object(cur, r)) {
+				ucl_parser_free(parser);
+				free_ruleset(ruleset);
+
+				return (1);
+			}
+
+			if ((err = secadm_validate_rule(r))) {
 				ucl_parser_free(parser);
 				free_ruleset(ruleset);
 
 				return (err);
+			}
+
+			if (n == 0) {
+				ruleset = rule = r;
+			} else {
+				rule->sr_next = r;
+				rule = r;
 			}
 
 			n++;
@@ -435,42 +429,34 @@ load_action(int argc, char **argv)
 	section = ucl_lookup_path(top, "secadm.integriforce");
 	if (section) {
 		while ((cur = ucl_iterate_object(section, &it, false))) {
-			if (n == 0) {
-				if ((rule = malloc(sizeof(secadm_rule_t)))
-				    == NULL) {
-					perror("malloc");
-					ucl_parser_free(parser);
-					return (1);
-				}
-
-				memset(rule, 0, sizeof(secadm_rule_t));
-				ruleset = rule;
-			} else {
-				if ((rule->sr_next =
-				    malloc(sizeof(secadm_rule_t))) == NULL) {
-					perror("malloc");
-					ucl_parser_free(parser);
-					free_ruleset(ruleset);
-
-					return (1);
-				}
-
-				rule = rule->sr_next;
-				memset(rule, 0, sizeof(secadm_rule_t));
+			if ((r= malloc(sizeof(secadm_rule_t)))
+				== NULL) {
+				perror("malloc");
+				ucl_parser_free(parser);
+				return (1);
 			}
 
-			rule->sr_type = secadm_integriforce_rule;
-			if (parse_integriforce_object(cur, rule)) {
+			memset(r, 0, sizeof(secadm_rule_t));
+
+			r->sr_type = secadm_integriforce_rule;
+			if (parse_integriforce_object(cur, r)) {
 				ucl_parser_free(parser);
 				free_ruleset(ruleset);
 				return (1);
 			}
 
-			if ((err = secadm_validate_rule(rule))) {
+			if ((err = secadm_validate_rule(r))) {
 				ucl_parser_free(parser);
 				free_ruleset(ruleset);
 
 				return (err);
+			}
+
+			if (n == 0) {
+				ruleset = rule = r;
+			} else {
+				rule->sr_next = r;
+				rule = r;
 			}
 
 			n++;
