@@ -244,8 +244,8 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		break;
 
 	case secadm_extended_rule:
+		/* TODO(bs): Implement extended (ugidfw) rules. */
 		break;
-		/// XXXBS: not finished yet :)
 	}
 
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
@@ -464,7 +464,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		}
 
 		r->sr_integriforce_data->si_hash = hash;
-		r->sr_integriforce_data->si_cache =0;
+		r->sr_integriforce_data->si_cache = 0;
 
 		if (!(rule->sr_integriforce_data->si_mode == 0 ||
 		    rule->sr_integriforce_data->si_mode == 1)) {
@@ -486,6 +486,12 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		}
 
 		r->sr_pax_data = ptr;
+
+		if (!(r->sr_pax_data->sp_pax_set)) {
+			r->sr_pax_data->sp_path = NULL;
+			kernel_free_rule(r);
+			return (EINVAL);
+		}
 
 		if (r->sr_pax_data->sp_pathsz == 0 ||
 		    r->sr_pax_data->sp_pathsz >= MAXPATHLEN) {

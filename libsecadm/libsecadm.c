@@ -427,8 +427,12 @@ secadm_validate_rule(secadm_rule_t *rule)
 			return (1);
 		}
 
-		if (rule->sr_integriforce_data->si_type < secadm_hash_sha1 ||
-		    rule->sr_integriforce_data->si_type > secadm_hash_sha256) {
+		switch (rule->sr_integriforce_data->si_type) {
+		case secadm_hash_sha1:
+			break;
+		case secadm_hash_sha256:
+			break;
+		default:
 			fprintf(stderr,
 			    "Integriforce rule type invalid: %s\n",
 			    rule->sr_integriforce_data->si_path);
@@ -514,6 +518,13 @@ secadm_validate_rule(secadm_rule_t *rule)
 
 		rule->sr_pax_data->sp_pathsz =
 		    strlen((const char *)rule->sr_pax_data->sp_path);
+
+		if (!(rule->sr_pax_data->sp_pax_set)) {
+			fprintf(stderr,
+			    "PaX rule has no features set: %s\n",
+			    rule->sr_pax_data->sp_path);
+			return (1);
+		}
 
 		break;
 
