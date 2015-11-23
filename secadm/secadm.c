@@ -1046,8 +1046,8 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 				    SECADM_PAX_MPROTECT;
 		} else if (!strncmp(key, "pageexec", 8)) {
 			rule->sr_pax_data->sp_pax_set |=
-			    (SECADM_PAX_MPROTECT_SET &
-			    SECADM_PAX_MPROTECT_SET);
+			    (SECADM_PAX_MPROTECT_SET |
+			    SECADM_PAX_PAGEEXEC_SET);
 			if (ucl_object_toboolean(cur)) {
 				rule->sr_pax_data->sp_pax |=
 				    SECADM_PAX_PAGEEXEC;
@@ -1057,6 +1057,8 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 				    SECADM_PAX_MPROTECT_SET;
 				rule->sr_pax_data->sp_pax &=
 				    ~(SECADM_PAX_MPROTECT);
+				rule->sr_pax_data->sp_pax &=
+				    ~(SECADM_PAX_PAGEEXEC);
 			}
 		} else if (!strncmp(key, "segvguard", 9)) {
 			rule->sr_pax_data->sp_pax_set |=
