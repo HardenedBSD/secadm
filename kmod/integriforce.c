@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2015 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * Copyright (c) 2015 Brian Salcedo <brian.salcedo@hardenedbsd.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,11 +27,11 @@
 
 #include <sys/param.h>
 
-
 #include <sys/acl.h>
-#include <sys/kernel.h>
+#include <sys/fcntl.h>
 #include <sys/imgact.h>
 #include <sys/jail.h>
+#include <sys/kernel.h>
 #include <sys/lock.h>
 #include <sys/malloc.h>
 #include <sys/module.h>
@@ -42,13 +43,12 @@
 #include <sys/proc.h>
 #include <sys/queue.h>
 #include <sys/rmlock.h>
-#include <sys/systm.h>
-#include <sys/vnode.h>
-#include <sys/uio.h>
+#include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/syslog.h>
-#include <sys/stat.h>
-#include <sys/fcntl.h>
+#include <sys/systm.h>
+#include <sys/uio.h>
+#include <sys/vnode.h>
 
 #include <crypto/sha1.h>
 #include <crypto/sha2/sha2.h>
@@ -73,8 +73,6 @@ int
 do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
     struct vnode *vp, struct ucred *ucred)
 {
-	secadm_feature_t *feature;
-	secadm_integriforce_t *integriforce_p;
 	SHA256_CTX sha256ctx;
 	SHA1_CTX sha1ctx;
 	struct iovec iov;
@@ -83,44 +81,42 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	size_t total, amt, hashsz;
 	int err;
 
-	feature = lookup_integriforce_feature(rule);
-	if (feature == NULL)
-		return (0);
-	integriforce_p = feature->sf_metadata;
-
-	switch (integriforce_p->si_cache) {
-	case si_unchecked:
+	switch (rule->sr_integriforce_data->si_cache) {
+	case 0:
 		break;
-	case si_success:
+
+	case 1:
 		return (0);
+
 	default:
-		KASSERT(rule != NULL && rule->sr_path != NULL,
-		    ("%s: failed ...", __func__));
-		switch (integriforce_p->si_mode) {
-		case si_mode_soft:
-			printf("[SECADM] Warning: hash did not match for file %s\n", rule->sr_path);
+		if (rule->sr_integriforce_data->si_mode == 0) {
+			printf("[SECADM] Warning: hash did not match for file"
+			       " (%s)\n", rule->sr_integriforce_data->si_path);
 			return (0);
-		default:
-			printf("[SECADM] Error: hash did not match for file %s. Blocking execution.\n", rule->sr_path);
+		} else {
+			printf("[SECADM] Error: hash did not match for file"
+			       " (%s). Blocking execution.\n",
+			       rule->sr_integriforce_data->si_path);
 			return (EPERM);
 		}
 	}
 
 	err = VOP_OPEN(vp, FREAD, ucred, curthread, NULL);
-	if (err)
+	if (err) {
 		return (0);
+	}
 
 	buf = malloc(8192, M_SECADM, M_NOWAIT);
-
-	if (buf == NULL)
+	if (buf == NULL) {
 		return (0);
+	}
 
-	switch (integriforce_p->si_hashtype) {
-	case si_hash_sha1:
+	switch (rule->sr_integriforce_data->si_type) {
+	case secadm_hash_sha1:
 		hashsz = SHA1_RESULTLEN;
 		SHA1Init(&sha1ctx);
 		break;
-	case si_hash_sha256:
+	case secadm_hash_sha256:
 		hashsz = SHA256_DIGEST_LENGTH;
 		SHA256_Init(&sha256ctx);
 		break;
@@ -149,11 +145,11 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 			return (0);
 		}
 
-		switch (integriforce_p->si_hashtype) {
-		case si_hash_sha1:
+		switch (rule->sr_integriforce_data->si_type) {
+		case secadm_hash_sha1:
 			SHA1Update(&sha1ctx, buf, amt);
 			break;
-		case si_hash_sha256:
+		case secadm_hash_sha256:
 			SHA256_Update(&sha256ctx, buf, amt);
 			break;
 		default:
@@ -167,72 +163,57 @@ do_integriforce_check(secadm_rule_t *rule, struct vattr *vap,
 	VOP_CLOSE(vp, FREAD, ucred, curthread);
 
 	hash = malloc(hashsz, M_SECADM, M_NOWAIT);
-
-	if (hash == NULL)
+	if (hash == NULL) {
 		return (0);
+	}
 
-	switch (integriforce_p->si_hashtype) {
-	case si_hash_sha1:
+	switch (rule->sr_integriforce_data->si_type) {
+	case secadm_hash_sha1:
 		SHA1Final(hash, &sha1ctx);
 		break;
-	case si_hash_sha256:
+	case secadm_hash_sha256:
 		SHA256_Final(hash, &sha256ctx);
 		break;
 	default:
 		break;
 	}
 
-	if (memcmp(integriforce_p->si_hash, hash, hashsz)) {
-		KASSERT(rule != NULL && rule->sr_path != NULL,
-		    ("%s: failed ...", __func__));
-		switch (integriforce_p->si_mode) {
-		case si_mode_soft:
-			printf("[SECADM] Warning: hash did not match for file %s\n", rule->sr_path);
+	if (memcmp(rule->sr_integriforce_data->si_hash, hash, hashsz)) {
+		switch (rule->sr_integriforce_data->si_mode) {
+		case 0:
+			printf("[SECADM] Warning: hash did not match for file"
+			       " (%s)\n",
+			       rule->sr_integriforce_data->si_path);
 			err = 0;
 			break;
 		default:
-			printf("[SECADM] Error: hash did not match for file %s. Blocking execution.\n", rule->sr_path);
+			printf("[SECADM] Error: hash did not match for file"
+			       " (%s). Blocking execution.\n",
+			       rule->sr_integriforce_data->si_path);
 			err = EPERM;
 			break;
 		}
 
-		integriforce_p->si_cache = si_fail;
+		rule->sr_integriforce_data->si_cache = 2;
 	} else {
-		integriforce_p->si_cache = si_success;
+		rule->sr_integriforce_data->si_cache = 1;
 	}
 
 	free(hash, M_SECADM);
 	return (err);
 }
 
-secadm_feature_t *
-lookup_integriforce_feature(secadm_rule_t *rule)
-{
-	size_t i;
-
-	for (i=0; i < rule->sr_nfeatures; i++)
-		if (rule->sr_features[i].sf_type == integriforce)
-			return (&(rule->sr_features[i]));
-
-	return (NULL);
-}
-
 static int
 sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 {
-	struct secadm_prison_entry *pr;
 	integriforce_so_check_t *integriforce_so;
 	struct rm_priotracker tracker;
+	secadm_prison_entry_t *entry;
+	secadm_rule_t r, *rule;
 	struct nameidata nd;
 	struct vattr vap;
-	secadm_rule_t *rule;
-	int error;
-
-	pr = get_prison_list_entry(req->td->td_ucred->cr_prison->pr_name, 0);
-	if (pr == NULL)
-		return (0);
-
-	error = 0;
+	secadm_key_t key;
+	int err;
 
 	if (!(req->newptr) || req->newlen != sizeof(integriforce_so_check_t))
 		return (EINVAL);
@@ -242,46 +223,55 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 
 	integriforce_so = malloc(sizeof(integriforce_so_check_t), M_SECADM, M_WAITOK);
 
-	error = SYSCTL_IN(req, integriforce_so, sizeof(integriforce_so_check_t));
-	if (error) {
+	err = SYSCTL_IN(req, integriforce_so, sizeof(integriforce_so_check_t));
+	if (err) {
 		free(integriforce_so, M_SECADM);
-		return (error);
+		return (err);
 	}
 
 	NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE, integriforce_so->isc_path, req->td);
-	error = namei(&nd);
-	if (error) {
+	err = namei(&nd);
+	if (err) {
 		free(integriforce_so, M_SECADM);
 		NDFREE(&nd, 0);
-		return (error);
+		return (err);
 	}
 
-	if ((error = vn_lock(nd.ni_vp, LK_SHARED | LK_RETRY)) != 0) {
+	if ((err = vn_lock(nd.ni_vp, LK_SHARED | LK_RETRY)) != 0) {
 		free(integriforce_so, M_SECADM);
 		NDFREE(&nd, 0);
-		return (error);
+		return (err);
 	}
 
-	error = VOP_GETATTR(nd.ni_vp, &vap, req->td->td_ucred);
-	if (error) {
+	err = VOP_GETATTR(nd.ni_vp, &vap, req->td->td_ucred);
+	if (err) {
 		free(integriforce_so, M_SECADM);
 		NDFREE(&nd, 0);
-		return (error);
+		return (err);
 	}
 
 	VOP_UNLOCK(nd.ni_vp, 0);
 
-	SPL_RLOCK(pr, tracker);
-	for (rule = pr->spl_rules; rule != NULL; rule = rule->sr_next) {
-		if (rule->sr_path != NULL) {
-			if (!strcmp(rule->sr_path, integriforce_so->isc_path)) {
-				integriforce_so->isc_result = do_integriforce_check(rule,
-				    &vap, nd.ni_vp, req->td->td_ucred);
-				break;
-			}
-		}
+	key.sk_jid = req->td->td_ucred->cr_prison->pr_id;
+	key.sk_type = secadm_integriforce_rule;
+	key.sk_fileid = vap.va_fileid;
+	strncpy(key.sk_mntonname,
+	    nd.ni_vp->v_mount->mnt_stat.f_mntonname, MNAMELEN);
+	r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
+
+	entry = get_prison_list_entry(
+	    req->td->td_ucred->cr_prison->pr_id);
+
+	RM_PE_RLOCK(entry, tracker);
+	rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
+
+	if (rule) {
+		integriforce_so->isc_result =
+		    do_integriforce_check(rule, &vap, nd.ni_vp,
+		    req->td->td_ucred);
 	}
-	SPL_RUNLOCK(pr, tracker);
+
+	RM_PE_RUNLOCK(entry, tracker);
 
 	SYSCTL_OUT(req, integriforce_so, sizeof(integriforce_so_check_t));
 	free(integriforce_so, M_SECADM);

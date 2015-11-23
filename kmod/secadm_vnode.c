@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2014,2015 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * Copyright (c) 2015 Brian Salcedo <brian.salcedo@hardenedbsd.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,30 +23,21 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $FreeBSD$
  */
 
 #include <sys/param.h>
-#include <sys/acl.h>
-#include <sys/kernel.h>
+
 #include <sys/imgact.h>
 #include <sys/jail.h>
+#include <sys/kernel.h>
+#include <sys/libkern.h>
 #include <sys/lock.h>
-#include <sys/malloc.h>
 #include <sys/module.h>
 #include <sys/mount.h>
-#include <sys/mutex.h>
 #include <sys/pax.h>
-#include <sys/priv.h>
-#include <sys/proc.h>
-#include <sys/queue.h>
 #include <sys/rmlock.h>
-#include <sys/systm.h>
+#include <sys/tree.h>
 #include <sys/vnode.h>
-#include <sys/sysctl.h>
-#include <sys/syslog.h>
-#include <sys/stat.h>
 
 #include <security/mac/mac_policy.h>
 
@@ -57,182 +49,254 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *execlabel)
 {
 	struct rm_priotracker tracker;
-	struct secadm_prison_entry *entry;
-	secadm_rule_t *rule;
+	secadm_prison_entry_t *entry;
+	secadm_rule_t r, *rule;
+	int err, flags = 0;
+	secadm_key_t key;
 	struct vattr vap;
-	size_t i;
-	int err=0, flags=0;
 
-	entry = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
-	if (entry == NULL)
-		return (0);
-
-	err = VOP_GETATTR(imgp->vp, &vap, ucred);
-	if (err)
+	if ((err = VOP_GETATTR(imgp->vp, &vap, ucred))) {
 		return (err);
-
-	SPL_RLOCK(entry, tracker);
-	for (rule = entry->spl_rules; rule != NULL; rule = rule->sr_next) {
-		if (vap.va_fileid != rule->sr_inode)
-			continue;
-
-		if (strcmp(imgp->vp->v_mount->mnt_stat.f_mntonname,
-		    rule->sr_mount))
-			continue;
-
-		for (i=0; i < rule->sr_nfeatures; i++) {
-			switch(rule->sr_features[i].sf_type) {
-			case pageexec_enabled:
-				flags |= PAX_NOTE_PAGEEXEC;
-				break;
-			case pageexec_disabled:
-				flags |= PAX_NOTE_NOPAGEEXEC;
-				break;
-			case mprotect_enabled:
-				flags |= PAX_NOTE_MPROTECT;
-				break;
-			case mprotect_disabled:
-				flags |= PAX_NOTE_NOMPROTECT;
-				break;
-			case segvguard_enabled:
-				flags |= PAX_NOTE_SEGVGUARD;
-				break;
-			case segvguard_disabled:
-				flags |= PAX_NOTE_NOSEGVGUARD;
-				break;
-			case aslr_enabled:
-				flags |= PAX_NOTE_ASLR;
-				break;
-			case aslr_disabled:
-				flags |= PAX_NOTE_NOASLR;
-				break;
-			case integriforce:
-				err = do_integriforce_check(rule, &vap, imgp->vp, ucred);
-				break;
-#if __HardenedBSD_version > 21
-			case shlibrandom_enabled:
-				flags |= PAX_NOTE_SHLIBRANDOM;
-				break;
-			case shlibrandom_disabled:
-				flags |= PAX_NOTE_NOSHLIBRANDOM;
-				break;
-#endif
-#if __HardenedBSD_version == 30
-			case map32bit_protect_enabled:
-				flags |= PAX_NOTE_MAP32_PROTECT;
-				break;
-			case map32bit_protect_disabled:
-				flags |= PAX_NOTE_NOMAP32_PROTECT;
-				break;
-#endif
-#if __HardenedBSD_version > 30
-			case disallow_map32bit_enabled:
-				flags |= PAX_NOTE_DISALLOWMAP32BIT;
-				break;
-			case disallow_map32bit_disabled:
-				flags |= PAX_NOTE_NODISALLOWMAP32BIT;
-				break;
-#endif
-			default:
-				break;
-			}
-		}
-
-		break;
 	}
 
-	SPL_RUNLOCK(entry, tracker);
+	key.sk_jid = ucred->cr_prison->pr_id;
+	key.sk_fileid = vap.va_fileid;
+	strncpy(key.sk_mntonname,
+	    imgp->vp->v_mount->mnt_stat.f_mntonname, MNAMELEN);
 
-	if (err == 0 && flags)
+	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
+
+	RM_PE_RLOCK(entry, tracker);
+	if (entry->sp_num_integriforce_rules) {
+		key.sk_type = secadm_integriforce_rule;
+		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
+		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
+
+		if (rule != NULL) {
+			if (rule->sr_active == 0) {
+				goto rule_inactive;
+			}
+
+			RM_PE_RUNLOCK(entry, tracker);
+			err = do_integriforce_check(rule, &vap, imgp->vp, ucred);
+			RM_PE_RLOCK(entry, tracker);
+
+			if (err) {
+				RM_PE_RUNLOCK(entry, tracker);
+
+				return (err);
+			}
+		}
+	}
+
+	if (entry->sp_num_pax_rules) {
+		key.sk_type = secadm_pax_rule;
+		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
+		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
+
+		if (rule) {
+			if (rule->sr_active == 0) {
+				goto rule_inactive;
+			}
+
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PAGEEXEC_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_PAGEEXEC) {
+					flags |= PAX_NOTE_PAGEEXEC;
+				} else {
+					flags |= PAX_NOTE_NOPAGEEXEC;
+				}
+			}
+
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MPROTECT_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_MPROTECT) {
+					flags |= PAX_NOTE_MPROTECT;
+				} else {
+					flags |= PAX_NOTE_NOMPROTECT;
+				}
+			}
+
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_ASLR_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_ASLR) {
+					flags |= PAX_NOTE_ASLR;
+				} else {
+					flags |= PAX_NOTE_NOASLR;
+				}
+			}
+
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SEGVGUARD_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_SEGVGUARD) {
+					flags |= PAX_NOTE_SEGVGUARD;
+				} else {
+					flags |= PAX_NOTE_NOSEGVGUARD;
+				}
+			}
+
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_SHLIBRANDOM_SET) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_SHLIBRANDOM) {
+					flags |= PAX_NOTE_SHLIBRANDOM;
+				} else {
+					flags |= PAX_NOTE_NOSHLIBRANDOM;
+				}
+			}
+
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_MAP32) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_MAP32) {
+					flags |=
+					    PAX_NOTE_DISALLOWMAP32BIT;
+				} else {
+					flags |=
+					    PAX_NOTE_NODISALLOWMAP32BIT;
+				}
+			}
+		}
+	}
+rule_inactive:
+	RM_PE_RUNLOCK(entry, tracker);
+
+	if (err == 0 && flags) {
 		err = pax_elf(imgp, flags);
+	}
 
 	return (err);
 }
 
 int
-secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
-    struct label *dvplabel, struct vnode *vp, struct label *vplabel,
-    struct componentname *cnp)
+secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
+    struct label *vplabel, accmode_t accmode)
 {
-
 	struct rm_priotracker tracker;
-	struct secadm_prison_entry *entry;
-	secadm_rule_t *rule;
+	secadm_prison_entry_t *entry;
+	secadm_rule_t r, *rule;
+	secadm_key_t key;
 	struct vattr vap;
-	int err, res=0;
+	int err;
 
-	entry = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
-	if (entry == NULL)
+	if (!(accmode & (VWRITE | VAPPEND))) {
 		return (0);
-
-	err = VOP_GETATTR(vp, &vap, ucred);
-	if (err)
-		return (err);
-
-	SPL_RLOCK(entry, tracker);
-	for (rule = entry->spl_rules; rule != NULL; rule = rule->sr_next) {
-		if (vap.va_fileid != rule->sr_inode)
-			continue;
-
-		if (strcmp(vp->v_mount->mnt_stat.f_mntonname,
-		    rule->sr_mount))
-			continue;
-
-		KASSERT(rule != NULL && rule->sr_path != NULL,
-		    ("%s: failed ...", __func__));
-		printf("[SECADM] Prevented to unlink %s: protected by a secadm rule.\n",
-		    rule->sr_path);
-		res=EPERM;
-		break;
 	}
-	SPL_RUNLOCK(entry, tracker);
 
-	return (res);
+	if ((err = VOP_GETATTR(vp, &vap, ucred))) {
+		return (err);
+	}
+
+	key.sk_jid = ucred->cr_prison->pr_id;
+	key.sk_fileid = vap.va_fileid;
+	strncpy(key.sk_mntonname,
+	    vp->v_mount->mnt_stat.f_mntonname, MNAMELEN);
+
+	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
+
+	RM_PE_RLOCK(entry, tracker);
+	if (entry->sp_num_integriforce_rules) {
+		key.sk_type = secadm_integriforce_rule;
+		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
+
+		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
+
+		if (rule) {
+			printf(
+			    "[SECADM] Prevented modification of (%s): "
+			    "protected by a SECADM rule.\n",
+			    rule->sr_integriforce_data->si_path);
+
+			RM_PE_RUNLOCK(entry, tracker);
+			return (EPERM);
+		}
+	}
+
+	if (entry->sp_num_pax_rules) {
+		key.sk_type = secadm_pax_rule;
+		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
+
+		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
+
+		if (rule) {
+			printf(
+			    "[SECADM] Prevented modification of (%s): "
+			    "protected by a SECADM rule.\n",
+			    rule->sr_pax_data->sp_path);
+
+			RM_PE_RUNLOCK(entry, tracker);
+			return (EPERM);
+		}
+	}
+
+	RM_PE_RUNLOCK(entry, tracker);
+	return (0);
 }
 
 int
-secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
-    struct label *label, accmode_t accmode)
+secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
+    struct label *dvplabel, struct vnode *vp,
+    struct label *vplabel, struct componentname *cnp)
 {
 	struct rm_priotracker tracker;
-	struct secadm_prison_entry *entry;
-	secadm_rule_t *rule;
+	secadm_prison_entry_t *entry;
+	secadm_rule_t r, *rule;
+	secadm_key_t key;
 	struct vattr vap;
-	int err, res;
+	int err;
 
-	if (!(accmode & (VWRITE | VAPPEND)))
-		return (0);
-
-	res = 0;
-
-	entry = get_prison_list_entry(ucred->cr_prison->pr_name, 0);
-	if (entry == NULL)
-		return (0);
-
-	err = VOP_GETATTR(vp, &vap, ucred);
-	if (err)
+	if ((err = VOP_GETATTR(vp, &vap, ucred))) {
 		return (err);
-
-	SPL_RLOCK(entry, tracker);
-	for (rule = entry->spl_rules; rule != NULL; rule = rule->sr_next) {
-		if (vap.va_fileid != rule->sr_inode)
-			continue;
-
-		if (strcmp(vp->v_mount->mnt_stat.f_mntonname,
-		    rule->sr_mount))
-			continue;
-
-		if (lookup_integriforce_feature(rule) != NULL) {
-			KASSERT(rule != NULL && rule->sr_path != NULL,
-			    ("%s: failed ...", __func__));
-			printf("[SECADM] Warning: A process tried to modify "
-			    "file %s, which is protected by a secadm rule. "
-			    "Returning EPERM.\n", rule->sr_path);
-			res=EPERM;
-		}
-		break;
 	}
-	SPL_RUNLOCK(entry, tracker);
 
-	return (res);
+	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
+
+	key.sk_jid = ucred->cr_prison->pr_id;
+	key.sk_fileid = vap.va_fileid;
+	strncpy(key.sk_mntonname,
+	    vp->v_mount->mnt_stat.f_mntonname, MNAMELEN);
+
+	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
+
+	RM_PE_RLOCK(entry, tracker);
+	if (entry->sp_num_integriforce_rules) {
+		key.sk_type = secadm_integriforce_rule;
+		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
+
+		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
+
+		if (rule) {
+			printf(
+			    "[SECADM] Prevented unlink of (%s): "
+			    "protected by a SECADM rule.\n",
+			    rule->sr_integriforce_data->si_path);
+
+			RM_PE_RUNLOCK(entry, tracker);
+			return (EPERM);
+		}
+	}
+
+	if (entry->sp_num_pax_rules) {
+		key.sk_type = secadm_pax_rule;
+		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
+
+		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
+
+		if (rule) {
+			printf(
+			    "[SECADM] Prevented unlink of (%s): "
+			    "protected by a SECADM rule.\n",
+			    rule->sr_pax_data->sp_path);
+
+			RM_PE_RUNLOCK(entry, tracker);
+			return (EPERM);
+		}
+	}
+
+	RM_PE_RUNLOCK(entry, tracker);
+	return (0);
 }

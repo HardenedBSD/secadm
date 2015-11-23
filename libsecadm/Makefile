@@ -1,13 +1,13 @@
 SHLIB=	secadm
 SHLIB_MAJOR=	0
-SRCS=	integriforce.c libsecadm.c rules.c
-INCS=	secadm.h libsecadm.h
+SRCS=	libsecadm.c
+INCS=	secadm.h
 
 .if defined(PREFIX)
 INCLUDEDIR?=	${PREFIX}/include
 .endif
 
-LDADD+=	-lmd
+#LDADD+=	-lmd
 
 CFLAGS+=	-g -O0 -I${.CURDIR}
 

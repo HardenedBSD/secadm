@@ -1,6 +1,6 @@
 secadm
 ======
-Author: Shawn Webb <shawn.webb@hardenedbsd.org>
+Authors: Shawn Webb <shawn.webb@hardenedbsd.org>, Brian Salcedo <brian.salcedo@hardenedbsd.org>
 Copyright (c) 2014 Shawn Webb
 License: 2-Clause BSD License
 https://github.com/HardenedBSD/secadm
@@ -36,16 +36,40 @@ additional flexibility and dynamic content. One can imagine secadm
 deployed in a security appliance where the rulesets are created and
 updated via a web service API.
 
-secadm supports toggling ASLR, SEGVGUARD, PAGEEXEC, and MPROTECT
-restrictions. As of version 0.2, secadm also introduces a new
-Integriforce feature. Integriforce ensures executable file integrity
-prior to execution.
+secadm supports toggling ASLR, mmap(MAP_32BIT), SEGVGUARD, SHLIBRANDOM,
+PAGEEXEC, and MPROTECT restrictions. As of version 0.2, secadm also
+introduces a new Integriforce feature. Integriforce ensures executable
+file integrity prior to execution.
+
+About Version 0.3.0
+===================
+
+Version 0.3.0 is a complete rewrite of secadm. You'll notice that
+commands like `secadm set` and `secadm list` no longer work. They have
+been replaced by `secadm load /path/to/file` and `secadm show`
+respectively. Additionally, individual rules can be added and deleted
+with the `secadm add` and `secadm del` commands. Rules can be enabled
+and disabled with the `secadm enable` and `secadm disable` commands.
+
+The flags that can be passed to `secadm add pax` are:
+
+* A, a: Enable, disable ASLR
+* B, b: Enable, disable mmap(MAP_32BIT)
+* L, l: Enable, disable SHLIBRANDOM
+* M, m: Enable, disable MPROTECT
+* P, p: Enable, disable PAGEEXEC
+* S, s: Enable, disable SEGVGUARD
+
+By default, `secadm show` will show the active ruleset in abbreviated
+format. secadm now integrates with libxo to provide ruleset output in
+JSON, UCL, or XML formats. Specify a different format by using the -f
+option to `secadm show`. For example, `secadm show -f ucl`.
 
 Requirements
 ============
 
-* HardenedBSD version 9 or greater:
-  - `sysctl hardening.version` should show 9
+* HardenedBSD version 31 or greater:
+  - `sysctl hardening.version` should show 31
 * textproc/libucl
 
 Installation And Usage
@@ -60,12 +84,15 @@ To list which per-applicatin features your version of secadm supports:
 To load the secadm kernel module:
 # kldload secadm
 
+Copy the sample ruleset to the right spot:
+# cp etc/secadm.rules.example /usr/local/etc/secadm.rules
+
 Edit your rules:
-# vi secadm/config.conf.sample
+# vi /usr/local/etc/secadm.rules
 
 Activate them. Please note that setting a new ruleset will flush your
 previously-loaded rules.
-# secadm -c secadm/config.conf.sample set
+# secadm load /usr/local/etc/secadm.rules
 
 To verify that your ruleset loaded successfully:
 # secadm list

@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2014,2015 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * Copyright (c) 2015 Brian Salcedo <brian.salcedo@hardenedbsd.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,223 +23,331 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $FreeBSD$
  */
 
 #include <sys/param.h>
-#include <sys/conf.h>
-#include <sys/systm.h>
-#include <sys/kernel.h>
+
+#include <sys/imgact.h>
 #include <sys/jail.h>
+#include <sys/kernel.h>
 #include <sys/lock.h>
-#include <sys/malloc.h>
 #include <sys/module.h>
 #include <sys/mount.h>
-#include <sys/mutex.h>
-#include <sys/pax.h>
 #include <sys/proc.h>
-#include <sys/queue.h>
 #include <sys/rmlock.h>
 #include <sys/sysctl.h>
-#include <sys/uio.h>
-
-#include <security/mac/mac_policy.h>
+#include <sys/systm.h>
+#include <sys/tree.h>
+#include <sys/ucred.h>
+#include <sys/vnode.h>
 
 #include "secadm.h"
 
-static void handle_version_command(secadm_command_t *cmd, secadm_reply_t *reply);
-static int sysctl_control(SYSCTL_HANDLER_ARGS);
-
-SYSCTL_NODE(_hardening, OID_AUTO, secadm, CTLFLAG_RD, 0,
-    "HardenedBSD Security Firewall");
-
-SYSCTL_NODE(_hardening_secadm, OID_AUTO, control,
-    CTLFLAG_MPSAFE | CTLFLAG_RW | CTLFLAG_PRISON | CTLFLAG_ANYBODY, sysctl_control,
-    "secadm management interface");
-
-static void
-handle_version_command(secadm_command_t *cmd, secadm_reply_t *reply)
+int
+secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 {
-	reply->sr_metadata = cmd->sc_buf;
-	reply->sr_size = sizeof(unsigned long);
-	if ((reply->sr_errno = copyout(&(reply->sr_version), cmd->sc_buf, sizeof(unsigned long))))
-		reply->sr_code = secadm_fail;
-	else
-		reply->sr_code = secadm_success;
-}
-
-static secadm_error_t
-handle_add_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
-{
-	secadm_rule_t *rule, *next, *tail;
-	struct secadm_prison_entry *entry;
-	size_t maxid=0;
-	secadm_error_t res=secadm_success;
-	int err;
-
-	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 1);
-
-	rule = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
-	if ((err = copyin(cmd->sc_metadata, rule, sizeof(secadm_rule_t))) != 0) {
-		free(rule, M_SECADM);
-		reply->sr_code = secadm_fail;
-		reply->sr_errno = err;
-		return (secadm_fail);
-	}
-
-	if (read_rule_from_userland(td, rule)) {
-		reply->sr_errno = EINVAL;
-		rule->sr_next = NULL;
-		goto error;
-	}
-
-	rule->sr_id = maxid++;
-
-	tail = rule;
-	while (tail->sr_next != NULL) {
-		next = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
-		if ((err = copyin(tail->sr_next, next, sizeof(secadm_rule_t))) != 0) {
-			reply->sr_errno = err;
-			free(next, M_SECADM);
-			tail->sr_next = NULL;
-			goto error;
-		}
-
-		if (read_rule_from_userland(td, next)) {
-			res=secadm_fail;
-			reply->sr_errno = EINVAL;
-			free_rule(next, 1);
-			tail->sr_next = NULL;
-			goto error;
-		}
-
-		next->sr_id = maxid++;
-
-		tail->sr_next = next;
-		tail = next;
-	}
-
-	if (validate_ruleset(td, rule)) {
-		res = secadm_fail;
-		reply->sr_errno = EINVAL;
-		goto error;
-	}
-
-	flush_rules(td);
-
-	SPL_WLOCK(entry);
-	entry->spl_rules = rule;
-	entry->spl_max_id = maxid;
-	SPL_WUNLOCK(entry);
-
-	reply->sr_code = secadm_success;
-	reply->sr_errno = 0;
-
-	return (0);
-
-error:
-	while (rule != NULL) {
-		next = rule->sr_next;
-		free_rule(rule, 1);
-		rule = next;
-	}
-
-	reply->sr_code = secadm_fail;
-
-	return (res);
-}
-
-static int
-sysctl_control(SYSCTL_HANDLER_ARGS)
-{
+	struct rm_priotracker tracker;
+	secadm_prison_entry_t *entry;
 	secadm_command_t cmd;
 	secadm_reply_t reply;
-	int err;
+	secadm_rule_t *rule;
+	int err, i, rn;
 
-	if (!(req->newptr) || (req->newlen != sizeof(secadm_command_t)))
+	if (!(req->newptr) || (req->newlen != sizeof(secadm_command_t))) {
 		return (EINVAL);
+	}
 
-	if (!(req->oldptr) || (req->oldlen) != sizeof(secadm_reply_t))
+	if (!(req->oldptr) || (req->oldlen) != sizeof(secadm_reply_t)) {
 		return (EINVAL);
+	}
 
-	err = SYSCTL_IN(req, &cmd, sizeof(secadm_command_t));
-	if (err)
+	if ((err = SYSCTL_IN(req, &cmd, sizeof(secadm_command_t)))) {
 		return (err);
+	}
 
-	/* Access control comes first */
+	if ((err = copyin(req->oldptr, &reply, sizeof(reply)))) {
+		return (err);
+	}
+
+	reply.sr_version = SECADM_VERSION;
+
 	switch (cmd.sc_type) {
-	case secadm_flush_rules:
-	case secadm_set_rules:
-		/* XXX Should we cache the ucred for local use in the
-		 * sysctl lifecycle? */
-		// XXXOP LOCKING
-		if (req->td->td_ucred->cr_uid != 0) {
-			printf("[SECADM] Disallowed command: 0x%x by uid: %d\n",
-			    cmd.sc_type, req->td->td_ucred->cr_uid);
+	case secadm_cmd_flush_ruleset:
+	case secadm_cmd_load_ruleset:
+	case secadm_cmd_add_rule:
+	case secadm_cmd_del_rule:
+	case secadm_cmd_enable_rule:
+	case secadm_cmd_disable_rule:
+		if (req->td->td_ucred->cr_uid) {
+			printf("[SECADM] Denied attempt to sysctl by "
+			    "(%s) uid:%d jail:%d\n",
+			    req->td->td_name, req->td->td_ucred->cr_uid,
+			    req->td->td_ucred->cr_prison->pr_id);
+
+			reply.sr_code = secadm_reply_fail;
+			SYSCTL_OUT(req, &reply, sizeof(secadm_reply_t));
+
 			return (EPERM);
 		}
 
-		// XXXOP LOCKING
-		if (securelevel_gt(req->td->td_ucred, 0)) {
-			printf("[SECADM] Disallowed command: 0x%x by uid: %d\n",
-			    cmd.sc_type, req->td->td_ucred->cr_uid);
-			return (EPERM);
-		}
-		break;
 	default:
 		break;
 	}
 
-	/* XXX We should relax this check once we get stable releases. */
-	if (cmd.sc_version < SECADM_VERSION)
-		return (EINVAL);
-
-	memset(&reply, 0x00, sizeof(reply));
-	if ((err = copyin(req->oldptr, &reply, sizeof(reply))))
-		return (err);
-
-	reply.sr_version = SECADM_VERSION;
-	reply.sr_id = cmd.sc_id;
-
 	switch (cmd.sc_type) {
-	case  secadm_get_version:
-		if (cmd.sc_bufsize < sizeof(unsigned long))
-			return (EINVAL);
+	case secadm_cmd_flush_ruleset:
+		if (securelevel_gt(req->td->td_ucred, 1)) {
+			return (EPERM);
+		}
 
-		handle_version_command(&cmd, &reply);
-		break;
-	case secadm_set_rules:
-		if (cmd.sc_size != sizeof(secadm_rule_t))
-			return (EINVAL);
+		kernel_flush_ruleset(req->td->td_ucred->cr_prison->pr_id);
+		reply.sr_code = secadm_reply_success;
 
-		handle_add_rule(req->td, &cmd, &reply);
 		break;
-	case secadm_flush_rules:
-		flush_rules(req->td);
+
+	case secadm_cmd_load_ruleset:
+		entry = get_prison_list_entry(
+		    req->td->td_ucred->cr_prison->pr_id);
+
+		if (entry->sp_loaded &&
+		    securelevel_gt(req->td->td_ucred, 1))
+			return (EPERM);
+
+		err = kernel_load_ruleset(req->td,
+		    (secadm_rule_t *) cmd.sc_data);
+
+		if (err) {
+			reply.sr_code = secadm_reply_fail;
+		} else {
+			reply.sr_code = secadm_reply_success;
+		}
+
 		break;
-	case secadm_get_rule_size:
-		handle_get_rule_size(req->td, &cmd, &reply);
+
+	case secadm_cmd_add_rule:
+		if (securelevel_gt(req->td->td_ucred, 1)) {
+			return (EPERM);
+		}
+
+		err = kernel_add_rule(req->td, (secadm_rule_t *) cmd.sc_data, 0);
+
+		if (err) {
+			reply.sr_code = secadm_reply_fail;
+		} else {
+			reply.sr_code = secadm_reply_success;
+		}
+
 		break;
-	case secadm_get_num_rules:
-		get_num_rules(req->td, &cmd, &reply);
+
+	case secadm_cmd_del_rule:
+		if (securelevel_gt(req->td->td_ucred, 0)) {
+			return (EPERM);
+		}
+
+		kernel_del_rule(req->td, (secadm_rule_t *) cmd.sc_data);
+		reply.sr_code = secadm_reply_success;
+
 		break;
-	case secadm_get_rule:
-		handle_get_rule(req->td, &cmd, &reply);
+
+	case secadm_cmd_enable_rule:
+		if (securelevel_gt(req->td->td_ucred, 0)) {
+			return (EPERM);
+		}
+
+		kernel_active_rule(req->td, (secadm_rule_t *) cmd.sc_data, 1);
+		reply.sr_code = secadm_reply_success;
+
 		break;
-	case secadm_get_rules:
-	case secadm_get_admins:
-	case secadm_set_admins:
-	case secadm_get_views:
-	case secadm_set_views:
-		return (ENOTSUP);
+
+	case secadm_cmd_disable_rule:
+		if (securelevel_gt(req->td->td_ucred, 0)) {
+			return (EPERM);
+		}
+
+		kernel_active_rule(req->td, (secadm_rule_t *) cmd.sc_data, 0);
+		reply.sr_code = secadm_reply_success;
+
+		break;
+
+	case secadm_cmd_get_rule:
+		rule = kernel_get_rule(req->td, (secadm_rule_t *) cmd.sc_data);
+
+		if (rule == NULL) {
+			rn = ((secadm_rule_t *) cmd.sc_data)->sr_id + 1;
+
+			entry = get_prison_list_entry(
+			    req->td->td_ucred->cr_prison->pr_id);
+
+			if (rn >= entry->sp_last_id) {
+				break;
+			}
+
+			for (i = rn; i < entry->sp_last_id; i++) {
+				((secadm_rule_t *) cmd.sc_data)->sr_id = i;
+				rule = kernel_get_rule(req->td,
+				    (secadm_rule_t *) cmd.sc_data);
+
+				if (rule != NULL) {
+					break;
+				}
+			}
+		}
+
+		if (rule == NULL) {
+			reply.sr_code = secadm_reply_fail;
+			break;
+		}
+
+		if ((err = copyout(rule,
+		    reply.sr_data, sizeof(secadm_rule_t)))) {
+			reply.sr_code = secadm_reply_fail;
+		} else {
+			reply.sr_code = secadm_reply_success;
+		}
+
+		break;
+
+	case secadm_cmd_get_rule_data:
+		rule = kernel_get_rule(req->td, (secadm_rule_t *) cmd.sc_data);
+
+		if (rule == NULL) {
+			printf("rule_data: rule is NULL\n");
+			reply.sr_code = secadm_reply_fail;
+			break;
+		}
+
+		switch (rule->sr_type) {
+		case secadm_integriforce_rule:
+			if ((err = copyout(rule->sr_integriforce_data,
+			    reply.sr_data,
+			    sizeof(secadm_integriforce_data_t)))) {
+				reply.sr_code = secadm_reply_fail;
+			} else {
+				reply.sr_code = secadm_reply_success;
+			}
+
+			break;
+
+		case secadm_pax_rule:
+			if ((err = copyout(rule->sr_pax_data,
+			    reply.sr_data,
+			    sizeof(secadm_pax_data_t)))) {
+				reply.sr_code = secadm_reply_fail;
+			} else {
+				reply.sr_code = secadm_reply_success;
+			}
+
+			break;
+
+		case secadm_extended_rule:
+			reply.sr_code = secadm_reply_fail;
+		}
+
+		break;
+
+	case secadm_cmd_get_rule_path:
+		rule = kernel_get_rule(req->td, (secadm_rule_t *) cmd.sc_data);
+
+		if (rule == NULL) {
+			reply.sr_code = secadm_reply_fail;
+			break;
+		}
+
+		switch (rule->sr_type) {
+		case secadm_integriforce_rule:
+			if ((err = copyout(rule->sr_integriforce_data->si_path,
+			    reply.sr_data,
+			    rule->sr_integriforce_data->si_pathsz))) {
+				reply.sr_code = secadm_reply_fail;
+			} else {
+				reply.sr_code = secadm_reply_success;
+			}
+
+			break;
+
+		case secadm_pax_rule:
+			if ((err = copyout(rule->sr_pax_data->sp_path,
+			    reply.sr_data,
+			    rule->sr_pax_data->sp_pathsz))) {
+				reply.sr_code = secadm_reply_fail;
+			} else {
+				reply.sr_code = secadm_reply_success;
+			}
+
+			break;
+
+		case secadm_extended_rule:
+			reply.sr_code = secadm_reply_fail;
+		}
+
+		break;
+
+	case secadm_cmd_get_rule_hash:
+		rule = kernel_get_rule(req->td, (secadm_rule_t *) cmd.sc_data);
+
+		if (rule == NULL) {
+			reply.sr_code = secadm_reply_fail;
+			break;
+		}
+
+		if (rule->sr_type != secadm_integriforce_rule) {
+			reply.sr_code = secadm_reply_fail;
+			break;
+		}
+
+		switch (rule->sr_integriforce_data->si_type) {
+		case secadm_hash_sha1:
+			if ((err = copyout(rule->sr_integriforce_data->si_hash,
+			    reply.sr_data, SECADM_SHA1_DIGEST_LEN))) {
+				reply.sr_code = secadm_reply_fail;
+			} else {
+				reply.sr_code = secadm_reply_success;
+			}
+
+			break;
+
+		case secadm_hash_sha256:
+			if ((err = copyout(rule->sr_integriforce_data->si_hash,
+			    reply.sr_data, SECADM_SHA256_DIGEST_LEN))) {
+				reply.sr_code = secadm_reply_fail;
+			} else {
+				reply.sr_code = secadm_reply_success;
+			}
+
+			break;
+		}
+
+		break;
+
+	case secadm_cmd_get_num_rules:
+		entry = get_prison_list_entry(
+		    req->td->td_ucred->cr_prison->pr_id);
+
+		RM_PE_RLOCK(entry, tracker);
+		if ((err = copyout(&(entry->sp_num_rules), reply.sr_data,
+		    sizeof(size_t)))) {
+			reply.sr_code = secadm_reply_fail;
+		} else {
+			reply.sr_code = secadm_reply_success;
+		}
+		RM_PE_RUNLOCK(entry, tracker);
+
+		break;
+
 	default:
-		// XXXOP LOCKING
-		printf("[SECADM] Unknown command: 0x%x by uid: %d\n",
-		    cmd.sc_type, req->td->td_ucred->cr_uid);
-		return (EINVAL);
+		printf("secadm_sysctl: unknown command!\n");
+
+		return (EOPNOTSUPP);
 	}
 
 	err = SYSCTL_OUT(req, &reply, sizeof(secadm_reply_t));
+
 	return (err);
 }
+
+SYSCTL_NODE(_hardening, OID_AUTO, secadm, CTLFLAG_RD, 0,
+	    "HardenedBSD Security Firewall");
+
+SYSCTL_NODE(_hardening_secadm, OID_AUTO, control,
+	    CTLFLAG_MPSAFE | CTLFLAG_RW | CTLFLAG_ANYBODY | CTLFLAG_PRISON,
+	    secadm_sysctl_handler, "HardenedBSD SECADM Management Interface");

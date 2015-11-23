@@ -42,7 +42,7 @@ load_rc_config $name
 : ${secadm_rules:="/usr/local/etc/secadm.rules"}
 
 command="/usr/sbin/secadm"
-command_args="-c ${secadm_rules} set"
+command_args="load ${secadm_rules}"
 
 secadm_prestart()
 {

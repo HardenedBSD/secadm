@@ -1,6 +1,7 @@
 PROG=	secadm
-SRCS=	config.c \
-	secadm.c
+SRCS=	secadm.c
+
+USE_LIBXO_PORTS= yes
 
 .if defined(PREFIX)
 BINDIR?=	${PREFIX}/sbin
@@ -8,7 +9,7 @@ BINDIR?=	${PREFIX}/sbin
 BINDIR?=	/usr/sbin
 .endif
 
-LDADD=	-lucl -lm -lsecadm
+LDADD=	-lutil -lsecadm -lxo -lucl
 WANTS_PIE=	yes
 
 CFLAGS+=	-I${.CURDIR}/../libsecadm -I/usr/local/include

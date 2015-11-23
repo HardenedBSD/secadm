@@ -1,5 +1,6 @@
 /*-
  * Copyright (c) 2014,2015 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * Copyright (c) 2015 Brian Salcedo <brian.salcedo@hardenedbsd.org>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -22,643 +23,684 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $FreeBSD$
  */
 
 #include <sys/param.h>
-#include <sys/conf.h>
-#include <sys/systm.h>
-#include <sys/kernel.h>
+
+#include <sys/fcntl.h>
+#include <sys/imgact.h>
 #include <sys/jail.h>
+#include <sys/kernel.h>
 #include <sys/lock.h>
-#include <sys/malloc.h>
 #include <sys/module.h>
 #include <sys/mount.h>
-#include <sys/mutex.h>
-#include <sys/pax.h>
+#include <sys/namei.h>
 #include <sys/proc.h>
-#include <sys/queue.h>
 #include <sys/rmlock.h>
-#include <sys/sysctl.h>
-#include <sys/uio.h>
-
-#include <crypto/sha1.h>
-#include <crypto/sha2/sha2.h>
-#include <security/mac/mac_policy.h>
+#include <sys/tree.h>
+#include <sys/ucred.h>
+#include <sys/vnode.h>
 
 #include "secadm.h"
 
 FEATURE(secadm, "HardenedBSD Security Administration (secadm)");
 
-MALLOC_DEFINE(M_SECADM, "secadm", "secadm rule data");
+MALLOC_DEFINE(M_SECADM, "secadm", "HardenedBSD SECADM data");
+RB_GENERATE(secadm_rules_tree, secadm_rule, sr_tree, secadm_rule_cmp);
 
-secadm_kernel_t kernel_data;
+secadm_prisons_t secadm_prison_list;
 
-struct secadm_prison_entry *
-get_prison_list_entry(const char *name, int create)
+int
+secadm_rule_cmp(secadm_rule_t *a, secadm_rule_t *b)
 {
-	struct secadm_prison_entry *entry;
-	struct rm_priotracker tracker;
+	if (a->sr_key < b->sr_key)
+		return (-1);
 
-	SKD_RLOCK(tracker);
-	SLIST_FOREACH(entry, &(kernel_data.skd_prisons), spl_entries) {
-		if (!strcmp(entry->spl_prison, name)) {
-			SKD_RUNLOCK(tracker);
+	if (a->sr_key > b->sr_key)
+		return (1);
+
+	return (0);
+}
+
+secadm_prison_entry_t *
+get_prison_list_entry(int jid)
+{
+	struct rm_priotracker tracker;
+	secadm_prison_entry_t *entry;
+
+	RM_PL_RLOCK(tracker);
+	SLIST_FOREACH(entry, &(secadm_prisons_list.sp_prison), sp_entries) {
+		if (entry->sp_id == jid) {
+			RM_PL_RUNLOCK(tracker);
 			return (entry);
 		}
 	}
-	SKD_RUNLOCK(tracker);
+	RM_PL_RUNLOCK(tracker);
 
-	if (create) {
-		entry = malloc(sizeof(struct secadm_prison_entry),
-		    M_SECADM, M_WAITOK | M_ZERO);
+	entry = malloc(sizeof(secadm_prison_entry_t),
+	    M_SECADM, M_WAITOK | M_ZERO);
 
-		SPL_INIT(entry, "secadm per-prison lock");
+	RM_PE_INIT(entry);
+	RM_PE_WLOCK(entry);
+	entry->sp_id = jid;
+	RB_INIT(&(entry->sp_rules));
+	RB_INIT(&(entry->sp_staging));
+	RM_PE_WUNLOCK(entry);
 
-		entry->spl_prison = malloc(strlen(name)+1,
-		    M_SECADM, M_WAITOK | M_ZERO);
-		strlcpy(entry->spl_prison, name, strlen(name)+1);
-
-
-		SKD_WLOCK();
-		SLIST_INSERT_HEAD(&(kernel_data.skd_prisons), entry,
-		    spl_entries);
-
-		SKD_WUNLOCK();
-	}
+	RM_PL_WLOCK();
+	SLIST_INSERT_HEAD(&(secadm_prisons_list.sp_prison),
+	    entry, sp_entries);
+	RM_PL_WUNLOCK();
 
 	return (entry);
 }
 
 int
-pre_validate_rule(struct thread *td, secadm_rule_t *rule)
+get_mntonname_vattr(struct thread *td, u_char *path, char *mntonname,
+    struct vattr *vap)
 {
-	KASSERT(rule != NULL, ("validate_rule: rule cannot be null!"));
+	struct nameidata nd;
+	int error = 1;
 
-	if (rule->sr_features == NULL || rule->sr_nfeatures == 0
-	    || rule->sr_nfeatures > SECADM_MAX_FEATURES) {
-		return (1);
+	if (path == NULL)
+		return (error);
+
+	if (path[0] != '/')
+		return (error);
+
+	NDINIT(&nd, LOOKUP, LOCKLEAF | FOLLOW, UIO_SYSSPACE, path, td);
+
+	if ((error = namei(&nd))) {
+		return (error);
 	}
 
-	if (rule->sr_path == NULL)
-		return (1);
+	strlcpy(mntonname,
+	    nd.ni_vp->v_mount->mnt_stat.f_mntonname, MNAMELEN);
 
-	if (rule->sr_pathlen > MNAMELEN)
-		return (1);
+	error = VOP_GETATTR(nd.ni_vp, vap, td->td_ucred);
 
-	return (0);
-}
+	NDFREE(&nd, NDF_ONLY_PNBUF);
+	vput(nd.ni_vp);
 
-int
-validate_ruleset(struct thread *td, secadm_rule_t *head)
-{
-	secadm_rule_t *rule;
-	secadm_integriforce_t *integriforce_p;
-	size_t nrules, maxid, i;
-
-	nrules = maxid = 0;
-	for (rule = head; rule != NULL; rule = rule->sr_next) {
-		if (pre_validate_rule(td, rule))
-			return (1);
-
-		/*
-		 * Feature validation can only be done after the rules
-		 * have been read in as it hasn't been read in, yet.
-		 */
-		for (i=0; i < rule->sr_nfeatures; i++) {
-			switch (rule->sr_features[i].sf_type) {
-			case integriforce:
-				if (rule->sr_features[i].sf_metadatasz
-				    != sizeof(secadm_integriforce_t))
-					return (1);
-				integriforce_p =
-				    rule->sr_features[i].sf_metadata;
-
-				switch (integriforce_p->si_mode) {
-				case si_mode_soft:
-				case si_mode_hard:
-					break;
-				default:
-					printf("[SECADM] Invalid integriforce mode: 0x%x\n",
-					    integriforce_p->si_mode);
-					return (1);
-				}
-
-				switch (integriforce_p->si_hashtype) {
-				case si_hash_sha256:
-				case si_hash_sha1:
-					break;
-				default:
-					printf("[SECADM] Invalid integriforce hash type: 0x%x\n",
-					    integriforce_p->si_hashtype);
-					return (1);
-				}
-
-				break;
-			default:
-				break;
-			}
-		}
-
-		if (rule->sr_id > maxid)
-			maxid = rule->sr_id;
-
-		nrules++;
-	}
-
-	if (maxid > nrules)
-		return (1);
-
-	return (0);
+	return (error);
 }
 
 void
-free_rule(secadm_rule_t *rule, int freerule)
+kernel_free_rule(secadm_rule_t *rule)
 {
-	secadm_integriforce_t *integriforce_p;
-	size_t i;
-	
-	if (rule->sr_path)
-		free(rule->sr_path, M_SECADM);
-
-	for (i=0; i < rule->sr_nfeatures; i++) {
-		if (rule->sr_features[i].sf_metadata) {
-			switch (rule->sr_features[i].sf_type) {
-			case integriforce:
-				integriforce_p =
-				    rule->sr_features[i].sf_metadata;
-				free(integriforce_p->si_hash,
-				    M_SECADM);
-				break;
-			default:
-				break;
-			}
-
-			free(rule->sr_features[i].sf_metadata, M_SECADM);
-		}
-	}
-
-	if (rule->sr_features)
-		free(rule->sr_features, M_SECADM);
-
-	if (rule->sr_prison != NULL)
-		free(rule->sr_prison, M_SECADM);
-
-	if (rule->sr_kernel != NULL)
-		free(rule->sr_kernel, M_SECADM);
-
-	if (freerule)
-		free(rule, M_SECADM);
-}
-
-secadm_rule_t *
-get_first_rule(struct thread *td)
-{
-
-	return (get_first_prison_rule(td->td_ucred->cr_prison));
-}
-
-secadm_rule_t *
-get_first_prison_rule(struct prison *pr)
-{
-	struct secadm_prison_entry *entry;
-	secadm_rule_t *rule;
-	struct rm_priotracker prisons_tracker, rule_tracker;
-
-	rule = NULL;
-
-	SKD_RLOCK(prisons_tracker);
-	SLIST_FOREACH(entry, &(kernel_data.skd_prisons), spl_entries)
-		if (!strcmp(entry->spl_prison, pr->pr_name))
-			break;
-
-	if (entry != NULL) {
-		SPL_RLOCK(entry, rule_tracker);
-		rule = entry->spl_rules;
-		SPL_RUNLOCK(entry, rule_tracker);
-	}
-	SKD_RUNLOCK(prisons_tracker);
-
-	return (rule);
-}
-
-void
-cleanup_jail_rules(struct secadm_prison_entry *entry)
-{
-	secadm_rule_t *rule, *next;
-	struct secadm_prison_entry *tmp;
-
-	SKD_ASSERT(RA_WLOCKED);
-
-	tmp = SLIST_FIRST(&(kernel_data.skd_prisons));
-	if (entry == tmp)
-		SLIST_REMOVE_HEAD(&(kernel_data.skd_prisons), spl_entries);
-	else
-		SLIST_REMOVE(&(kernel_data.skd_prisons), tmp,
-		    secadm_prison_entry, spl_entries);
-
-	SPL_WLOCK(tmp);
-	// XXXOP: queue macros in rules too?
-	rule = entry->spl_rules;
-	while (rule != NULL) {
-		next = rule->sr_next;
-		free_rule(rule, 1);
-		rule = next;
-	}
-	SPL_WUNLOCK(tmp);
-	SPL_DESTROY(tmp);
-
-	free(tmp->spl_prison, M_SECADM);
-	free(tmp, M_SECADM);
-}
-
-void
-flush_rules(struct thread *td)
-{
-	struct secadm_prison_entry *entry;
-	secadm_rule_t *rule, *next;
-
-	printf("[SECADM] Flushed rules by %u uid\n",
-	    td->td_ucred->cr_uid);
-
-	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
-	if (entry == NULL)
+	if (rule == NULL)
 		return;
 
-	SPL_WLOCK(entry);
-	rule = entry->spl_rules;
-	while (rule != NULL) {
-		next = rule->sr_next;
-		free_rule(rule, 1);
-		rule = next;
+	switch (rule->sr_type) {
+	case secadm_integriforce_rule:
+		if (rule->sr_integriforce_data == NULL) {
+			break;
+		}
+
+		if (rule->sr_integriforce_data->si_path) {
+			free(rule->sr_integriforce_data->si_path, M_SECADM);
+		}
+
+		if (rule->sr_integriforce_data->si_hash) {
+			free(rule->sr_integriforce_data->si_hash, M_SECADM);
+		}
+
+		free(rule->sr_integriforce_data, M_SECADM);
+		break;
+
+	case secadm_pax_rule:
+		if (rule->sr_pax_data == NULL) {
+			break;
+		}
+
+		if (rule->sr_pax_data->sp_path) {
+			free(rule->sr_pax_data->sp_path, M_SECADM);
+		}
+
+		free(rule->sr_pax_data, M_SECADM);
+		break;
+
+	case secadm_extended_rule:
+		if (rule->sr_extended_data == NULL) {
+			break;
+		}
+
+		if (rule->sr_extended_data->sm_object.mo_path) {
+			free(rule->sr_extended_data->sm_object.mo_path,
+			    M_SECADM);
+		}
+
+		free(rule->sr_extended_data, M_SECADM);
 	}
 
-	entry->spl_rules = NULL;
-	entry->spl_max_id = 0;
-	SPL_WUNLOCK(entry);
+	free(rule, M_SECADM);
+}
+
+void
+kernel_flush_ruleset(int jid)
+{
+	secadm_prison_entry_t *entry;
+	secadm_rule_t *r, *next;
+
+	entry = get_prison_list_entry(jid);
+
+	RM_PE_WLOCK(entry);
+	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_rules));
+	    r != NULL; r = next) {
+		next = RB_NEXT(secadm_rules_tree, &(entry->sp_rules), r);
+		RB_REMOVE(secadm_rules_tree, &(entry->sp_rules), r);
+
+		kernel_free_rule(r);
+	}
+
+	entry->sp_num_rules = 0;
+	entry->sp_num_integriforce_rules = 0;
+	entry->sp_num_pax_rules = 0;
+	entry->sp_num_extended_rules = 0;
+	RM_PE_WUNLOCK(entry);
 }
 
 int
-read_rule_from_userland(struct thread *td, secadm_rule_t *rule)
+kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 {
-	secadm_feature_t *features;
-	secadm_kernel_metadata_t *kernel_metadata;
-	secadm_integriforce_t *integriforce_p;
-	size_t i;
-	int err = 0;
-	char *path=NULL;
-	unsigned char *hash;
+	struct secadm_rules_tree *head;
+	struct rm_priotracker tracker;
+	secadm_prison_entry_t *entry;
+	secadm_rule_t *r;
+	struct vattr vap;
+	int error;
 
-	rule->sr_mount[MNAMELEN-1] = '\0';
+	switch (rule->sr_type) {
+	case secadm_integriforce_rule:
+		error = get_mntonname_vattr(td,
+		    rule->sr_integriforce_data->si_path,
+		    rule->sr_integriforce_data->si_mntonname, &vap);
 
-	if (pre_validate_rule(td, rule))
-		goto error;
+		if (error) {
+			return (error);
+		}
 
-	path = malloc(rule->sr_pathlen+1, M_SECADM, M_WAITOK | M_ZERO);
-	err = copyin(rule->sr_path, path, rule->sr_pathlen);
-	if (err) {
-		free(path, M_SECADM);
-		goto error;
+		if (vap.va_type != VREG) {
+			return (1);
+		}
+
+		rule->sr_integriforce_data->si_fileid = vap.va_fileid;
+		break;
+
+	case secadm_pax_rule:
+		error = get_mntonname_vattr(td,
+		    rule->sr_pax_data->sp_path,
+		    rule->sr_pax_data->sp_mntonname, &vap);
+
+		if (error) {
+			return (error);
+		}
+
+		if (vap.va_type != VREG) {
+			return (1);
+		}
+
+		rule->sr_pax_data->sp_fileid = vap.va_fileid;
+		break;
+
+	case secadm_extended_rule:
+		/* TODO(bs): Implement extended (ugidfw) rules. */
+		break;
 	}
 
-	path[rule->sr_pathlen] = '\0';
-	rule->sr_path = path;
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
-	features = malloc(sizeof(secadm_feature_t) *
-	    rule->sr_nfeatures, M_SECADM, M_WAITOK | M_ZERO);
-
-	err = copyin(rule->sr_features, features,
-	    sizeof(secadm_feature_t) * rule->sr_nfeatures);
-	if (err) {
-		free(features, M_SECADM);
-		goto error;
+	RM_PE_RLOCK(entry, tracker);
+	if (ruleset == 1) {
+		head = &(entry->sp_staging);
+	} else {
+		head = &(entry->sp_rules);
 	}
 
-	for (i=0; i<rule->sr_nfeatures; i++) {
-		if (features[i].sf_type == integriforce) {
-			if (features[i].sf_metadatasz !=
-			    sizeof(secadm_integriforce_t)) {
-				free(features, M_SECADM);
-				goto error;
+	RB_FOREACH(r, secadm_rules_tree, head) {
+		if (r->sr_type != rule->sr_type) {
+			continue;
+		}
+
+		switch (r->sr_type) {
+		case secadm_integriforce_rule:
+			if (!strncmp(r->sr_integriforce_data->si_mntonname,
+			    rule->sr_integriforce_data->si_mntonname,
+			    MAXPATHLEN) && r->sr_integriforce_data->si_fileid ==
+			    rule->sr_integriforce_data->si_fileid) {
+				RM_PE_RUNLOCK(entry, tracker);
+				return (EEXIST);
 			}
 
-			integriforce_p = malloc(
-			    sizeof(secadm_integriforce_t), M_SECADM,
-			    M_WAITOK | M_ZERO);
+			break;
 
-			err = copyin(features[i].sf_metadata,
-			    integriforce_p,
-			    sizeof(secadm_integriforce_t));
-			if (err) {
-				free(features, M_SECADM);
-				free(integriforce_p, M_SECADM);
-				goto error;
+		case secadm_pax_rule:
+			if (!strncmp(r->sr_pax_data->sp_mntonname,
+			    rule->sr_pax_data->sp_mntonname,
+			    MAXPATHLEN) && r->sr_pax_data->sp_fileid ==
+			    rule->sr_pax_data->sp_fileid) {
+				RM_PE_RUNLOCK(entry, tracker);
+				return (EEXIST);
 			}
 
-			integriforce_p->si_cache = si_unchecked;
+			break;
 
-			switch (integriforce_p->si_hashtype) {
-			case si_hash_sha256:
-				hash = malloc(SHA256_DIGEST_LENGTH, M_SECADM, M_WAITOK);
-				err = copyin(integriforce_p->si_hash,
-				    hash, SHA256_DIGEST_LENGTH);
-				if (err) {
-					free(hash, M_SECADM);
-					free(features, M_SECADM);
-					free(integriforce_p, M_SECADM);
-					goto error;
-				}
-				integriforce_p->si_hash = hash;
-				break;
-			case si_hash_sha1:
-				hash = malloc(SHA1_RESULTLEN, M_SECADM, M_WAITOK);
-				err = copyin(integriforce_p->si_hash,
-				    hash, SHA1_RESULTLEN);
-				if (err) {
-					free(hash, M_SECADM);
-					free(features, M_SECADM);
-					free(integriforce_p, M_SECADM);
-					goto error;
-				}
-				integriforce_p->si_hash = hash;
-				break;
-			default:
-				free(features, M_SECADM);
-				free(integriforce_p, M_SECADM);
-				goto error;
-			}
-
-			features[i].sf_metadata = integriforce_p;
-		} else {
-			features[i].sf_metadata = NULL;
-			features[i].sf_metadatasz = 0;
+		case secadm_extended_rule:
+			RM_PE_RUNLOCK(entry, tracker);
+			return (1);
 		}
 	}
+	RM_PE_RUNLOCK(entry, tracker);
 
-	rule->sr_features = features;
+	return (0);
+}
 
-	kernel_metadata = malloc(sizeof(secadm_kernel_metadata_t), M_SECADM, M_WAITOK | M_ZERO);
-	kernel_metadata->skm_owner = td->td_ucred->cr_prison;
-	rule->sr_kernel = kernel_metadata;
-	rule->sr_prison = malloc(strlen(kernel_metadata->skm_owner->pr_name)+1,
-	    M_SECADM, M_WAITOK | M_ZERO);
-	strcpy(rule->sr_prison, kernel_metadata->skm_owner->pr_name);
+int
+kernel_load_ruleset(struct thread *td, secadm_rule_t *rule)
+{
+	secadm_rule_t *r = rule, *r2;
+	secadm_prison_entry_t *entry;
+	int err;
+
+	r2 = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
+
+	do {
+		if ((err = kernel_add_rule(td, r, 1))) {
+			free(r2, M_SECADM);
+			goto ruleset_load_fail;
+		}
+
+		if ((err = copyin(r, r2, sizeof(secadm_rule_t)))) {
+			free(r2, M_SECADM);
+			goto ruleset_load_fail;
+		}
+
+		r = r2->sr_next;
+	} while (r != NULL);
+
+	free(r2, M_SECADM);
+
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
+	kernel_flush_ruleset(entry->sp_id);
+
+	RM_PE_WLOCK(entry);
+	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_staging));
+	     r != NULL; r = r2) {
+		r2 = RB_NEXT(secadm_rules_tree, &(entry->sp_staging), r);
+		RB_REMOVE(secadm_rules_tree, &(entry->sp_staging), r);
+
+		r->sr_id = entry->sp_last_id++;
+		entry->sp_num_rules++;
+
+		switch (r->sr_type) {
+		case secadm_integriforce_rule:
+			entry->sp_num_integriforce_rules++;
+			break;
+
+		case secadm_pax_rule:
+			entry->sp_num_pax_rules++;
+			break;
+
+		case secadm_extended_rule:
+			entry->sp_num_extended_rules++;
+			break;
+		}
+
+		RB_INSERT(secadm_rules_tree, &(entry->sp_rules), r);
+	}
+
+	entry->sp_loaded = 1;
+	RM_PE_WUNLOCK(entry);
 
 	return (0);
 
-error:
-	if (path)
-		free(path, M_SECADM);
+ruleset_load_fail:
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
-	rule->sr_path = NULL;
-	rule->sr_pathlen = 0;
-	rule->sr_features = NULL;
-	rule->sr_nfeatures = 0;
-	rule->sr_prison = NULL;
-	rule->sr_kernel = NULL;
-	return (1);
+	RM_PE_WLOCK(entry);
+	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_staging));
+	     r != NULL; r = r2) {
+		r2 = RB_NEXT(secadm_rules_tree, &(entry->sp_staging), r);
+		RB_REMOVE(secadm_rules_tree, &(entry->sp_staging), r);
+
+		kernel_free_rule(r);
+	}
+	RM_PE_WUNLOCK(entry);
+
+	return (err);
 }
 
-secadm_rule_t
-*get_rule_by_id(struct thread *td, size_t id)
+int
+kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 {
-	struct rm_priotracker tracker;
-	struct secadm_prison_entry *entry;
-	secadm_rule_t *rule;
+	secadm_prison_entry_t *entry;
+	u_char *path, *hash;
+	secadm_key_t key;
+	secadm_rule_t *r;
+	void *ptr;
+	int error;
 
-	rule = get_first_rule(td);
-	if (rule == NULL)
-		return (NULL);
+	r = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK | M_ZERO);
 
-	entry = get_prison_list_entry(rule->sr_prison, 0);
-	if (entry == NULL)
-		return (NULL);
+	if (copyin(rule, r, sizeof(secadm_rule_t))) {
+		memset(r, 0, sizeof(secadm_rule_t));
+		kernel_free_rule(r);
+		return (EINVAL);
+	}
 
-	SPL_RLOCK(entry, tracker);
-	for ( ; rule != NULL; rule = rule->sr_next) {
-		if (rule->sr_id == id) {
-			SPL_RUNLOCK(entry, tracker);
-			return (rule);
+	switch (r->sr_type) {
+	case secadm_integriforce_rule:
+		ptr = malloc(sizeof(secadm_integriforce_data_t),
+		    M_SECADM, M_WAITOK);
+
+		if (copyin(r->sr_integriforce_data, ptr,
+		    sizeof(secadm_integriforce_data_t))) {
+			r->sr_integriforce_data = NULL;
+			free(ptr, M_SECADM);
+			kernel_free_rule(r);
+
+			return (EINVAL);
+		}
+
+		r->sr_integriforce_data = ptr;
+
+		if (r->sr_integriforce_data->si_pathsz == 0 ||
+		    r->sr_integriforce_data->si_pathsz >= MAXPATHLEN) {
+			r->sr_integriforce_data->si_path = NULL;
+			kernel_free_rule(r);
+
+			return (EINVAL);
+		}
+
+		path = malloc(r->sr_integriforce_data->si_pathsz + 1,
+		    M_SECADM, M_WAITOK);
+
+		if (copyin(r->sr_integriforce_data->si_path, path,
+		    r->sr_integriforce_data->si_pathsz)) {
+			r->sr_integriforce_data->si_path = NULL;
+			free(path, M_SECADM);
+			kernel_free_rule(r);
+
+			return (EINVAL);
+		}
+
+		path[r->sr_integriforce_data->si_pathsz] = '\0';
+		r->sr_integriforce_data->si_path = path;
+
+		switch (r->sr_integriforce_data->si_type) {
+		case secadm_hash_sha1:
+			hash = malloc(SECADM_SHA1_DIGEST_LEN,
+			    M_SECADM, M_WAITOK);
+
+			if (copyin(r->sr_integriforce_data->si_hash, hash,
+			    SECADM_SHA1_DIGEST_LEN)) {
+				r->sr_integriforce_data->si_hash = NULL;
+				free(hash, M_SECADM);
+				kernel_free_rule(r);
+
+				return (EINVAL);
+			}
+
+			break;
+
+		case secadm_hash_sha256:
+			hash = malloc(SECADM_SHA256_DIGEST_LEN,
+			    M_SECADM, M_WAITOK);
+
+			if (copyin(r->sr_integriforce_data->si_hash, hash,
+			    SECADM_SHA256_DIGEST_LEN)) {
+				r->sr_integriforce_data->si_hash = NULL;
+				free(hash, M_SECADM);
+				kernel_free_rule(r);
+
+				return (EINVAL);
+			}
+
+			break;
+
+		default:
+			kernel_free_rule(r);
+			return (EINVAL);
+		}
+
+		r->sr_integriforce_data->si_hash = hash;
+		r->sr_integriforce_data->si_cache = 0;
+
+		if (!(rule->sr_integriforce_data->si_mode == 0 ||
+		    rule->sr_integriforce_data->si_mode == 1)) {
+			kernel_free_rule(r);
+			return (EINVAL);
+		}
+
+		break;
+
+	case secadm_pax_rule:
+		ptr = malloc(sizeof(secadm_pax_data_t), M_SECADM, M_WAITOK);
+
+		if (copyin(r->sr_pax_data, ptr,
+		    sizeof(secadm_pax_data_t))) {
+			free(ptr, M_SECADM);
+			kernel_free_rule(r);
+
+			return (EINVAL);
+		}
+
+		r->sr_pax_data = ptr;
+
+		if (!(r->sr_pax_data->sp_pax_set)) {
+			r->sr_pax_data->sp_path = NULL;
+			kernel_free_rule(r);
+			return (EINVAL);
+		}
+
+		if (r->sr_pax_data->sp_pathsz == 0 ||
+		    r->sr_pax_data->sp_pathsz >= MAXPATHLEN) {
+			r->sr_pax_data->sp_path = NULL;
+			kernel_free_rule(r);
+			return (EINVAL);
+		}
+
+		path = malloc(r->sr_pax_data->sp_pathsz + 1,
+		    M_SECADM, M_WAITOK);
+
+		if (copyin(r->sr_pax_data->sp_path, path,
+		    r->sr_pax_data->sp_pathsz)) {
+			r->sr_pax_data->sp_path = NULL;
+			free(path, M_SECADM);
+			kernel_free_rule(r);
+
+			return (EINVAL);
+		}
+
+		path[r->sr_pax_data->sp_pathsz] = '\0';
+		r->sr_pax_data->sp_path = path;
+
+		if (r->sr_pax_data->sp_pax & SECADM_PAX_MPROTECT) {
+			r->sr_pax_data->sp_pax |= SECADM_PAX_PAGEEXEC;
+		}
+
+		break;
+
+	case secadm_extended_rule:
+		r->sr_extended_data = NULL;
+		printf("bsdextended rules not supported yet.\n");
+
+	default:
+		kernel_free_rule(r);
+		return (EINVAL);
+	}
+
+	if ((error = kernel_finalize_rule(td, r, ruleset))) {
+		kernel_free_rule(r);
+		return (EINVAL);
+	}
+
+	r->sr_active = 1;
+	r->sr_jid = td->td_ucred->cr_prison->pr_id;
+
+	switch (r->sr_type) {
+	case secadm_integriforce_rule:
+		key.sk_jid = r->sr_jid;
+		key.sk_type = secadm_integriforce_rule;
+		key.sk_fileid = r->sr_integriforce_data->si_fileid;
+		strncpy(key.sk_mntonname,
+		    r->sr_integriforce_data->si_mntonname, MNAMELEN);
+
+		break;
+
+	case secadm_pax_rule:
+		key.sk_jid = r->sr_jid;
+		key.sk_type = secadm_pax_rule;
+		key.sk_fileid = r->sr_pax_data->sp_fileid;
+		strncpy(key.sk_mntonname,
+		    r->sr_pax_data->sp_mntonname, MNAMELEN);
+
+		break;
+
+	case secadm_extended_rule:
+		kernel_free_rule(r);
+		return (EINVAL);
+	}
+
+	r->sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
+	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
+
+	RM_PE_WLOCK(entry);
+	if (ruleset == 1) {
+		RB_INSERT(secadm_rules_tree, &(entry->sp_staging), r);
+	} else {
+		r->sr_id = entry->sp_last_id++;
+		entry->sp_num_rules++;
+
+		switch (r->sr_type) {
+		case secadm_integriforce_rule:
+			entry->sp_num_integriforce_rules++;
+			break;
+
+		case secadm_pax_rule:
+			entry->sp_num_pax_rules++;
+			break;
+
+		case secadm_extended_rule:
+			entry->sp_num_extended_rules++;
+			break;
+		}
+
+		RB_INSERT(secadm_rules_tree, &(entry->sp_rules), r);
+	}
+	RM_PE_WUNLOCK(entry);
+
+	return (0);
+}
+
+void
+kernel_del_rule(struct thread *td, secadm_rule_t *rule)
+{
+	secadm_prison_entry_t *entry;
+	secadm_rule_t *r, *v, *next;
+
+	r = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
+
+	if (copyin(rule, r, sizeof(secadm_rule_t))) {
+		kernel_free_rule(r);
+		return;
+	}
+
+	entry = get_prison_list_entry(
+	    td->td_ucred->cr_prison->pr_id);
+
+	RM_PE_WLOCK(entry);
+	for (v = RB_MIN(secadm_rules_tree, &(entry->sp_rules));
+	    v != NULL; v = next) {
+		next = RB_NEXT(secadm_rules_tree, &(entry->sp_rules), v);
+
+		if (r->sr_id == v->sr_id) {
+			RB_REMOVE(secadm_rules_tree, &(entry->sp_rules), v);
+			entry->sp_num_rules--;
+
+			switch (v->sr_type) {
+			case secadm_integriforce_rule:
+				entry->sp_num_integriforce_rules--;
+				break;
+
+			case secadm_extended_rule:
+				entry->sp_num_extended_rules--;
+				break;
+
+			case secadm_pax_rule:
+				entry->sp_num_pax_rules--;
+				break;
+			}
+
+			kernel_free_rule(v);
+			break;
 		}
 	}
-	SPL_RUNLOCK(entry, tracker);
+	RM_PE_WUNLOCK(entry);
+
+	free(r, M_SECADM);
+}
+
+void
+kernel_active_rule(struct thread *td, secadm_rule_t *rule, int active)
+{
+	secadm_prison_entry_t *entry;
+	secadm_rule_t *r, *v;
+
+	r = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
+
+	if (copyin(rule, r, sizeof(secadm_rule_t))) {
+		kernel_free_rule(r);
+		return;
+	}
+
+	entry = get_prison_list_entry(
+	    td->td_ucred->cr_prison->pr_id);
+
+	RM_PE_WLOCK(entry);
+	RB_FOREACH(v, secadm_rules_tree, &(entry->sp_rules)) {
+		if (r->sr_id == v->sr_id) {
+			v->sr_active = active;
+			break;
+		}
+	}
+	RM_PE_WUNLOCK(entry);
+
+	free(r, M_SECADM);
+}
+
+secadm_rule_t *
+kernel_get_rule(struct thread *td, secadm_rule_t *rule)
+{
+	struct rm_priotracker tracker;
+	secadm_prison_entry_t *entry;
+	secadm_rule_t *r, *v;
+	int found = 0;
+
+	r = malloc(sizeof(secadm_rule_t), M_SECADM, M_WAITOK);
+
+	if (copyin(rule, r, sizeof(secadm_rule_t))) {
+		kernel_free_rule(r);
+		return (NULL);
+	}
+
+	entry = get_prison_list_entry(
+	    td->td_ucred->cr_prison->pr_id);
+
+	RM_PE_RLOCK(entry, tracker);
+	RB_FOREACH(v, secadm_rules_tree, &(entry->sp_rules)) {
+		if (v->sr_id == r->sr_id) {
+			found = 1;
+			break;
+		}
+	}
+	RM_PE_RUNLOCK(entry, tracker);
+
+	free(r, M_SECADM);
+
+	if (found) {
+		return (v);
+	}
 
 	return (NULL);
-}
-
-size_t
-get_rule_size(struct thread *td, size_t id)
-{
-	secadm_rule_t *rule;
-	secadm_integriforce_t *integriforce_p;
-	size_t size, i;
-
-	size = 0;
-	rule = get_rule_by_id(td, id);
-	if (rule == NULL)
-		goto end;
-
-	size += sizeof(secadm_rule_t);
-	size += rule->sr_pathlen+1;
-	size += sizeof(secadm_feature_t) * rule->sr_nfeatures;
-	size += strlen(rule->sr_prison)+1;
-
-	for (i=0; i < rule->sr_nfeatures; i++) {
-		if (rule->sr_features[i].sf_metadata) {
-			size += rule->sr_features[i].sf_metadatasz;
-			switch (rule->sr_features[i].sf_type) {
-			case integriforce:
-				integriforce_p = rule->sr_features[i].sf_metadata;
-				switch (integriforce_p->si_hashtype) {
-				case si_hash_sha1:
-					size += SHA1_RESULTLEN;
-					break;
-				case si_hash_sha256:
-					size += SHA256_DIGEST_LENGTH;
-					break;
-				default:
-					break;
-				}
-				break;
-			default:
-				break;
-			}
-		}
-	}
-end:
-	return (size);
-}
-
-int
-handle_get_rule_size(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
-{
-	size_t id, size;
-	int err;
-
-	if (reply->sr_size < sizeof(size_t) || cmd->sc_bufsize != sizeof(size_t))
-		return (EINVAL);
-
-	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t)))) {
-		reply->sr_code = secadm_fail;
-		reply->sr_errno = err;
-		return (err);
-	}
-
-	size = get_rule_size(td, id);
-
-	if ((err = copyout(&size, reply->sr_metadata, sizeof(size_t)))) {
-		reply->sr_code = secadm_fail;
-		reply->sr_errno = err;
-	}
-
-	return (0);
-}
-
-int
-get_num_rules(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
-{
-	struct secadm_prison_entry *entry;
-	size_t nrules;
-	int err;
-	struct rm_priotracker tracker;
-
-	if (reply->sr_size < sizeof(size_t))
-		return (EINVAL);
-
-	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_name, 0);
-	if (entry != NULL) {
-		SPL_RLOCK(entry, tracker);
-		nrules = entry->spl_max_id;
-		SPL_RUNLOCK(entry, tracker);
-	} else
-		nrules = 0;
-
-	if ((err = copyout(&nrules, reply->sr_metadata, sizeof(size_t)))) {
-		reply->sr_code = secadm_fail;
-		reply->sr_errno = err;
-	}
-
-	return (0);
-}
-
-int
-handle_get_rule(struct thread *td, secadm_command_t *cmd, secadm_reply_t *reply)
-{
-	secadm_rule_t *rule, *newrule;
-	secadm_feature_t *newrule_features;
-	secadm_integriforce_t *integriforce_p;
-	size_t id, size, written, i;
-	char *buf, *path;
-	int err;
-
-	if (cmd->sc_bufsize != sizeof(size_t))
-		return (EINVAL);
-
-	/*
-	 * Get the requested rule ID and ensure the userland buffer
-	 * can hold the rule
-	 */
-	if ((err = copyin(cmd->sc_buf, &id, sizeof(size_t)))) {
-		reply->sr_code = secadm_fail;
-		reply->sr_errno = err;
-		return (err);
-	}
-
-	rule = get_rule_by_id(td, id);
-	if (rule == NULL) {
-		reply->sr_code = secadm_fail;
-		reply->sr_errno = ENOENT;
-		return (1);
-	}
-
-	size = get_rule_size(td, id);
-	if (size == 0) {
-		reply->sr_code = secadm_fail;
-		reply->sr_errno = ENOENT;
-		return (1);
-	}
-
-	if (reply->sr_size < size) {
-		reply->sr_code = secadm_fail;
-		reply->sr_errno = EOVERFLOW;
-		return (1);
-	}
-
-	written=0;
-	buf = malloc(size, M_SECADM, M_WAITOK | M_ZERO);
-
-	memcpy(buf, rule, sizeof(secadm_rule_t));
-	newrule = (secadm_rule_t *)buf;
-	written += sizeof(secadm_rule_t);
-
-	/* Sanitize sensitive data */
-	newrule->sr_next = NULL;
-	newrule->sr_kernel = NULL;
-
-	newrule->sr_features = (secadm_feature_t *)(buf+written);
-	newrule_features = (secadm_feature_t *)((char *)(reply->sr_metadata) + written);
-	written += sizeof(secadm_feature_t) * rule->sr_nfeatures;
-
-	for (i=0; i < rule->sr_nfeatures; i++) {
-		memcpy(&(newrule->sr_features[i]), &rule->sr_features[i], sizeof(secadm_feature_t));
-		if (rule->sr_features[i].sf_metadata) {
-			switch (rule->sr_features[i].sf_type) {
-			case integriforce:
-				integriforce_p = (secadm_integriforce_t *)(buf + written);
-				memcpy(integriforce_p, rule->sr_features[i].sf_metadata,
-					sizeof(secadm_integriforce_t));
-				newrule->sr_features[i].sf_metadata =
-				    (char *)(reply->sr_metadata) + written;
-				written += sizeof(secadm_integriforce_t);
-
-				switch (integriforce_p->si_hashtype) {
-				case si_hash_sha1:
-					memcpy(buf + written, integriforce_p->si_hash, SHA1_RESULTLEN);
-					integriforce_p->si_hash = (unsigned char *)
-					    ((char *)(reply->sr_metadata) + written);
-					written += SHA1_RESULTLEN;
-					break;
-				case si_hash_sha256:
-					memcpy(buf + written,
-					    integriforce_p->si_hash,
-					    SHA256_DIGEST_LENGTH);
-					integriforce_p->si_hash = (unsigned char *)
-					    ((char *)(reply->sr_metadata) + written);
-					written += SHA256_DIGEST_LENGTH;
-					break;
-				default:
-					break;
-				}
-
-				break;
-			default:
-				newrule->sr_features[i].sf_metadata = NULL;
-				newrule->sr_features[i].sf_metadatasz = 0;
-				break;
-			}
-		}
-	}
-
-	newrule->sr_features = newrule_features;
-
-	if (rule->sr_pathlen) {
-		path = buf + written;
-		memcpy(path, rule->sr_path, rule->sr_pathlen+1);
-		newrule->sr_path = (char *)(reply->sr_metadata) + written;
-		written += rule->sr_pathlen + 1;
-	}
-
-	newrule->sr_prison = (char *)(reply->sr_metadata) + written;
-	memcpy(buf + written, rule->sr_prison, strlen(rule->sr_prison)+1);
-	written += strlen(rule->sr_prison)+1;
-
-	copyout(newrule, reply->sr_metadata, size);
-
-	free(buf, M_SECADM);
-
-	reply->sr_code = secadm_success;
-	reply->sr_errno = 0;
-
-	return (0);
 }
