@@ -165,7 +165,17 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 rule_inactive:
 	RM_PE_RUNLOCK(entry, tracker);
 
+#if __HardenedBSD_version > 35
+	/*
+	 * XXXOP:  move the check for PAX_NOTE_FINALIZED closer to the
+	 * functions entry point to avoid the lookup for ACLs when
+	 * FS-EA has the higher priority
+	 */
+	if (err == 0 && flags &&
+	   ((imgp->proc->p_pax & PAX_NOTE_FINALIZED) != PAX_NOTE_FINALIZED)) {
+#else
 	if (err == 0 && flags) {
+#endif
 		err = pax_elf(imgp, flags);
 	}
 
