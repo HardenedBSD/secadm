@@ -173,6 +173,12 @@ rule_inactive:
 	 */
 	if (err == 0 && flags &&
 	   ((imgp->proc->p_pax & PAX_NOTE_FINALIZED) != PAX_NOTE_FINALIZED)) {
+		/*
+		 * XXXOP: make this set conditional
+		 * if (pax_feature_control_fsea_first != true)
+		 * 	flags |= PAX_NOTE_FINALIZED;
+		 */
+		flags |= PAX_NOTE_FINALIZED;
 #else
 	if (err == 0 && flags) {
 #endif
