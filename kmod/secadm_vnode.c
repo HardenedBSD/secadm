@@ -52,6 +52,9 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	secadm_prison_entry_t *entry;
 	secadm_rule_t r, *rule;
 	int err, flags = 0;
+#if __HardenedBSD_version > 35
+	int oldflags = 0;
+#endif
 	secadm_key_t key;
 	struct vattr vap;
 
@@ -167,22 +170,25 @@ rule_inactive:
 
 #if __HardenedBSD_version > 35
 	/*
-	 * XXXOP:  move the check for PAX_NOTE_FINALIZED closer to the
+	 * XXXOP:  move the check for PAX_NOTE_HAS_SPEC_RULE closer to the
 	 * functions entry point to avoid the lookup for ACLs when
 	 * FS-EA has the higher priority
 	 */
+	pax_get_flags_td(curthread, &oldflags);
 	if (err == 0 && flags &&
-	   ((imgp->proc->p_pax & PAX_NOTE_FINALIZED) != PAX_NOTE_FINALIZED)) {
+	   ((oldflags & PAX_NOTE_HAS_SPEC_RULE) != PAX_NOTE_HAS_SPEC_RULE)) {
 		/*
 		 * XXXOP: make this set conditional
 		 * if (pax_feature_control_fsea_first != true)
-		 * 	flags |= PAX_NOTE_FINALIZED;
+		 * 	flags |= PAX_NOTE_HAS_SPEC_RULE;
 		 */
-		flags |= PAX_NOTE_FINALIZED;
+		flags |= PAX_NOTE_HAS_SPEC_RULE;
+		err = pax_elf(imgp, curthread, flags);
+
 #else
 	if (err == 0 && flags) {
-#endif
 		err = pax_elf(imgp, flags);
+#endif
 	}
 
 	return (err);
