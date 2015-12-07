@@ -52,9 +52,6 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 	secadm_prison_entry_t *entry;
 	secadm_rule_t r, *rule;
 	int err, flags = 0;
-#if __HardenedBSD_version > 35
-	int oldflags = 0;
-#endif
 	secadm_key_t key;
 	struct vattr vap;
 
