@@ -169,27 +169,13 @@ rule_inactive:
 	RM_PE_RUNLOCK(entry, tracker);
 
 #if __HardenedBSD_version > 35
-	/*
-	 * XXXOP:  move the check for PAX_NOTE_HAS_SPEC_RULE closer to the
-	 * functions entry point to avoid the lookup for ACLs when
-	 * FS-EA has the higher priority
-	 */
-	pax_get_flags_td(curthread, &oldflags);
-	if (err == 0 && flags &&
-	   ((oldflags & PAX_NOTE_HAS_SPEC_RULE) != PAX_NOTE_HAS_SPEC_RULE)) {
-		/*
-		 * XXXOP: make this set conditional
-		 * if (pax_feature_control_fsea_first != true)
-		 * 	flags |= PAX_NOTE_HAS_SPEC_RULE;
-		 */
-		flags |= PAX_NOTE_HAS_SPEC_RULE;
+	if (err == 0 && flags)
 		err = pax_elf(imgp, curthread, flags);
 
 #else
-	if (err == 0 && flags) {
+	if (err == 0 && flags)
 		err = pax_elf(imgp, flags);
 #endif
-	}
 
 	return (err);
 }
