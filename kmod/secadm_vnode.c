@@ -165,7 +165,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 rule_inactive:
 	RM_PE_RUNLOCK(entry, tracker);
 
-#if __HardenedBSD_version > 35
+#if __HardenedBSD_version == 36
 	if (err == 0 && flags)
 		err = pax_elf(imgp, curthread, flags);
 
