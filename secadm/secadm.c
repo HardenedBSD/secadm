@@ -395,15 +395,13 @@ load_action(int argc, char **argv)
 	if (section) {
 		while ((cur = ucl_iterate_object(section, &it, false))) {
 			if ((r =
-				malloc(sizeof(secadm_rule_t))) == NULL) {
-				perror("malloc");
+			    calloc(1, sizeof(secadm_rule_t))) == NULL) {
+				perror("calloc");
 				ucl_parser_free(parser);
 				free_ruleset(ruleset);
 
 				return (1);
 			}
-
-			memset(r, 0x00, sizeof(secadm_rule_t));
 
 			r->sr_type = secadm_pax_rule;
 			if (parse_pax_object(cur, r)) {
@@ -435,9 +433,9 @@ load_action(int argc, char **argv)
 	section = ucl_lookup_path(top, "secadm.integriforce");
 	if (section) {
 		while ((cur = ucl_iterate_object(section, &it, false))) {
-			if ((r= malloc(sizeof(secadm_rule_t)))
-				== NULL) {
-				perror("malloc");
+			if ((r= calloc(1, sizeof(secadm_rule_t)))
+			    == NULL) {
+				perror("calloc");
 				ucl_parser_free(parser);
 				return (1);
 			}
@@ -510,13 +508,11 @@ add_action(int argc, char **argv)
 		return (1);
 	}
 
-	if ((rule = malloc(sizeof(secadm_rule_t))) == NULL) {
-		perror("malloc");
+	if ((rule = calloc(1, sizeof(secadm_rule_t))) == NULL) {
+		perror("calloc");
 
 		return (errno);
 	}
-
-	memset(rule, 0, sizeof(secadm_rule_t));
 
 	rule_type = argv[2];
 
@@ -528,8 +524,8 @@ add_action(int argc, char **argv)
 			return (1);
 		}
 
-		if ((rule->sr_pax_data = malloc(sizeof(secadm_pax_data_t))) == NULL) {
-			perror("malloc");
+		if ((rule->sr_pax_data = calloc(1, sizeof(secadm_pax_data_t))) == NULL) {
+			perror("calloc");
 			secadm_free_rule(rule);
 
 			return (errno);
@@ -546,6 +542,7 @@ add_action(int argc, char **argv)
 		do {
 			switch (*p) {
 			case 'a':
+				printf("Disabling aslr\n");
 				rule->sr_pax_data->sp_pax &=
 				    ~SECADM_PAX_ASLR;
 				rule->sr_pax_data->sp_pax_set |=
@@ -651,8 +648,8 @@ add_action(int argc, char **argv)
 		}
 
 		if ((rule->sr_integriforce_data =
-		    malloc(sizeof(secadm_integriforce_data_t))) == NULL) {
-			perror("malloc");
+		    calloc(1, sizeof(secadm_integriforce_data_t))) == NULL) {
+			perror("calloc");
 			secadm_free_rule(rule);
 
 			return (errno);
@@ -688,8 +685,8 @@ add_action(int argc, char **argv)
 		switch (rule->sr_integriforce_data->si_type) {
 		case secadm_hash_sha1:
 			if ((rule->sr_integriforce_data->si_hash =
-			    malloc(SECADM_SHA1_DIGEST_LEN)) == NULL) {
-				perror("malloc");
+			    calloc(1, SECADM_SHA1_DIGEST_LEN)) == NULL) {
+				perror("calloc");
 				secadm_free_rule(rule);
 
 				return (1);
@@ -718,8 +715,8 @@ add_action(int argc, char **argv)
 
 		case secadm_hash_sha256:
 			if ((rule->sr_integriforce_data->si_hash =
-			    malloc(SECADM_SHA256_DIGEST_LEN)) == NULL) {
-				perror("malloc");
+			    calloc(1, SECADM_SHA256_DIGEST_LEN)) == NULL) {
+				perror("calloc");
 				secadm_free_rule(rule);
 
 				return (1);
@@ -1020,12 +1017,10 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 	const char *key;
 	struct stat sb;
 
-	if ((rule->sr_pax_data = malloc(sizeof(secadm_pax_data_t))) == NULL) {
-		perror("malloc");
+	if ((rule->sr_pax_data = calloc(1, sizeof(secadm_pax_data_t))) == NULL) {
+		perror("calloc");
 		return (1);
 	}
-
-	memset(rule->sr_pax_data, 0, sizeof(secadm_pax_data_t));
 
 	while ((cur = ucl_iterate_object(obj, &it, true))) {
 		key = ucl_object_key(cur);
@@ -1099,8 +1094,8 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 	int i;
 
 	if ((rule->sr_integriforce_data =
-	    malloc(sizeof(secadm_integriforce_data_t))) == NULL) {
-		perror("malloc");
+	    calloc(1, sizeof(secadm_integriforce_data_t))) == NULL) {
+		perror("calloc");
 		return (1);
 	}
 
@@ -1146,8 +1141,8 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 	switch (rule->sr_integriforce_data->si_type) {
 	case secadm_hash_sha1:
 		if ((rule->sr_integriforce_data->si_hash =
-		    malloc(SECADM_SHA1_DIGEST_LEN)) == NULL) {
-			perror("malloc");
+		    calloc(1, SECADM_SHA1_DIGEST_LEN)) == NULL) {
+			perror("calloc");
 			secadm_free_rule(rule);
 
 			return (1);
@@ -1176,8 +1171,8 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 
 	case secadm_hash_sha256:
 		if ((rule->sr_integriforce_data->si_hash =
-		     malloc(SECADM_SHA256_DIGEST_LEN)) == NULL) {
-			perror("malloc");
+		     calloc(1, SECADM_SHA256_DIGEST_LEN)) == NULL) {
+			perror("calloc");
 			return (1);
 		}
 
