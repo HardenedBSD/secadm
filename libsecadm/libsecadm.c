@@ -168,8 +168,8 @@ _secadm_get_rule_data(secadm_rule_t *rule, size_t size)
 	cmd.sc_version = SECADM_VERSION;
 	cmd.sc_type = secadm_cmd_get_rule_data;
 
-	if ((rule_data = malloc(size)) == NULL) {
-		perror("malloc");
+	if ((rule_data = calloc(1, size)) == NULL) {
+		perror("calloc");
 		return NULL;
 	}
 
@@ -198,12 +198,10 @@ _secadm_get_rule_path(secadm_rule_t *rule)
 	cmd.sc_version = SECADM_VERSION;
 	cmd.sc_type = secadm_cmd_get_rule_path;
 
-	if ((rule_path = malloc(MAXPATHLEN + 1)) == NULL) {
-		perror("malloc");
+	if ((rule_path = calloc(1, MAXPATHLEN + 1)) == NULL) {
+		perror("calloc");
 		return NULL;
 	}
-
-	memset(rule_path, 0, MAXPATHLEN);
 
 	cmd.sc_data = rule;
 	reply.sr_data = rule_path;
@@ -230,12 +228,11 @@ _secadm_get_rule_hash(secadm_rule_t *rule)
 	cmd.sc_version = SECADM_VERSION;
 	cmd.sc_type = secadm_cmd_get_rule_hash;
 
-	if ((rule_hash = malloc(SECADM_SHA256_DIGEST_LEN + 1)) == NULL) {
-		perror("malloc");
+	if ((rule_hash = calloc(1, SECADM_SHA256_DIGEST_LEN + 1)) == NULL) {
+		perror("calloc");
 		return NULL;
 	}
 
-	memset(rule_hash, 0, SECADM_SHA256_DIGEST_LEN);
 	cmd.sc_data = rule;
 	reply.sr_data = rule_hash;
 
@@ -262,12 +259,10 @@ secadm_get_rule(int rule_id)
 	cmd.sc_version = SECADM_VERSION;
 	cmd.sc_type = secadm_cmd_get_rule;
 
-	if ((rule = malloc(sizeof(secadm_rule_t))) == NULL) {
-		perror("malloc");
+	if ((rule = calloc(1, sizeof(secadm_rule_t))) == NULL) {
+		perror("calloc");
 		return (NULL);
 	}
-
-	memset(rule, 0, sizeof(secadm_rule_t));
 
 	rule->sr_id = rule_id;
 	cmd.sc_data = rule;
