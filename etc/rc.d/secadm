@@ -51,6 +51,10 @@ secadm_prestart()
 		echo "missing rules file: ${secadm_rules}"
 		return 1
 	fi
+
+	if ! /sbin/kldstat -qm secadm; then
+		/sbin/kldload secadm
+	fi
 }
 
 secadm_stop()
