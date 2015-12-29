@@ -51,9 +51,10 @@
 #include <sys/vnode.h>
 
 #include <crypto/sha1.h>
-#include <crypto/sha2/sha2.h>
 #if __FreeBSD_version > 1100000
 #include <crypto/sha2/sha256.h>
+#else
+#include <crypto/sha2/sha2.h>
 #endif
 #include <security/mac/mac_policy.h>
 
