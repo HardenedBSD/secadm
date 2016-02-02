@@ -1,35 +1,22 @@
-{
-	"applications": [
-		{
-			"path": "/usr/local/lib/firefox/firefox-bin",
-			"features": {
-				"pageexec" : false,
-				"mprotect": false,
-				"aslr": false,
-			}
-		}
-		{
-			"path": "/usr/local/lib/firefox/firefox",
-			"features": {
-				"pageexec" : false,
-				"mprotect": false,
-				"aslr": false,
-			}
-		}
-		{
-			"path": "/usr/local/bin/firefox",
-			"features": {
-				"pageexec" : false,
-				"mprotect": false,
-				"aslr": false,
-			}
-		}
-		{
-			"path": "/usr/local/openjdk7/bin/java",
-			"features": {
-				"pageexec": false,
-				"mprotect": false,
-			}
-		}
-	]
+secadm {
+	pax {
+		path: "/usr/local/lib/firefox/firefox-bin",
+		pageexec : false,
+		mprotect: false,
+	},
+	pax {
+		path: "/usr/local/lib/firefox/firefox",
+		pageexec : false,
+		mprotect: false,
+	},
+	pax {
+		path: "/usr/local/bin/firefox",
+		pageexec : false,
+		mprotect: false,
+	},
+	pax {
+		path: "/usr/local/openjdk7/bin/java",
+		pageexec: false,
+		mprotect: false,
+	}
 }
