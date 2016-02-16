@@ -1,5 +1,5 @@
 SHLIB=	secadm
-SHLIB_MAJOR=	0
+SHLIB_MAJOR=	1
 SRCS=	libsecadm.c
 INCS=	secadm.h
 
