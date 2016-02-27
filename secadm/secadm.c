@@ -370,6 +370,8 @@ load_action(int argc, char **argv)
 		return (1);
 	}
 
+	ruleset = NULL;
+
 	parser = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
 	if (parser == NULL) {
 		fprintf(stderr, "Could not create new parser.\n");
