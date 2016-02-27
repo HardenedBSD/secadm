@@ -1026,6 +1026,9 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 
 	while ((cur = ucl_iterate_object(obj, &it, true))) {
 		key = ucl_object_key(cur);
+		if (!(key)) {
+			return 1;
+		}
 
 		if (!strncmp(key, "path", 4)) {
 			rule->sr_pax_data->sp_path =
