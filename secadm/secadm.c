@@ -1027,12 +1027,15 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 	while ((cur = ucl_iterate_object(obj, &it, true))) {
 		key = ucl_object_key(cur);
 		if (!(key)) {
-			return 1;
+			return (1);
 		}
 
 		if (!strncmp(key, "path", 4)) {
 			rule->sr_pax_data->sp_path =
 			    (u_char *)ucl_object_tostring(cur);
+			if (!(rule->sr_pax_data->sp_path)) {
+				return (1);
+			}
 		} else if (!strncmp(key, "aslr", 4)) {
 			rule->sr_pax_data->sp_pax_set |=
 			    SECADM_PAX_ASLR_SET;
@@ -1108,16 +1111,31 @@ int parse_integriforce_object(const ucl_object_t *obj, secadm_rule_t *rule)
 
 	while ((cur = ucl_iterate_object(obj, &it, true))) {
 		key = ucl_object_key(cur);
+		if (!(key)) {
+			return (1);
+		}
 
 		if (!strncmp(key, "path", 4)) {
 			rule->sr_integriforce_data->si_path =
 			    (u_char *)ucl_object_tostring(cur);
+			if (!(rule->sr_integriforce_data->si_path)) {
+				return (1);
+			}
 		} else if (!strncmp(key, "hash", 4)) {
 			hash = ucl_object_tostring(cur);
+			if (!(hash)) {
+				return (1);
+			}
 		} else if (!strncmp(key, "type", 4)) {
 			type = ucl_object_tostring(cur);
+			if (!(type)) {
+				return (1);
+			}
 		} else if (!strncmp(key, "mode", 4)) {
 			mode = ucl_object_tostring(cur);
+			if (!(mode)) {
+				return (1);
+			}
 		} else {
 			fprintf(stderr,
 			    "Unknown attribute '%s' of Integriforce rule.\n", key);
