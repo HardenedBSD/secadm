@@ -20,11 +20,12 @@ function do_executable() {
 	fi
 
 	IFS= read -r -d '' str2 <<EOF
-		{
-			"path": "${executable}",
-			"hash": "$(sha256 -q ${executable})",
-			"hash_type": "sha256",
-		},
+	integriforce {
+		path: "${executable}",
+		hash: "$(sha256 -q ${executable})",
+		type: "sha256",
+		mode: "hard",
+	},
 EOF
 
 	str="${str}${str2}"
@@ -34,7 +35,7 @@ EOF
 		return 1
 	fi
 
-	for file in $(ldd ${executable} 2> /dev/null | sed -e '1d' | awk '{print $3;}'); do
+	for file in $(ldd -f '%p\n' ${executable} 2> /dev/null); do
 		if [ ! -f ${file} ]; then
 			continue
 		fi
@@ -44,11 +45,12 @@ EOF
 		fi
 
 		IFS= read -r -d '' str2 <<EOF
-		{
-			"path": "${file}",
-			"hash": "$(sha256 -q ${file})",
-			"hash_type": "sha256",
-		},
+	integriforce {
+		path: "${file}",
+		hash: "$(sha256 -q ${file})",
+		type: "sha256",
+		mode: "hard",
+	},
 EOF
 		str="${str}${str2}"
 	done
@@ -70,47 +72,41 @@ function do_directory() {
 function secadm_check_dups() {
 	config=${1}
 	res=0
-	tmpfile=$(mktemp)
 
 	if [ ${#config} -eq 0 ]; then
 		echo "USAGE: ${0} /path/to/config" >&2
 		return 1
 	fi
 
-	# Assume the Integriforce section is the last section.
-	# Trim what we look at to only the Integriforce section.
+	# This assumes the path line is immediately below the
+	# integriforce line
 	
-	line=$(grep -niF 'integriforce' ${config} | awk '{print $1;}' \
-	    | sed 's/://')
-	if [ ${#line} -eq 0 ]; then
-		rm -f ${tmpfile}
+	tfile=$(mktemp)
+	if [ -z "${tfile}" ]; then
 		return 0
 	fi
-
-	foreach file in $(sed -e 1,${line}d ${config} | grep -i path \
-	    | awk '{print $2;}' | sed 's/[",]//g'); do
-		printout=1
-
-		while read tfile; do
-			if [ ${tfile} = ${file} ]; then
-				printout=0
-			fi
-		done < ${tmpfile}
-
-		if [ ${printout} -eq 1 ]; then
-			count=$(sed -e 1,${line}d ${config} \
-			    | grep -iw ${file} | uniq -c \
-			    | awk '{print $1;}')
-
-			if [ $((${count} + 0)) -gt 1 ]; then
-				echo ${file} >> ${tmpfile}
-				echo "${file} has ${count} entries"
-				res=$((${res} + 1))
-			fi
+	
+	for entry in $(grep -A 1 integriforce ${config} | grep path); do
+		entry=${entry:gs/\"/}
+		entry=${entry:gs/;/}
+		entry=${entry:gs/,/}
+		if [ -f ${entry} ]; then
+			echo ${entry} >> ${tfile}
 		fi
 	done
 
-	rm -f ${tmpfile}
+	sort ${tfile} > ${tfile}.sort
+	mv ${tfile}.sort ${tfile}
+	uniq -c ${tfile} | while read line; do
+		entries=$(echo ${line} | awk '{print $1;}')
+		file=$(echo ${line} | awk '{print $2;}')
+		if [ ${entries} -gt 1 ]; then
+			res=$((${res} + 1))
+			echo "[-] ${file} has ${entries} duplicates" >&2
+		fi
+	done
+
+	rm ${tfile}
 
 	return ${res}
 }
