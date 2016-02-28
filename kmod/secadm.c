@@ -36,7 +36,7 @@
 #include <sys/mount.h>
 #include <sys/namei.h>
 #include <sys/proc.h>
-#include <sys/rmlock.h>
+#include <sys/sx.h>
 #include <sys/tree.h>
 #include <sys/ucred.h>
 #include <sys/vnode.h>
@@ -65,32 +65,31 @@ secadm_rule_cmp(secadm_rule_t *a, secadm_rule_t *b)
 secadm_prison_entry_t *
 get_prison_list_entry(int jid)
 {
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 
-	RM_PL_RLOCK(tracker);
+	PL_RLOCK();
 	SLIST_FOREACH(entry, &(secadm_prisons_list.sp_prison), sp_entries) {
 		if (entry->sp_id == jid) {
-			RM_PL_RUNLOCK(tracker);
+			PL_RUNLOCK();
 			return (entry);
 		}
 	}
-	RM_PL_RUNLOCK(tracker);
+	PL_RUNLOCK();
 
 	entry = malloc(sizeof(secadm_prison_entry_t),
 	    M_SECADM, M_WAITOK | M_ZERO);
 
-	RM_PE_INIT(entry);
-	RM_PE_WLOCK(entry);
+	PE_INIT(entry);
+	PE_WLOCK(entry);
 	entry->sp_id = jid;
 	RB_INIT(&(entry->sp_rules));
 	RB_INIT(&(entry->sp_staging));
-	RM_PE_WUNLOCK(entry);
+	PE_WUNLOCK(entry);
 
-	RM_PL_WLOCK();
+	PL_WLOCK();
 	SLIST_INSERT_HEAD(&(secadm_prisons_list.sp_prison),
 	    entry, sp_entries);
-	RM_PL_WUNLOCK();
+	PL_WUNLOCK();
 
 	return (entry);
 }
@@ -184,7 +183,7 @@ kernel_flush_ruleset(int jid)
 
 	entry = get_prison_list_entry(jid);
 
-	RM_PE_WLOCK(entry);
+	PE_WLOCK(entry);
 	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_rules));
 	    r != NULL; r = next) {
 		next = RB_NEXT(secadm_rules_tree, &(entry->sp_rules), r);
@@ -197,14 +196,13 @@ kernel_flush_ruleset(int jid)
 	entry->sp_num_integriforce_rules = 0;
 	entry->sp_num_pax_rules = 0;
 	entry->sp_num_extended_rules = 0;
-	RM_PE_WUNLOCK(entry);
+	PE_WUNLOCK(entry);
 }
 
 int
 kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 {
 	struct secadm_rules_tree *head;
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t *r;
 	struct vattr vap;
@@ -250,7 +248,7 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
-	RM_PE_RLOCK(entry, tracker);
+	PE_RLOCK(entry);
 	if (ruleset == 1) {
 		head = &(entry->sp_staging);
 	} else {
@@ -268,7 +266,7 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 			    rule->sr_integriforce_data->si_mntonname,
 			    MAXPATHLEN) && r->sr_integriforce_data->si_fileid ==
 			    rule->sr_integriforce_data->si_fileid) {
-				RM_PE_RUNLOCK(entry, tracker);
+				PE_RUNLOCK(entry);
 				return (EEXIST);
 			}
 
@@ -279,18 +277,18 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 			    rule->sr_pax_data->sp_mntonname,
 			    MAXPATHLEN) && r->sr_pax_data->sp_fileid ==
 			    rule->sr_pax_data->sp_fileid) {
-				RM_PE_RUNLOCK(entry, tracker);
+				PE_RUNLOCK(entry);
 				return (EEXIST);
 			}
 
 			break;
 
 		case secadm_extended_rule:
-			RM_PE_RUNLOCK(entry, tracker);
+			PE_RUNLOCK(entry);
 			return (1);
 		}
 	}
-	RM_PE_RUNLOCK(entry, tracker);
+	PE_RUNLOCK(entry);
 
 	return (0);
 }
@@ -323,7 +321,7 @@ kernel_load_ruleset(struct thread *td, secadm_rule_t *rule)
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 	kernel_flush_ruleset(entry->sp_id);
 
-	RM_PE_WLOCK(entry);
+	PE_WLOCK(entry);
 	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_staging));
 	     r != NULL; r = r2) {
 		r2 = RB_NEXT(secadm_rules_tree, &(entry->sp_staging), r);
@@ -350,14 +348,14 @@ kernel_load_ruleset(struct thread *td, secadm_rule_t *rule)
 	}
 
 	entry->sp_loaded = 1;
-	RM_PE_WUNLOCK(entry);
+	PE_WUNLOCK(entry);
 
 	return (0);
 
 ruleset_load_fail:
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
-	RM_PE_WLOCK(entry);
+	PE_WLOCK(entry);
 	for (r = RB_MIN(secadm_rules_tree, &(entry->sp_staging));
 	     r != NULL; r = r2) {
 		r2 = RB_NEXT(secadm_rules_tree, &(entry->sp_staging), r);
@@ -365,7 +363,7 @@ ruleset_load_fail:
 
 		kernel_free_rule(r);
 	}
-	RM_PE_WUNLOCK(entry);
+	PE_WUNLOCK(entry);
 
 	return (err);
 }
@@ -583,7 +581,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 	r->sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
 	entry = get_prison_list_entry(td->td_ucred->cr_prison->pr_id);
 
-	RM_PE_WLOCK(entry);
+	PE_WLOCK(entry);
 	if (ruleset == 1) {
 		RB_INSERT(secadm_rules_tree, &(entry->sp_staging), r);
 	} else {
@@ -606,7 +604,7 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 
 		RB_INSERT(secadm_rules_tree, &(entry->sp_rules), r);
 	}
-	RM_PE_WUNLOCK(entry);
+	PE_WUNLOCK(entry);
 
 	return (0);
 }
@@ -627,7 +625,7 @@ kernel_del_rule(struct thread *td, secadm_rule_t *rule)
 	entry = get_prison_list_entry(
 	    td->td_ucred->cr_prison->pr_id);
 
-	RM_PE_WLOCK(entry);
+	PE_WLOCK(entry);
 	for (v = RB_MIN(secadm_rules_tree, &(entry->sp_rules));
 	    v != NULL; v = next) {
 		next = RB_NEXT(secadm_rules_tree, &(entry->sp_rules), v);
@@ -654,7 +652,7 @@ kernel_del_rule(struct thread *td, secadm_rule_t *rule)
 			break;
 		}
 	}
-	RM_PE_WUNLOCK(entry);
+	PE_WUNLOCK(entry);
 
 	free(r, M_SECADM);
 }
@@ -675,14 +673,14 @@ kernel_active_rule(struct thread *td, secadm_rule_t *rule, int active)
 	entry = get_prison_list_entry(
 	    td->td_ucred->cr_prison->pr_id);
 
-	RM_PE_WLOCK(entry);
+	PE_WLOCK(entry);
 	RB_FOREACH(v, secadm_rules_tree, &(entry->sp_rules)) {
 		if (r->sr_id == v->sr_id) {
 			v->sr_active = active;
 			break;
 		}
 	}
-	RM_PE_WUNLOCK(entry);
+	PE_WUNLOCK(entry);
 
 	free(r, M_SECADM);
 }
@@ -690,7 +688,6 @@ kernel_active_rule(struct thread *td, secadm_rule_t *rule, int active)
 secadm_rule_t *
 kernel_get_rule(struct thread *td, secadm_rule_t *rule)
 {
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t *r, *v;
 	int found = 0;
@@ -705,14 +702,14 @@ kernel_get_rule(struct thread *td, secadm_rule_t *rule)
 	entry = get_prison_list_entry(
 	    td->td_ucred->cr_prison->pr_id);
 
-	RM_PE_RLOCK(entry, tracker);
+	PE_RLOCK(entry);
 	RB_FOREACH(v, secadm_rules_tree, &(entry->sp_rules)) {
 		if (v->sr_id == r->sr_id) {
 			found = 1;
 			break;
 		}
 	}
-	RM_PE_RUNLOCK(entry, tracker);
+	PE_RUNLOCK(entry);
 
 	free(r, M_SECADM);
 

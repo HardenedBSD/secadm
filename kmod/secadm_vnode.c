@@ -35,7 +35,7 @@
 #include <sys/module.h>
 #include <sys/mount.h>
 #include <sys/pax.h>
-#include <sys/rmlock.h>
+#include <sys/sx.h>
 #include <sys/tree.h>
 #include <sys/vnode.h>
 
@@ -48,7 +48,6 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,
     struct label *execlabel)
 {
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t r, *rule;
 	int err, flags = 0;
@@ -66,7 +65,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 
 	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
 
-	RM_PE_RLOCK(entry, tracker);
+	PE_RLOCK(entry);
 	if (entry->sp_num_integriforce_rules) {
 		key.sk_type = secadm_integriforce_rule;
 		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
@@ -77,19 +76,19 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 				goto rule_inactive;
 			}
 
-			RM_PE_RUNLOCK(entry, tracker);
+			PE_RUNLOCK(entry);
 			err = do_integriforce_check(rule, &vap, imgp->vp, ucred);
-			RM_PE_RLOCK(entry, tracker);
+			PE_RLOCK(entry);
 
 			if (err) {
-				RM_PE_RUNLOCK(entry, tracker);
+				PE_RUNLOCK(entry);
 
 				return (err);
 			}
 		} else if ((entry->sp_integriforce_flags &
 		    SECADM_INTEGRIFORCE_FLAGS_WHITELIST) ==
 		    SECADM_INTEGRIFORCE_FLAGS_WHITELIST) {
-			RM_PE_RUNLOCK(entry, tracker);
+			PE_RUNLOCK(entry);
 			return (EPERM);
 		}
 	}
@@ -168,7 +167,7 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		}
 	}
 rule_inactive:
-	RM_PE_RUNLOCK(entry, tracker);
+	PE_RUNLOCK(entry);
 
 #if __HardenedBSD_version == 36 || __HardenedBSD_version > 38
 	if (err == 0 && flags)
@@ -186,7 +185,6 @@ int
 secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, accmode_t accmode)
 {
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t r, *rule;
 	secadm_key_t key;
@@ -208,7 +206,7 @@ secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
 
 	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
 
-	RM_PE_RLOCK(entry, tracker);
+	PE_RLOCK(entry);
 	if (entry->sp_num_integriforce_rules) {
 		key.sk_type = secadm_integriforce_rule;
 		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
@@ -221,7 +219,7 @@ secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
 			    "protected by a SECADM rule.\n",
 			    rule->sr_integriforce_data->si_path);
 
-			RM_PE_RUNLOCK(entry, tracker);
+			PE_RUNLOCK(entry);
 			return (EPERM);
 		}
 	}
@@ -238,12 +236,12 @@ secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
 			    "protected by a SECADM rule.\n",
 			    rule->sr_pax_data->sp_path);
 
-			RM_PE_RUNLOCK(entry, tracker);
+			PE_RUNLOCK(entry);
 			return (EPERM);
 		}
 	}
 
-	RM_PE_RUNLOCK(entry, tracker);
+	PE_RUNLOCK(entry);
 	return (0);
 }
 
@@ -252,7 +250,6 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
     struct label *dvplabel, struct vnode *vp,
     struct label *vplabel, struct componentname *cnp)
 {
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t r, *rule;
 	secadm_key_t key;
@@ -272,7 +269,7 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 
 	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
 
-	RM_PE_RLOCK(entry, tracker);
+	PE_RLOCK(entry);
 	if (entry->sp_num_integriforce_rules) {
 		key.sk_type = secadm_integriforce_rule;
 		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
@@ -285,7 +282,7 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 			    "protected by a SECADM rule.\n",
 			    rule->sr_integriforce_data->si_path);
 
-			RM_PE_RUNLOCK(entry, tracker);
+			PE_RUNLOCK(entry);
 			return (EPERM);
 		}
 	}
@@ -302,11 +299,11 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 			    "protected by a SECADM rule.\n",
 			    rule->sr_pax_data->sp_path);
 
-			RM_PE_RUNLOCK(entry, tracker);
+			PE_RUNLOCK(entry);
 			return (EPERM);
 		}
 	}
 
-	RM_PE_RUNLOCK(entry, tracker);
+	PE_RUNLOCK(entry);
 	return (0);
 }

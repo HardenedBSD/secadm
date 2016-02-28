@@ -42,7 +42,7 @@
 #include <sys/priv.h>
 #include <sys/proc.h>
 #include <sys/queue.h>
-#include <sys/rmlock.h>
+#include <sys/sx.h>
 #include <sys/stat.h>
 #include <sys/sysctl.h>
 #include <sys/syslog.h>
@@ -203,7 +203,6 @@ static int
 sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 {
 	integriforce_so_check_t *integriforce_so;
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t r, *rule;
 	struct nameidata nd;
@@ -258,7 +257,7 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 	entry = get_prison_list_entry(
 	    req->td->td_ucred->cr_prison->pr_id);
 
-	RM_PE_RLOCK(entry, tracker);
+	PE_RLOCK(entry);
 	rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
 	if (rule) {
@@ -267,7 +266,7 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 		    req->td->td_ucred);
 	}
 
-	RM_PE_RUNLOCK(entry, tracker);
+	PE_RUNLOCK(entry);
 
 	SYSCTL_OUT(req, integriforce_so, sizeof(integriforce_so_check_t));
 	free(integriforce_so, M_SECADM);

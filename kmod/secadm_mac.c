@@ -32,7 +32,7 @@
 #include <sys/lock.h>
 #include <sys/module.h>
 #include <sys/mount.h>
-#include <sys/rmlock.h>
+#include <sys/sx.h>
 #include <sys/systm.h>
 
 #include <security/mac/mac_policy.h>
@@ -44,13 +44,12 @@ secadm_prisons_t secadm_prisons_list;
 static void
 secadm_destroy(struct mac_policy_conf *mpc)
 {
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t *r, *next;
 
-	RM_PL_RLOCK(tracker);
+	PL_RLOCK();
 	SLIST_FOREACH(entry, &(secadm_prisons_list.sp_prison), sp_entries) {
-		RM_PE_WLOCK(entry);
+		PE_WLOCK(entry);
 		for (r = RB_MIN(secadm_rules_tree, &(entry->sp_rules));
 		    r != NULL; r = next) {
 			next = RB_NEXT(secadm_rules_tree,
@@ -59,38 +58,37 @@ secadm_destroy(struct mac_policy_conf *mpc)
 
 			kernel_free_rule(r);
 		}
-		RM_PE_WUNLOCK(entry);
+		PE_WUNLOCK(entry);
 	}
-	RM_PL_RUNLOCK(tracker);
+	PL_RUNLOCK();
 
-	RM_PL_WLOCK();
+	PL_WLOCK();
 	while (!SLIST_EMPTY(&(secadm_prisons_list.sp_prison))) {
 		entry = SLIST_FIRST(&(secadm_prisons_list.sp_prison));
 
 		SLIST_REMOVE_HEAD(&(secadm_prisons_list.sp_prison), sp_entries);
 		free(entry, M_SECADM);
 	}
-	RM_PL_WUNLOCK();
+	PL_WUNLOCK();
 }
 
 static void
 secadm_init(struct mac_policy_conf *mpc)
 {
-	RM_PL_INIT();
+	PL_INIT();
 	SLIST_INIT(&(secadm_prisons_list.sp_prison));
 }
 
 static void
 secadm_prison_destroy(struct prison *prison)
 {
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_rule_t *r, *next;
 
-	RM_PL_RLOCK(tracker);
+	PL_RLOCK();
 	SLIST_FOREACH(entry, &(secadm_prisons_list.sp_prison), sp_entries) {
 		if (entry->sp_id == prison->pr_id) {
-			RM_PE_WLOCK(entry);
+			PE_WLOCK(entry);
 			for (r = RB_MIN(secadm_rules_tree, &(entry->sp_rules));
 			    r != NULL; r = next) {
 				next = RB_NEXT(secadm_rules_tree,
@@ -100,12 +98,12 @@ secadm_prison_destroy(struct prison *prison)
 
 				kernel_free_rule(r);
 			}
-			RM_PE_WUNLOCK(entry);
+			PE_WUNLOCK(entry);
 
 			break;
 		}
 	}
-	RM_PL_RUNLOCK(tracker);
+	PL_RUNLOCK();
 }
 
 static struct mac_policy_ops secadm_ops = {

@@ -34,7 +34,7 @@
 #include <sys/module.h>
 #include <sys/mount.h>
 #include <sys/proc.h>
-#include <sys/rmlock.h>
+#include <sys/sx.h>
 #include <sys/sysctl.h>
 #include <sys/systm.h>
 #include <sys/tree.h>
@@ -46,7 +46,6 @@
 int
 secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 {
-	struct rm_priotracker tracker;
 	secadm_prison_entry_t *entry;
 	secadm_command_t cmd;
 	secadm_reply_t reply;
@@ -326,14 +325,14 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		entry = get_prison_list_entry(
 		    req->td->td_ucred->cr_prison->pr_id);
 
-		RM_PE_RLOCK(entry, tracker);
+		PE_RLOCK(entry);
 		if ((err = copyout(&(entry->sp_num_rules), reply.sr_data,
 		    sizeof(size_t)))) {
 			reply.sr_code = secadm_reply_fail;
 		} else {
 			reply.sr_code = secadm_reply_success;
 		}
-		RM_PE_RUNLOCK(entry, tracker);
+		PE_RUNLOCK(entry);
 
 		break;
 
@@ -341,7 +340,7 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		entry = get_prison_list_entry(
 		    req->td->td_ucred->cr_prison->pr_id);
 
-		RM_PE_RLOCK(entry, tracker);
+		PE_RLOCK(entry);
 		/* Reusing i to get the flag */
 		err = copyin(cmd.sc_data, &i, sizeof(int));
 		if (err == 0) {
@@ -357,7 +356,7 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 		} else {
 			reply.sr_code = secadm_reply_fail;
 		}
-		RM_PE_RUNLOCK(entry, tracker);
+		PE_RUNLOCK(entry);
 
 		break;
 

@@ -250,19 +250,19 @@ MALLOC_DECLARE(M_SECADM);
 RB_HEAD(secadm_rules_tree, secadm_rule);
 RB_PROTOTYPE(secadm_rules_tree, secadm_rule, sr_tree, secadm_rule_cmp);
 
-#define RM_PE_INIT(l)		rm_init(&(l)->sp_lock, "secadm prison rmlock");
-#define RM_PE_RLOCK(l, t)	rm_rlock(&(l)->sp_lock, &(t));
-#define RM_PE_RUNLOCK(l, t)	rm_runlock(&(l)->sp_lock, &(t));
-#define RM_PE_WLOCK(l)		rm_wlock(&(l)->sp_lock);
-#define RM_PE_WUNLOCK(l)	rm_wunlock(&(l)->sp_lock);
-#define RM_PE_DESTROY(l)	rm_destroy(&(l)->sp_lock);
+#define PE_INIT(l)	sx_init(&(l)->sp_lock, "secadm prison sxlock");
+#define PE_RLOCK(l)	sx_slock(&(l)->sp_lock)
+#define PE_RUNLOCK(l)	sx_sunlock(&(l)->sp_lock);
+#define PE_WLOCK(l)	sx_xlock(&(l)->sp_lock);
+#define PE_WUNLOCK(l)	sx_xunlock(&(l)->sp_lock);
+#define PE_DESTROY(l)	sx_destroy(&(l)->sp_lock);
 
-#define RM_PL_INIT()		rm_init(&(secadm_prisons_list.sp_lock), "secadm prison list rmlock");
-#define RM_PL_RLOCK(t)		rm_rlock(&(secadm_prisons_list.sp_lock), &(t));
-#define RM_PL_RUNLOCK(t)	rm_runlock(&(secadm_prisons_list.sp_lock), &(t));
-#define RM_PL_WLOCK()		rm_wlock(&(secadm_prisons_list.sp_lock));
-#define RM_PL_WUNLOCK()		rm_wunlock(&(secadm_prisons_list.sp_lock));
-#define RM_PL_DESTROY()		rm_destroy(&(secadm_prisons_list.sp_lock));
+#define PL_INIT()	sx_init(&(secadm_prisons_list.sp_lock), "secadm prison list sxlock");
+#define PL_RLOCK()	sx_slock(&(secadm_prisons_list.sp_lock));
+#define PL_RUNLOCK()	sx_sunlock(&(secadm_prisons_list.sp_lock));
+#define PL_WLOCK()	sx_xlock(&(secadm_prisons_list.sp_lock));
+#define PL_WUNLOCK()	sx_xunlock(&(secadm_prisons_list.sp_lock));
+#define PL_DESTROY()	sx_destroy(&(secadm_prisons_list.sp_lock));
 
 typedef struct secadm_key {
 	int			 sk_jid;
@@ -282,7 +282,7 @@ typedef struct secadm_prison_entry {
 	int					 sp_loaded;
 	int					 sp_id;
 	int					 sp_integriforce_flags;
-	struct rmlock				 sp_lock;
+	struct sx				 sp_lock;
 	SLIST_ENTRY(secadm_prison_entry)	 sp_entries;
 } secadm_prison_entry_t;
 
@@ -290,7 +290,7 @@ secadm_prison_entry_t *get_prison_list_entry(int);
 
 typedef struct secadm_prisons {
 	SLIST_HEAD(secadm_prison_list, secadm_prison_entry)	 sp_prison;
-	struct rmlock                                            sp_lock;
+	struct sx                                           	 sp_lock;
 } secadm_prisons_t;
 
 extern secadm_prisons_t secadm_prisons_list;
