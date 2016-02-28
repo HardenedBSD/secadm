@@ -73,6 +73,9 @@
 #define SECADM_PAX_SHLIBRANDOM		0x00000010
 #define SECADM_PAX_MAP32		0x00000020
 
+#define SECADM_INTEGRIFORCE_FLAGS_NONE		0x00000000
+#define SECADM_INTEGRIFORCE_FLAGS_WHITELIST	0x00000001
+
 #define SECADM_SHA1_DIGEST_LEN		20
 #define SECADM_SHA256_DIGEST_LEN	32
 
@@ -93,7 +96,8 @@ typedef enum secadm_command_type {
 	secadm_cmd_get_rule_data,
 	secadm_cmd_get_rule_path,
 	secadm_cmd_get_rule_hash,
-	secadm_cmd_get_num_rules
+	secadm_cmd_get_num_rules,
+	secadm_cmd_set_whitelist_mode
 } secadm_command_type_t;
 
 typedef struct secadm_command {
@@ -213,6 +217,7 @@ secadm_rule_t *secadm_get_rule(int);
 size_t secadm_get_num_rules(void);
 void secadm_free_rule(secadm_rule_t *);
 int secadm_validate_rule(secadm_rule_t *);
+int secadm_set_whitelist_mode(int);
 
 #ifdef _KERNEL
 
@@ -276,6 +281,7 @@ typedef struct secadm_prison_entry {
 	size_t					 sp_num_extended_rules;
 	int					 sp_loaded;
 	int					 sp_id;
+	int					 sp_integriforce_flags;
 	struct rmlock				 sp_lock;
 	SLIST_ENTRY(secadm_prison_entry)	 sp_entries;
 } secadm_prison_entry_t;

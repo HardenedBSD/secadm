@@ -55,6 +55,7 @@ int delete_action(int, char **);
 int enable_action(int, char **);
 int disable_action(int, char **);
 int version_action(int, char **);
+int set_action(int, char **);
 
 void free_ruleset(secadm_rule_t *);
 
@@ -133,6 +134,12 @@ struct secadm_commands {
 		"<id>",
 		"disable rule",
 		disable_action
+	},
+	{
+		"set",
+		"<options>",
+		"Set various secadm options",
+		set_action
 	}
 };
 
@@ -467,6 +474,16 @@ load_action(int argc, char **argv)
 
 			n++;
 		}
+
+		cur = ucl_lookup_path(top, "secadm.integriforce_flags");
+		if (cur) {
+			if (secadm_set_whitelist_mode(ucl_object_toboolean(cur))) {
+				fprintf(stderr, "[-] Could not set whitelist mode\n");
+				ucl_parser_free(parser);
+
+				return (1);
+			}
+		}
 	}
 
 	if (n == 0) {
@@ -480,6 +497,41 @@ load_action(int argc, char **argv)
 
 	if (validate == 0)
 		secadm_load_ruleset(ruleset);
+
+	return (0);
+}
+
+int
+set_action(int argc, char **argv)
+{
+	int ch;
+
+	optind = 2;
+	while ((ch = getopt(argc, argv, "Ww")) != -1) {
+		switch (ch) {
+		case 'w':
+			printf("Unsetting whitelist\n");
+			if (secadm_set_whitelist_mode(0)) {
+				fprintf(stderr, "[-] Could not unset whitelist mode\n");
+				return (1);
+			}
+
+			break;
+
+		case 'W':
+			printf("Setting whitelist\n");
+			if (secadm_set_whitelist_mode(1)) {
+				fprintf(stderr, "[-] Could not set whitelist mode\n");
+				return (1);
+			}
+
+			break;
+
+		default:
+			usage(argc, argv);
+			return (1);
+		}
+	}
 
 	return (0);
 }

@@ -110,6 +110,33 @@ secadm_load_ruleset(secadm_rule_t *ruleset)
 }
 
 int
+_secadm_integriforce_flags_ops(int mode)
+{
+	secadm_command_t cmd;
+	secadm_reply_t reply;
+	int err;
+
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_set_whitelist_mode;
+	cmd.sc_data = &mode;
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "secadm_rule_ops. error code: %d\n", err);
+	}
+
+	return (err);
+}
+
+int
+secadm_set_whitelist_mode(int mode)
+{
+	return (_secadm_integriforce_flags_ops(mode));
+}
+
+int
 secadm_add_rule(secadm_rule_t *rule)
 {
 	int err;

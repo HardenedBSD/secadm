@@ -86,6 +86,11 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 
 				return (err);
 			}
+		} else if ((entry->sp_integriforce_flags &
+		    SECADM_INTEGRIFORCE_FLAGS_WHITELIST) ==
+		    SECADM_INTEGRIFORCE_FLAGS_WHITELIST) {
+			RM_PE_RUNLOCK(entry, tracker);
+			return (EPERM);
 		}
 	}
 
