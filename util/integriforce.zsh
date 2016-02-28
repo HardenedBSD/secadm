@@ -36,6 +36,7 @@ EOF
 	fi
 
 	for file in $(ldd -f '%p\n' ${executable} 2> /dev/null); do
+		file=$(realpath ${file})
 		if [ ! -f ${file} ]; then
 			continue
 		fi
