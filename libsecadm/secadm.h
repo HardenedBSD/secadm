@@ -97,7 +97,8 @@ typedef enum secadm_command_type {
 	secadm_cmd_get_rule_path,
 	secadm_cmd_get_rule_hash,
 	secadm_cmd_get_num_rules,
-	secadm_cmd_set_whitelist_mode
+	secadm_cmd_set_whitelist_mode,
+	secadm_cmd_get_whitelist_mode
 } secadm_command_type_t;
 
 typedef struct secadm_command {
@@ -217,6 +218,7 @@ secadm_rule_t *secadm_get_rule(int);
 size_t secadm_get_num_rules(void);
 void secadm_free_rule(secadm_rule_t *);
 int secadm_validate_rule(secadm_rule_t *);
+int secadm_get_whitelist_mode(void);
 int secadm_set_whitelist_mode(int);
 
 #ifdef _KERNEL

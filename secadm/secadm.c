@@ -55,6 +55,7 @@ int delete_action(int, char **);
 int enable_action(int, char **);
 int disable_action(int, char **);
 int version_action(int, char **);
+int get_action(int, char **);
 int set_action(int, char **);
 
 void free_ruleset(secadm_rule_t *);
@@ -140,6 +141,12 @@ struct secadm_commands {
 		"<options>",
 		"Set various secadm options",
 		set_action
+	},
+	{
+		"get",
+		"<options>",
+		"Get various secadm options",
+		get_action
 	}
 };
 
@@ -533,6 +540,22 @@ set_action(int argc, char **argv)
 			usage(argc, argv);
 			return (1);
 		}
+	}
+
+	return (0);
+}
+
+int
+get_action(int argc, char **argv)
+{
+	int flags;
+
+	flags = secadm_get_whitelist_mode();
+	if ((flags & SECADM_INTEGRIFORCE_FLAGS_WHITELIST) ==
+	    SECADM_INTEGRIFORCE_FLAGS_WHITELIST) {
+		printf("Whitelist:\ton\n");
+	} else {
+		printf("Whitelist:\toff\n");
 	}
 
 	return (0);

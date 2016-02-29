@@ -360,6 +360,18 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 
 		break;
 
+	case secadm_cmd_get_whitelist_mode:
+		entry = get_prison_list_entry(
+		    req->td->td_ucred->cr_prison->pr_id);
+
+		PE_RLOCK(entry);
+		copyout(&(entry->sp_integriforce_flags), reply.sr_data, sizeof(int));
+		PE_RUNLOCK(entry);
+
+		reply.sr_code = secadm_reply_success;
+
+		break;
+
 	default:
 		printf("secadm_sysctl: unknown command!\n");
 

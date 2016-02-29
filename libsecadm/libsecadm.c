@@ -357,6 +357,28 @@ secadm_get_num_rules(void)
 	return (num_rules);
 }
 
+int
+secadm_get_whitelist_mode(void)
+{
+	secadm_command_t cmd;
+	secadm_reply_t reply;
+	int err, flags;
+
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_get_whitelist_mode;
+	reply.sr_data = &flags;
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "unable to get the flags. error code: %d\n", err);
+		return (0);
+	}
+
+	return (flags);
+}
+
 void
 secadm_free_rule(secadm_rule_t *rule)
 {
