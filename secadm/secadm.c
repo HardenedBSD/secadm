@@ -475,13 +475,15 @@ load_action(int argc, char **argv)
 			n++;
 		}
 
-		cur = ucl_lookup_path(top, "secadm.integriforce_flags");
-		if (cur) {
-			if (secadm_set_whitelist_mode(ucl_object_toboolean(cur))) {
-				fprintf(stderr, "[-] Could not set whitelist mode\n");
-				ucl_parser_free(parser);
+		if (validate == 0) {
+			cur = ucl_lookup_path(top, "secadm.whitelist_mode");
+			if (cur) {
+				if (secadm_set_whitelist_mode(ucl_object_toboolean(cur))) {
+					fprintf(stderr, "[-] Could not set whitelist mode\n");
+					ucl_parser_free(parser);
 
-				return (1);
+					return (1);
+				}
 			}
 		}
 	}
