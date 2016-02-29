@@ -219,6 +219,10 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		}
 
 		if (vap.va_type != VREG) {
+#ifdef SECADM_DEBUG
+			printf("[secadm debug] %s is not a regular file.\n",
+			    rule->sr_integriforce_data->si_path);
+#endif
 			return (1);
 		}
 
@@ -266,6 +270,10 @@ kernel_finalize_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 			    rule->sr_integriforce_data->si_mntonname,
 			    MAXPATHLEN) && r->sr_integriforce_data->si_fileid ==
 			    rule->sr_integriforce_data->si_fileid) {
+#ifdef SECADM_DEBUG
+				printf("[secadm debug] %s is the same as %s (or hash collision)\n", r->sr_integriforce_data->si_path,
+				    rule->sr_integriforce_data->si_path);
+#endif
 				PE_RUNLOCK(entry);
 				return (EEXIST);
 			}
@@ -547,8 +555,14 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 	}
 
 	if ((error = kernel_finalize_rule(td, r, ruleset))) {
+		if (r->sr_type == secadm_integriforce_rule) {
+			if (error == EEXIST) {
+				error = 0;
+			}
+		}
+
 		kernel_free_rule(r);
-		return (EINVAL);
+		return (error);
 	}
 
 	r->sr_active = 1;
