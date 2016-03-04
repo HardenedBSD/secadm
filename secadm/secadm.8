@@ -1,0 +1,167 @@
+.\"-
+.\" Copyright (c) 2016 Shawn Webb <shawn.webb@hardenedbsd.org>
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd March 03, 2016
+.Dt SECADM 8
+.Os
+.Sh NAME
+.Nm secadm
+.Nd HardenedBSD Security Administration
+.Sh SYNOPSIS
+.Nm
+.Cm list
+.Op Cm -f json|ucl|xml
+.Nm
+.Cm load Ar file
+.Nm
+.Cm validate Ar file
+.Nm
+.Cm add Ar extended|integriforce|pax Ar rule
+.Nm
+.Cm del Ar id
+.Nm
+.Cm enable Ar id
+.Nm
+.Cm disable Ar id
+.Nm
+.Cm flush
+.Nm
+.Cm set
+.Op Cm -Ww
+.Nm
+.Cm get
+.Nm
+.Cm version
+.Sh DESCRIPTION
+The
+.Nm
+utility provides the ability to toggle individual exploit mitigation
+features on a per-binary, per-jail basis.
+.Nm
+also provides the ability to enforce hash-based signatures for
+binaries and their dependant shared objects.
+.Pp
+The arguments are as follows:
+.Bl -tag -width indent -offset indent
+.It Xo
+.Cm list Op -f json|ucl|xml
+.Xc
+List the set of loaded rules.
+.It Xo
+.Cm load Ar file
+.Xc
+Load rules from
+.Cm file .
+.It Xo
+.Cm validate Ar file
+.Xc
+Validate rules in
+.Cm file .
+.It Xo
+.Cm add Ar extended|integriforce|pax Ar rule
+.Xc
+Add an individual rule to the loaded ruleset.
+.Pp
+If adding a pax rule,
+the form of the command is
+.Nm
+.Cm add Ar pax Ar path Ar flags .
+.Pp
+If adding an integriforce rule,
+the form of the command is
+.Nm
+.Cm add Ar integriforce Ar path Ar type Ar mode Ar hash .
+Currently-supported hash types are
+.Xr sha1 1
+and
+.Xr sha256 1 .
+.Pp
+As of
+.Nm
+version 0.3,
+.Nm
+does not support extended rules.
+Support is planned at a later date.
+.It Xo
+.Cm del Ar id
+.Xc
+Delete rule
+.Ar id
+.It Xo
+.Cm enable Ar id
+.Xc
+Enable rule
+.Ar id .
+.It Xo
+.Cm disable Ar id
+.Xc
+Disable rule
+.Ar id .
+.It Xo
+.Cm flush
+.Xc
+Flush the ruleset.
+.It Xo
+.Cm set Op -Ww
+.Xc
+Set Integriforce whitelist mode on with
+.Op -W
+and off with
+.Op -w .
+Default is off.
+Whitelist mode turns Integriforce into an application whitelist
+implementation.
+If an application (and all its shared objects it depends on) are not
+listed in the loaded Integriforce ruleset, execution of that
+application is not allowed.
+.Xr execve 2
+will return EPERM.
+If whitelist mode is turned on and no Integriforce rules are loaded,
+whitelist mode is effectively ignored.
+Whitelist mode is only effective when at least one Integriforce rule
+is loaded.
+.It Xo
+.Cm get
+.Xc
+Get the status of Integriforce whitelist mode.
+.It Xo
+.Cm version
+.Xc
+Print version information.
+.El
+.Sh SEE ALSO
+.Xr sha1 1,
+.Xr sha256 1 ,
+.Xr execve 2 ,
+.Xr mac 9
+.Sh AUTHORS
+.An Shawn Webb
+wrote the first iteration of
+.Nm
+and
+.An Brian Salcedo
+rewrote major portions.
+This manual page was written by
+.An Shawn Webb .
