@@ -23,7 +23,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd March 03, 2016
+.Dd March 05, 2016
 .Dt SECADM 8
 .Os
 .Sh NAME
@@ -38,7 +38,7 @@
 .Nm
 .Cm validate Ar file
 .Nm
-.Cm add Ar extended|integriforce|pax Ar rule
+.Cm add Ar integriforce|pax Ar rule
 .Nm
 .Cm del Ar id
 .Nm
@@ -60,8 +60,22 @@ The
 utility provides the ability to toggle individual exploit mitigation
 features on a per-binary, per-jail basis.
 .Nm
-also provides the ability to enforce hash-based signatures for
-binaries and their dependant shared objects.
+also provides the ability called Integriforce to enforce hash-based
+signatures for binaries and their dependant shared objects
+.Pp
+Integriforce can now be set in whitelisting mode, meaning that when
+there is at least one Integriforce rule enabled, all desired
+applications and their dependent shared objects must also have rules.
+If an application and its shared objects are not included in the
+ruleset, execution of that application will be disallowed.
+This also affects shared objects loaded via
+.Xr dlopen 3 .
+.Pp
+.Nm
+uses libucl to read rules from a configuration file or rules can be
+added one-at-a-time via command-line arguments.
+Configuration file syntax is outlined in
+.Xr secadm.conf 5 .
 .Pp
 The arguments are as follows:
 .Bl -tag -width indent -offset indent
@@ -80,7 +94,7 @@ Load rules from
 Validate rules in
 .Cm file .
 .It Xo
-.Cm add Ar extended|integriforce|pax Ar rule
+.Cm add Ar integriforce|pax Ar rule
 .Xc
 Add an individual rule to the loaded ruleset.
 .Pp
@@ -89,21 +103,87 @@ the form of the command is
 .Nm
 .Cm add Ar pax Ar path Ar flags .
 .Pp
+The
+.Ar flags
+argument can be any of the following:
+.Bl -dash -compact
+.It
+Flag: A
+.D1
+Description: Enable ASLR
+.It
+Flag: a
+.D1
+Description: Disable ASLR
+.It
+Flag: B
+.D1
+Description: Enable MAP32BIT protection
+.It
+Flag: b
+.D1
+Description: Disable MAP32BIT protection
+.It
+Flag: L
+.D1
+Description: Enable SHLIBRANDOM
+.It
+Flag: l
+.D1
+Description: Disable SHLIBRANDOM
+.It
+Flag: M
+.D1
+Description: Enable MPROTECT
+.It
+Flag: m
+.D1
+Description: Disable MPROTECT
+.It
+Flag: P
+.D1
+Description: Enable PAGEEXEC
+.It
+Flag: p
+.D1
+Description: Disable PAGEEXEC
+.It
+Flag: S
+.D1
+Description: Enable SEGVGUARD
+.It
+Flag: s
+.D1
+Description: Disable SEGVGUARD
+.El
+.Pp
 If adding an integriforce rule,
 the form of the command is
 .Nm
 .Cm add Ar integriforce Ar path Ar type Ar mode Ar hash .
+.Pp
+The
+.Ar mode
+flag specifies either 
+.Dq soft
+or 
+.Dq hard
+mode.
+Soft mode allows application execution on hash mismatch with a warning
+message printed to syslog.
+Hard mode will disallow application execution on hash mismatch, still
+with a warning printed to syslog.
+.Pp
 Currently-supported hash types are
 .Xr sha1 1
 and
 .Xr sha256 1 .
 .Pp
-As of
-.Nm
-version 0.3,
-.Nm
-does not support extended rules.
-Support is planned at a later date.
+For both integriforce and pax rules, the
+.Ar path
+argument specifies the fully-qualified path of the file for which this
+rule pertains.
+The path must be a regular file.
 .It Xo
 .Cm del Ar id
 .Xc
@@ -155,6 +235,7 @@ Print version information.
 .Xr sha1 1,
 .Xr sha256 1 ,
 .Xr execve 2 ,
+.Xr secadm.conf 5 ,
 .Xr mac 9
 .Sh AUTHORS
 .An Shawn Webb
