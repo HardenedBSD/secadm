@@ -231,6 +231,34 @@ Get the status of Integriforce whitelist mode.
 .Xc
 Print version information.
 .El
+.Sh EXAMPLES
+To load the kernel module:
+.Bd -literal -offset indent
+kldload secadm
+.Ed
+.Pp
+To add a pax rule to disable PAGEEXEC and MPROTECT for
+.Dq /usr/local/share/chromium/chrome :
+.Bd -literal -offset indent
+secadm add pax /usr/local/share/chromium/chrome mp
+.Ed
+.Pp
+To add an integriforce rule in hard enforcement mode for
+.Dq /bin/ls :
+.Bd -literal -offset indent
+secadm add integriforce /bin/ls sha256 hard `sha256 -q /bin/ls`
+.Ed
+.Pp
+To add an integriforce rule for all of the shared object
+.Dq bin ls
+depends on:
+.Bd -literal -offset indent
+for file in `ldd -f '%p\\n' /bin/ls`; do
+	file=`realpath $file`
+	secadm add integriforce $file sha256 hard \\
+		`sha256 -q $file`
+done
+.Ed
 .Sh SEE ALSO
 .Xr sha1 1,
 .Xr sha256 1 ,
