@@ -5,6 +5,7 @@ USE_LIBXO_PORTS= yes
 
 .if defined(PREFIX)
 BINDIR?=	${PREFIX}/sbin
+MANDIR?=	${PREFIX}/man/man
 .else
 BINDIR?=	/usr/sbin
 .endif

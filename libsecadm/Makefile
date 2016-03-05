@@ -11,6 +11,6 @@ INCLUDEDIR?=	${PREFIX}/include
 
 CFLAGS+=	-g -O0 -I${.CURDIR}
 
-NO_MAN=	"yes"
+MAN=
 
 .include <bsd.lib.mk>
