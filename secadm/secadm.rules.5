@@ -1,0 +1,276 @@
+.\"-
+.\" Copyright (c) 2016 Shawn Webb <shawn.webb@hardenedbsd.org>
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions
+.\" are met:
+.\" 1. Redistributions of source code must retain the above copyright
+.\"    notice, this list of conditions and the following disclaimer.
+.\" 2. Redistributions in binary form must reproduce the above copyright
+.\"    notice, this list of conditions and the following disclaimer in the
+.\"    documentation and/or other materials provided with the distribution.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+.\" ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+.\" FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+.\" DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+.\" OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+.\" HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+.\" LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+.\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+.\" SUCH DAMAGE.
+.\"
+.Dd March 06, 2016
+.Dt SECADM.RULES 5
+.Os
+.Sh NAME
+.Nm secadm.rules
+.Nd secadm Ruleset Configuration
+.SH DESCRIPTION
+The file
+.Nm
+contains rules that make up a ruleset, describing how a HardenedBSD
+system should apply exploit mitigations to a given application.
+The file is parsed with
+.Xr libucl 3
+and therefore uses its syntax.
+.Nm
+should be deployed to
+.Dq /usr/local/etc .
+.Pp
+Two types of rules exist in
+.Nm :
+pax rules and integriforce rules.
+Pax rules toggle exploit mitigation features on a per-executable basis
+while integriforce rules enforce the integrity of executables along
+with the shared objects they depend on.
+.Pp
+If integriforce is set in whitelisting mode, integriforce acts as an
+application whitelisting utility.
+In this mode, all the shared objects an executable depends on, the
+.Xr rtld 1 ,
+and the executable must have rules.
+If one file is missing,
+.Xr execve 2
+will return EPERM.
+This also impacts
+.Xr dlopen 3 ,
+as that function will return NULL in case of failure.
+Whitelisting mode is only active when enabled and when at least one
+integriforce rule is loaded.
+.Pp
+A given pax rule is contained within a single pax object.
+Multiple pax objects can be active within a given ruleset.
+.Pp
+Pax options and features that can be set:
+.Bl -bullet
+.It
+Option: path
+.Bl -dash -compact
+.It
+Type: String
+.It
+Requirement: Required
+.It
+Description: Fully-qualified path of the executable.
+.El
+.It
+Feature: aslr
+.Bl -dash -compact
+.It
+Type: Boolean
+.It
+Requirement: Optional
+.It
+Description: Toggle
+.Xr aslr 4 .
+.El
+.It
+Feature: pageexec
+.Bl -dash -compact
+.It
+Type: Boolean
+.It
+Requirement: Optional
+.It
+Description: Toggle pageexec restrictions (do not allow
+mmap(PROT_WRITE|PROT_EXEC)).
+.El
+.It
+Feature: mprotect
+.Bl -dash -compact
+.It
+Type: Boolean
+.It
+Requirement: Optional
+.It
+Description: Toggle mprotect restrictions (do not allow
+mprotect(PROT_WRITE|PROT_EXEC)).
+.It
+Special Notes: This feature is disabled wwhen pageexec is disabled.
+.El
+.It
+Feature: shlibrandom
+.Bl -dash -compact
+.It
+Type: Boolean
+.It
+Requirement: Optional
+.It
+Description: Toggle shared library load order randomization in the
+.Xr rtld 1 .
+.El
+.It
+Feature: segvguard
+.Bl -dash -compact
+.It
+Type: Boolean
+.It
+Requirement: Optional
+.It
+Description: Toggle segfault guard protection (protects against
+.Xr aslr 4
+bruteforce attacks).
+.El
+.It
+Feature: disallow_map32bit
+.Bl -dash -compact
+.It
+Type: Boolean
+.It
+Requirement: Optional
+.It
+Description: Toggle mmap(MAP_32BIT) protections on 64-bit systems.
+.El
+.El
+.Pp
+A given integriforce rule is contained within a single integriforce
+object.
+Multiple integriforce objects can be active within a given ruleset.
+.Pp
+Integriforce rules contain the following options:
+.Bl -bullet
+.It
+path
+.Bl -dash -compact
+.It
+Type: String
+.It
+Requirement: Required
+.It
+Description: Fully-qualified path of the file.
+.El
+.It
+hash
+.Bl -dash -compact
+.It
+Type: String
+.It
+Requirement: Required
+.It
+Description:
+.Xr sha1 1
+or
+.Xr sha256 1
+hash of the file.
+.El
+.It
+type
+.Bl -dash -compact
+.It
+Type: String
+.It
+Requirement: Required
+.It
+Description: Type of hash.
+Either
+.Dq sha1
+or
+.Dq sha256
+.El
+.It
+mode
+.Bl -dash -compact
+.It
+Type: String
+.It
+Requirement: Required
+.It
+Description: Either
+.Dq soft
+or
+.Dq hard .
+In soft mode, if the hash doesn't match, a warning is printed in
+syslog and execution is allowed.
+In hard mode, if the hash doesn't match, an error is printed in syslog
+and execution is denied.
+.El
+.El
+.Pp
+.Sh EXAMPLES
+Disable pageexec and mprotect for
+.Dq /usr/local/share/chromium/chrome :
+.Bd -literal -offset indent
+secadm {
+	pax {
+		path: "/usr/local/share/chromium/chrome",
+		pageexec: false,
+		mprotect: false
+	}
+}
+.Ed
+.Pp
+Enforce sha1 hash for
+.Dq /usr/local/share/chromium/chrome :
+.Bd -literal -offset indent
+secadm {
+	integriforce {
+		path: "/usr/local/share/chromium/chrome",
+		hash: "61de67ca0251e85f3495f232762562d086a7cd11",
+		type: "sha1",
+		mode: "hard"
+	}
+}
+.Ed
+.Pp
+Combine both rules into one ruleset:
+.Bd -literal -offset indent
+secadm {
+	pax {
+		path: "/usr/local/share/chromium/chrome",
+		pageexec: false,
+		mprotect: false
+	},
+	integriforce {
+		path: "/usr/local/share/chromium/chrome",
+		hash: "61de67ca0251e85f3495f232762562d086a7cd11",
+		type: "sha1",
+		mode: "hard"
+	}
+}
+.Ed
+.Pp
+Enable integriforce whitelisting mode:
+.Bd -literal -offset indent
+secadm {
+	whitelist_mode: true
+}
+.Ed
+.Sh SEE ALSO
+.Xr sha1 1,
+.Xr sha256 1 ,
+.Xr execve 2 ,
+.Xr secadm 8 ,
+.Xr mac 9
+.Sh AUTHORS
+.An Shawn Webb
+wrote the first iteration of
+.Nm
+and
+.An Brian Salcedo
+rewrote major portions.
+This manual page was written by
+.An Shawn Webb .

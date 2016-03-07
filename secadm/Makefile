@@ -16,6 +16,6 @@ WANTS_PIE=	yes
 CFLAGS+=	-I${.CURDIR}/../libsecadm -I/usr/local/include
 LDFLAGS+=	-L${.CURDIR}/../libsecadm/obj -L/usr/local/lib
 
-MAN=	secadm.8
+MAN=	secadm.rules.5 secadm.8
 
 .include <bsd.prog.mk>
