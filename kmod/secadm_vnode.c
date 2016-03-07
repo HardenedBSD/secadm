@@ -214,30 +214,16 @@ secadm_vnode_check_open(struct ucred *ucred, struct vnode *vp,
 		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
 		if (rule) {
-			printf(
-			    "[SECADM] Prevented modification of (%s): "
-			    "protected by a SECADM rule.\n",
-			    rule->sr_integriforce_data->si_path);
+			if (rule->sr_active ||
+			    (entry->sp_integriforce_flags & SECADM_INTEGRIFORCE_FLAGS_WHITELIST)) {
+				printf(
+				    "[SECADM] Prevented modification of (%s): "
+				    "protected by a SECADM rule.\n",
+				    rule->sr_integriforce_data->si_path);
 
-			PE_RUNLOCK(entry);
-			return (EPERM);
-		}
-	}
-
-	if (entry->sp_num_pax_rules) {
-		key.sk_type = secadm_pax_rule;
-		r.sr_key = fnv_32_buf(&key, sizeof(secadm_key_t), FNV1_32_INIT);
-
-		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
-
-		if (rule) {
-			printf(
-			    "[SECADM] Prevented modification of (%s): "
-			    "protected by a SECADM rule.\n",
-			    rule->sr_pax_data->sp_path);
-
-			PE_RUNLOCK(entry);
-			return (EPERM);
+				PE_RUNLOCK(entry);
+				return (EPERM);
+			}
 		}
 	}
 
@@ -277,13 +263,16 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
 		if (rule) {
-			printf(
-			    "[SECADM] Prevented unlink of (%s): "
-			    "protected by a SECADM rule.\n",
-			    rule->sr_integriforce_data->si_path);
+			if (rule->sr_active ||
+			    (entry->sp_integriforce_flags & SECADM_INTEGRIFORCE_FLAGS_WHITELIST)) {
+				printf(
+				    "[SECADM] Prevented unlink of (%s): "
+				    "protected by a SECADM rule.\n",
+				    rule->sr_integriforce_data->si_path);
 
-			PE_RUNLOCK(entry);
-			return (EPERM);
+				PE_RUNLOCK(entry);
+				return (EPERM);
+			}
 		}
 	}
 
@@ -293,7 +282,7 @@ secadm_vnode_check_unlink(struct ucred *ucred, struct vnode *dvp,
 
 		rule = RB_FIND(secadm_rules_tree, &(entry->sp_rules), &r);
 
-		if (rule) {
+		if (rule && rule->sr_active) {
 			printf(
 			    "[SECADM] Prevented unlink of (%s): "
 			    "protected by a SECADM rule.\n",
