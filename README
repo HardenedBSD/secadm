@@ -85,7 +85,7 @@ To load the secadm kernel module:
 # kldload secadm
 
 Copy the sample ruleset to the right spot:
-# cp etc/secadm.rules.example /usr/local/etc/secadm.rules
+# cp etc/secadm-desktop.rules.example /usr/local/etc/secadm.rules
 
 Edit your rules:
 # vi /usr/local/etc/secadm.rules
@@ -185,4 +185,4 @@ mind, the API and ABI are not stable and may change from release to
 release. If you plan to develop third-party applications that consume
 libsecadm, please do so at your own risk. If you feel you need added
 features or a change to an existing feature, please file a bug report
-at secadm's issue tracker on github.
+at secadm's issue tracker on GitHub.
