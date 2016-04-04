@@ -1,17 +1,13 @@
-# Build everything by default
-SUBDIR=		etc\
-		kmod \
-		libsecadm \
-		secadm
+# Build everything unless explicitly overridden
 
 # ports/hardenedbsd/secadm-kmod
-.if defined(KMOD)
-SUBDIR=		kmod
+.if ! defined(WITHOUT_KMOD)
+SUBDIR+=	kmod
 .endif
 
 # ports/hardenedbsd/secadm
-.if defined(CLI)
-SUBDIR=		etc \
+.if ! defined(WITHOUT_CLI)
+SUBDIR+=	etc \
 		libsecadm \
 		secadm
 .endif
