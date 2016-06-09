@@ -1,4 +1,4 @@
-BINDIR= /usr/local/etc/rc.d/
+BINDIR= /usr/local/etc/rc.d
 
 SCRIPTS=	secadm
 MAN=
