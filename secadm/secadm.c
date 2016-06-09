@@ -914,39 +914,39 @@ emit_rules_xo(secadm_rule_t **ruleset, size_t num_rules, int style)
 
 			if (ruleset[i]->sr_pax_data->sp_pax_set &
 			    SECADM_PAX_ASLR_SET) {
-				xo_emit("{:aslr/%d}/",
+				xo_emit("{:aslr/%s}/",
 				    (ruleset[i]->sr_pax_data->sp_pax &
-				    SECADM_PAX_ASLR ? 1 : 0));
+				    SECADM_PAX_ASLR ? "true" : "false"));
 			}
 			if (ruleset[i]->sr_pax_data->sp_pax_set &
 			    SECADM_PAX_MAP32_SET) {
-				xo_emit("{:disallow_map32bit/%d/}",
+				xo_emit("{:disallow_map32bit/%s/}",
 				    (ruleset[i]->sr_pax_data->sp_pax &
-				    SECADM_PAX_MAP32 ? 1 : 0));
+				    SECADM_PAX_MAP32 ? "true" : "false"));
 			}
 			if (ruleset[i]->sr_pax_data->sp_pax_set &
 			    SECADM_PAX_MPROTECT_SET) {
-				xo_emit("{:mprotect/%d}/",
+				xo_emit("{:mprotect/%s}/",
 				    (ruleset[i]->sr_pax_data->sp_pax &
-				    SECADM_PAX_MPROTECT ? 1 : 0));
+				    SECADM_PAX_MPROTECT ? "true" : "false"));
 			}
 			if (ruleset[i]->sr_pax_data->sp_pax_set &
 			    SECADM_PAX_PAGEEXEC_SET) {
-				xo_emit("{:pageexec/%d}/",
+				xo_emit("{:pageexec/%s}/",
 				    (ruleset[i]->sr_pax_data->sp_pax &
-				    SECADM_PAX_PAGEEXEC ? 1 : 0));
+				    SECADM_PAX_PAGEEXEC ? "true" : "false"));
 			}
 			if (ruleset[i]->sr_pax_data->sp_pax_set &
 			    SECADM_PAX_SEGVGUARD_SET) {
-				xo_emit("{:segvguard/%d}/",
+				xo_emit("{:segvguard/%s}/",
 				    (ruleset[i]->sr_pax_data->sp_pax &
-				    SECADM_PAX_SEGVGUARD ? 1 : 0 ));
+				    SECADM_PAX_SEGVGUARD ? "true" : "false"));
 			}
 			if (ruleset[i]->sr_pax_data->sp_pax_set &
 			    SECADM_PAX_SHLIBRANDOM_SET) {
-				xo_emit("{:shlibrandom/%d/",
+				xo_emit("{:shlibrandom/%s}/",
 				    (ruleset[i]->sr_pax_data->sp_pax &
-				    SECADM_PAX_SHLIBRANDOM ? 1 : 0));
+				    SECADM_PAX_SHLIBRANDOM ? "true" : "false"));
 			}
 
 			xo_close_instance_d();
