@@ -89,6 +89,8 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 		    SECADM_INTEGRIFORCE_FLAGS_WHITELIST) ==
 		    SECADM_INTEGRIFORCE_FLAGS_WHITELIST) {
 			PE_RUNLOCK(entry);
+			printf("[SECADM] Whitelist Mode: Execution of %s denied.\n",
+			    imgp->args->fname);
 			return (EPERM);
 		}
 	}
