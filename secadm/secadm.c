@@ -57,6 +57,7 @@ int disable_action(int, char **);
 int version_action(int, char **);
 int get_action(int, char **);
 int set_action(int, char **);
+int tpe_action(int, char **);
 
 void free_ruleset(secadm_rule_t *);
 
@@ -141,6 +142,12 @@ struct secadm_commands {
 		"<options>",
 		"Set various secadm options",
 		set_action
+	},
+	{
+		"tpe",
+		"<options>",
+		"Set various Trusted Path Execution (TPE) options",
+		tpe_action
 	},
 	{
 		"get",
@@ -378,6 +385,7 @@ load_action(int argc, char **argv)
 	ucl_object_iter_t it = NULL;
 	struct ucl_parser *parser;
 	int n = 0, err;
+	int flags;
 
 	if (argc < 3) {
 		usage(1, argv);
@@ -485,7 +493,13 @@ load_action(int argc, char **argv)
 		if (validate == 0) {
 			cur = ucl_lookup_path(top, "secadm.whitelist_mode");
 			if (cur) {
-				if (secadm_set_whitelist_mode(ucl_object_toboolean(cur))) {
+				if (ucl_object_toboolean(cur)) {
+					flags = SECADM_INTEGRIFORCE_FLAGS_WHITELIST;
+				} else {
+					flags = SECADM_INTEGRIFORCE_FLAGS_NONE;
+				}
+
+				if (secadm_set_integriforce_flags(flags)) {
 					fprintf(stderr, "[-] Could not set whitelist mode\n");
 					ucl_parser_free(parser);
 
@@ -520,7 +534,7 @@ set_action(int argc, char **argv)
 		switch (ch) {
 		case 'w':
 			printf("Unsetting whitelist\n");
-			if (secadm_set_whitelist_mode(0)) {
+			if (secadm_set_integriforce_flags(SECADM_INTEGRIFORCE_FLAGS_NONE)) {
 				fprintf(stderr, "[-] Could not unset whitelist mode\n");
 				return (1);
 			}
@@ -529,7 +543,7 @@ set_action(int argc, char **argv)
 
 		case 'W':
 			printf("Setting whitelist\n");
-			if (secadm_set_whitelist_mode(1)) {
+			if (secadm_set_integriforce_flags(SECADM_INTEGRIFORCE_FLAGS_WHITELIST)) {
 				fprintf(stderr, "[-] Could not set whitelist mode\n");
 				return (1);
 			}
@@ -546,16 +560,105 @@ set_action(int argc, char **argv)
 }
 
 int
+tpe_action(int argc, char **argv)
+{
+	int ch;
+	unsigned int gid;
+	uint32_t flags;
+
+	flags = secadm_get_tpe_flags();
+
+	optind = 2;
+	while ((ch = getopt(argc, argv, "AITaitg:")) != -1) {
+		switch (ch) {
+		case 'A':
+			flags |= SECADM_TPE_ALL;
+			printf("TPE: All will be set\n");
+
+			break;
+
+		case 'a':
+			flags &= ~(SECADM_TPE_ALL);
+			printf("TPE: All will be unset\n");
+
+			break;
+
+		case 'I':
+			flags |= SECADM_TPE_INVERT;
+			printf("TPE: Invert will be set\n");
+
+			break;
+
+		case 'i':
+			flags &= ~(SECADM_TPE_INVERT);
+			printf("TPE: Invert will be unset\n");
+
+			break;
+
+		case 'g':
+			if (sscanf(optarg, "%u", &gid) != 1) {
+				fprintf(stderr, "[-] TPE GID must be an integer\n");
+				return (1);
+			}
+
+			secadm_set_tpe_gid((gid_t)gid);
+			printf("TPE: GID will be set to: %u\n", gid);
+
+			break;
+
+		case 'T':
+			printf("TPE: Enabled will be set\n");
+			flags |= SECADM_TPE_ENABLED;
+
+			break;
+
+		case 't':
+			printf("TPE: Enabled will be unset\n");
+			flags &= ~(SECADM_TPE_ENABLED);
+
+			break;
+
+		default:
+			usage(argc, argv);
+			return (1);
+		}
+	}
+
+	if (secadm_set_tpe_flags(flags)) {
+		fprintf(stderr, "[-] Could not set TPE\n");
+		return (1);
+	}
+
+	return (0);
+}
+
+int
 get_action(int argc, char **argv)
 {
 	int flags;
+	gid_t gid;
 
-	flags = secadm_get_whitelist_mode();
+	flags = secadm_get_integriforce_flags();
 	if ((flags & SECADM_INTEGRIFORCE_FLAGS_WHITELIST) ==
 	    SECADM_INTEGRIFORCE_FLAGS_WHITELIST) {
 		printf("Whitelist:\ton\n");
 	} else {
 		printf("Whitelist:\toff\n");
+	}
+
+	flags = (int)secadm_get_tpe_flags();
+	if ((flags & SECADM_TPE_ENABLED)) {
+		printf("TPE:\t\ton\n");
+		if (flags & SECADM_TPE_ALL) {
+			printf("   All:\t\tOn\n");
+		} else {
+			gid = secadm_get_tpe_gid();
+			printf("   GID:\t\t%d%s\n", gid,
+			    (flags & SECADM_TPE_INVERT) ? " (inverted)" :
+			    "");
+		}
+	} else {
+		printf("TPE:\t\toff\n");
 	}
 
 	return (0);

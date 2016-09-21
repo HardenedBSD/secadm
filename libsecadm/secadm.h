@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014,2015 Shawn Webb <shawn.webb@hardenedbsd.org>
+ * Copyright (c) 2014,2016 Shawn Webb <shawn.webb@hardenedbsd.org>
  * Copyright (c) 2015 Brian Salcedo <brian.salcedo@hardenedbsd.org>
  * All rights reserved.
  *
@@ -76,6 +76,11 @@
 #define SECADM_INTEGRIFORCE_FLAGS_NONE		0x00000000
 #define SECADM_INTEGRIFORCE_FLAGS_WHITELIST	0x00000001
 
+#define SECADM_TPE_DISABLED		0x00000000
+#define SECADM_TPE_ENABLED		0x00000001
+#define	SECADM_TPE_ALL			0x00000002
+#define SECADM_TPE_INVERT		0x00000004
+
 #define SECADM_SHA1_DIGEST_LEN		20
 #define SECADM_SHA256_DIGEST_LEN	32
 
@@ -97,8 +102,12 @@ typedef enum secadm_command_type {
 	secadm_cmd_get_rule_path,
 	secadm_cmd_get_rule_hash,
 	secadm_cmd_get_num_rules,
-	secadm_cmd_set_whitelist_mode,
-	secadm_cmd_get_whitelist_mode
+	secadm_cmd_set_integriforce_flags,
+	secadm_cmd_get_integriforce_flags,
+	secadm_cmd_set_tpe_flags,
+	secadm_cmd_get_tpe_flags,
+	secadm_cmd_set_tpe_gid,
+	secadm_cmd_get_tpe_gid
 } secadm_command_type_t;
 
 typedef struct secadm_command {
@@ -218,10 +227,17 @@ secadm_rule_t *secadm_get_rule(int);
 size_t secadm_get_num_rules(void);
 void secadm_free_rule(secadm_rule_t *);
 int secadm_validate_rule(secadm_rule_t *);
-int secadm_get_whitelist_mode(void);
-int secadm_set_whitelist_mode(int);
+int secadm_get_integriforce_flags(void);
+int secadm_set_integriforce_flags(int);
+int secadm_set_tpe_gid(gid_t);
+int secadm_set_tpe_flags(uint32_t);
+uint32_t secadm_get_tpe_flags(void);
+int secadm_set_tpe_gid(gid_t);
+gid_t secadm_get_tpe_gid(void);
 
 #ifdef _KERNEL
+
+struct secadm_prison_entry;
 
 int get_mntonname_vattr(struct thread *, u_char *, char *, struct vattr *);
 void kernel_free_rule(secadm_rule_t *);
@@ -247,6 +263,8 @@ int secadm_rule_cmp(secadm_rule_t *, secadm_rule_t *);
 
 int do_integriforce_check(secadm_rule_t *, struct vattr *, struct vnode *,
     struct ucred *);
+
+int tpe_check(struct image_params *imgp, struct secadm_prison_entry *);
 
 MALLOC_DECLARE(M_SECADM);
 RB_HEAD(secadm_rules_tree, secadm_rule);
@@ -285,6 +303,8 @@ typedef struct secadm_prison_entry {
 	int					 sp_id;
 	int					 sp_integriforce_flags;
 	struct sx				 sp_lock;
+	gid_t					 sp_tpe_gid;
+	uint32_t				 sp_tpe_flags;
 	SLIST_ENTRY(secadm_prison_entry)	 sp_entries;
 } secadm_prison_entry_t;
 

@@ -4,6 +4,7 @@ SRCS=	secadm.c \
 	secadm_sysctl.c \
 	secadm_vnode.c \
 	integriforce.c \
+	tpe.c \
 	vnode_if.h
 
 CFLAGS+=	-g -O0 -I${.CURDIR}/../libsecadm

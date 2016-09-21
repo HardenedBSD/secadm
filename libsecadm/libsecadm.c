@@ -120,7 +120,7 @@ _secadm_integriforce_flags_ops(int mode)
 	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
 	cmd.sc_version = SECADM_VERSION;
-	cmd.sc_type = secadm_cmd_set_whitelist_mode;
+	cmd.sc_type = secadm_cmd_set_integriforce_flags;
 	cmd.sc_data = &mode;
 
 	if ((err = _secadm_sysctl(&cmd, &reply))) {
@@ -131,7 +131,61 @@ _secadm_integriforce_flags_ops(int mode)
 }
 
 int
-secadm_set_whitelist_mode(int mode)
+_secadm_set_tpe_flags_ops(uint32_t flags)
+{
+	secadm_command_t cmd;
+	secadm_reply_t reply;
+	int err;
+
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_set_tpe_flags;
+	cmd.sc_data = &flags;
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "secadm_rule_ops. error code: %d\n", err);
+	}
+
+	return (err);
+}
+
+int
+_secadm_set_tpe_gid_ops(gid_t gid)
+{
+	secadm_command_t cmd;
+	secadm_reply_t reply;
+	int err;
+
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_set_tpe_gid;
+	cmd.sc_data = &gid;
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "secadm_rule_ops. error code: %d\n", err);
+	}
+
+	return (err);
+}
+
+int
+secadm_set_tpe_gid(gid_t gid)
+{
+	return (_secadm_set_tpe_gid_ops(gid));
+}
+
+int
+secadm_set_tpe_flags(uint32_t flags)
+{
+	return (_secadm_set_tpe_flags_ops(flags));
+}
+
+int
+secadm_set_integriforce_flags(int mode)
 {
 	return (_secadm_integriforce_flags_ops(mode));
 }
@@ -358,7 +412,7 @@ secadm_get_num_rules(void)
 }
 
 int
-secadm_get_whitelist_mode(void)
+secadm_get_integriforce_flags(void)
 {
 	secadm_command_t cmd;
 	secadm_reply_t reply;
@@ -368,7 +422,7 @@ secadm_get_whitelist_mode(void)
 	memset(&reply, 0x00, sizeof(secadm_reply_t));
 
 	cmd.sc_version = SECADM_VERSION;
-	cmd.sc_type = secadm_cmd_get_whitelist_mode;
+	cmd.sc_type = secadm_cmd_get_integriforce_flags;
 	reply.sr_data = &flags;
 
 	if ((err = _secadm_sysctl(&cmd, &reply))) {
@@ -377,6 +431,52 @@ secadm_get_whitelist_mode(void)
 	}
 
 	return (flags);
+}
+
+uint32_t
+secadm_get_tpe_flags(void)
+{
+	secadm_command_t cmd;
+	secadm_reply_t reply;
+	uint32_t flags;
+	int err;
+
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_get_tpe_flags;
+	reply.sr_data = &flags;
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "unable to get the flags. error code: %d\n", err);
+		return (0);
+	}
+
+	return (flags);
+}
+
+gid_t
+secadm_get_tpe_gid(void)
+{
+	secadm_command_t cmd;
+	secadm_reply_t reply;
+	gid_t gid;
+	int err;
+
+	memset(&cmd, 0x00, sizeof(secadm_command_t));
+	memset(&reply, 0x00, sizeof(secadm_reply_t));
+
+	cmd.sc_version = SECADM_VERSION;
+	cmd.sc_type = secadm_cmd_get_tpe_gid;
+	reply.sr_data = &gid;
+
+	if ((err = _secadm_sysctl(&cmd, &reply))) {
+		fprintf(stderr, "unable to get the flags. error code: %d\n", err);
+		return (0);
+	}
+
+	return (gid);
 }
 
 void

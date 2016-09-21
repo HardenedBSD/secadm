@@ -51,6 +51,7 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 	secadm_reply_t reply;
 	secadm_rule_t *rule;
 	int err, i, rn;
+	uint32_t flags;
 
 	if (!(req->newptr) || (req->newlen != sizeof(secadm_command_t))) {
 		return (EINVAL);
@@ -78,7 +79,9 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 	case secadm_cmd_del_rule:
 	case secadm_cmd_enable_rule:
 	case secadm_cmd_disable_rule:
-	case secadm_cmd_set_whitelist_mode:
+	case secadm_cmd_set_tpe_flags:
+	case secadm_cmd_set_tpe_gid:
+	case secadm_cmd_set_integriforce_flags:
 		if (req->td->td_ucred->cr_uid) {
 			printf("[SECADM] Denied attempt to sysctl by "
 			    "(%s) uid:%d jail:%d\n",
@@ -336,7 +339,7 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 
 		break;
 
-	case secadm_cmd_set_whitelist_mode:
+	case secadm_cmd_set_integriforce_flags:
 		entry = get_prison_list_entry(
 		    req->td->td_ucred->cr_prison->pr_id);
 
@@ -360,12 +363,86 @@ secadm_sysctl_handler(SYSCTL_HANDLER_ARGS)
 
 		break;
 
-	case secadm_cmd_get_whitelist_mode:
+	case secadm_cmd_set_tpe_flags:
+		entry = get_prison_list_entry(
+		    req->td->td_ucred->cr_prison->pr_id);
+
+		PE_RLOCK(entry);
+		/* Reusing i to get the flag */
+		err = copyin(cmd.sc_data, &i, sizeof(int));
+		if (err == 0) {
+			flags = 0;
+			if (i & SECADM_TPE_ENABLED) {
+				flags |= SECADM_TPE_ENABLED;
+				flags &= ~(SECADM_TPE_DISABLED);
+			}
+			if (i & SECADM_TPE_DISABLED) {
+				flags &= ~(SECADM_TPE_ENABLED);
+			}
+			if (i & SECADM_TPE_ALL) {
+				flags |= SECADM_TPE_ALL;
+			}
+			if (i & SECADM_TPE_INVERT) {
+				flags |= SECADM_TPE_INVERT;
+			}
+
+			entry->sp_tpe_flags = flags;
+
+			reply.sr_code = secadm_reply_success;
+		} else {
+			reply.sr_code = secadm_reply_fail;
+		}
+		PE_RUNLOCK(entry);
+
+		break;
+
+	case secadm_cmd_set_tpe_gid:
+		entry = get_prison_list_entry(
+		    req->td->td_ucred->cr_prison->pr_id);
+
+		PE_RLOCK(entry);
+		/* Reusing i to get the flag */
+		err = copyin(cmd.sc_data, &i, sizeof(int));
+		if (err == 0) {
+			entry->sp_tpe_gid = (gid_t)i;
+			reply.sr_code = secadm_reply_success;
+		} else {
+			reply.sr_code = secadm_reply_fail;
+		}
+		PE_RUNLOCK(entry);
+
+		break;
+
+	case secadm_cmd_get_integriforce_flags:
 		entry = get_prison_list_entry(
 		    req->td->td_ucred->cr_prison->pr_id);
 
 		PE_RLOCK(entry);
 		copyout(&(entry->sp_integriforce_flags), reply.sr_data, sizeof(int));
+		PE_RUNLOCK(entry);
+
+		reply.sr_code = secadm_reply_success;
+
+		break;
+
+	case secadm_cmd_get_tpe_flags:
+		entry = get_prison_list_entry(
+		    req->td->td_ucred->cr_prison->pr_id);
+
+		PE_RLOCK(entry);
+		copyout(&(entry->sp_tpe_flags), reply.sr_data, sizeof(int));
+		PE_RUNLOCK(entry);
+
+		reply.sr_code = secadm_reply_success;
+
+		break;
+
+	case secadm_cmd_get_tpe_gid:
+		entry = get_prison_list_entry(
+		    req->td->td_ucred->cr_prison->pr_id);
+
+		PE_RLOCK(entry);
+		copyout(&(entry->sp_tpe_gid), reply.sr_data, sizeof(int));
 		PE_RUNLOCK(entry);
 
 		reply.sr_code = secadm_reply_success;

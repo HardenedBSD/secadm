@@ -65,6 +65,10 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 
 	entry = get_prison_list_entry(ucred->cr_prison->pr_id);
 
+	if ((err = tpe_check(imgp, entry))) {
+		return (err);
+	}
+
 	PE_RLOCK(entry);
 	if (entry->sp_num_integriforce_rules) {
 		key.sk_type = secadm_integriforce_rule;
