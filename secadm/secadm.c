@@ -382,10 +382,13 @@ load_action(int argc, char **argv)
 {
 	const ucl_object_t *top, *section, *cur;
 	secadm_rule_t *ruleset, *rule, *r;
-	ucl_object_iter_t it = NULL;
 	struct ucl_parser *parser;
-	int n = 0, err;
-	int flags;
+	ucl_object_iter_t it;
+	int flags, tpe_set;
+	uint32_t tpe_flags;
+	const char *val;
+	gid_t tpe_gid;
+	int n, err;
 
 	if (argc < 3) {
 		usage(1, argv);
@@ -393,6 +396,9 @@ load_action(int argc, char **argv)
 	}
 
 	ruleset = NULL;
+	it = NULL;
+	n = 0;
+	tpe_set = 0;
 
 	parser = ucl_parser_new(UCL_PARSER_KEY_LOWERCASE);
 	if (parser == NULL) {
@@ -509,7 +515,56 @@ load_action(int argc, char **argv)
 		}
 	}
 
-	if (n == 0) {
+	section = ucl_lookup_path(top, "secadm.tpe");
+	if (section) {
+		if (validate == 0) {
+			tpe_gid = 0;
+			tpe_flags = 0;
+			tpe_set = 1;
+
+			cur = ucl_lookup_path(section, "enable");
+			if (cur) {
+				if (ucl_object_toboolean(cur)) {
+					tpe_flags |= SECADM_TPE_ENABLED;
+				} else {
+					tpe_flags &= ~(SECADM_TPE_ENABLED);
+				}
+			}
+
+			cur = ucl_lookup_path(section, "all");
+			if (cur) {
+				if (ucl_object_toboolean(cur)) {
+					tpe_flags |= SECADM_TPE_ALL;
+				}
+			}
+
+			cur = ucl_lookup_path(section, "invert");
+			if (cur) {
+				if (ucl_object_toboolean(cur)) {
+					tpe_flags |= SECADM_TPE_INVERT;
+				}
+			}
+
+			cur = ucl_lookup_path(section, "gid");
+			if (cur) {
+				tpe_gid = (gid_t)ucl_object_toint(cur);
+			}
+
+			if (secadm_set_tpe_gid(tpe_gid)) {
+				fprintf(stderr, "[-] Could not set TPE GID\n");
+				ucl_parser_free(parser);
+				return (1);
+			}
+
+			if (secadm_set_tpe_flags(tpe_flags)) {
+				fprintf(stderr, "[-] Could not set TPE flags\n");
+				ucl_parser_free(parser);
+				return (1);
+			}
+		}
+	}
+
+	if (tpe_set == 0 && n == 0) {
 		fprintf(stderr, "No rules.\n");
 		ucl_parser_free(parser);
 
@@ -518,7 +573,7 @@ load_action(int argc, char **argv)
 
 	ucl_parser_free(parser);
 
-	if (validate == 0)
+	if (validate == 0 && n > 0)
 		secadm_load_ruleset(ruleset);
 
 	return (0);
