@@ -23,7 +23,7 @@
 .\" OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 .\" SUCH DAMAGE.
 .\"
-.Dd March 05, 2016
+.Dd September 21, 2016
 .Dt SECADM 8
 .Os
 .Sh NAME
@@ -52,6 +52,9 @@
 .Op Cm -Ww
 .Nm
 .Cm get
+.Nm
+.Cm tpe
+.Op Cm -AITaitg
 .Nm
 .Cm version
 .Sh DESCRIPTION
@@ -225,7 +228,29 @@ is loaded.
 .It Xo
 .Cm get
 .Xc
-Get the status of Integriforce whitelist mode.
+Get the status of Integriforce whitelist mode and TPE configuration.
+.It Xo
+.Cm tpe Op -AITaitg
+.Xc
+Configure Trusted Path Excution (TPE).
+Enable TPE with
+.Op -T
+and disable TPE with
+.Op -t .
+Enable TPE for all users with
+.Op -A
+and disable TPE for all users with
+.Op -a .
+By default, TPE is only enabled for the wheel group.
+Set the numeric Group ID (GID) with the
+.Op -g
+option.
+Invert GID logic with the
+.Op -I
+option and apply normal logic with the
+.Op -i
+option.
+Non-inverted (normal) logic is the default.
 .It Xo
 .Cm version
 .Xc
