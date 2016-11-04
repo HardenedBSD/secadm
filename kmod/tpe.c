@@ -98,7 +98,7 @@ tpe_check(struct image_params *imgp, secadm_prison_entry_t *entry)
 	strncpy(newpath, path, p1 - path);
 
 	memset(&nd, 0x00, sizeof(nd));
-	NDINIT(&nd, LOOKUP, LOCKLEAF | FOLLOW, UIO_SYSSPACE, newpath, curthread);
+	NDINIT(&nd, LOOKUP, FOLLOW, UIO_SYSSPACE, newpath, curthread);
 	if ((err = namei(&nd))) {
 		free(newpath, M_SECADM);
 		NDFREE(&nd, NDF_ONLY_PNBUF);
@@ -122,7 +122,6 @@ tpe_check(struct image_params *imgp, secadm_prison_entry_t *entry)
 	}
 
 cleanup:
-	vput(nd.ni_vp);
 	NDFREE(&nd, NDF_ONLY_PNBUF);
 	free(newpath, M_SECADM);
 
