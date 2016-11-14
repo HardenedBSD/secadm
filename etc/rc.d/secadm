@@ -46,14 +46,20 @@ command_args="load ${secadm_rules}"
 
 secadm_prestart()
 {
+	local jailed
+
+	jailed=$(sysctl -n security.jail.jailed)
+
 	if [ ! -f ${secadm_rules} ]
 	then
 		echo "missing rules file: ${secadm_rules}"
 		return 1
 	fi
 
-	if ! /sbin/kldstat -qm secadm; then
-		/sbin/kldload secadm
+	if [ ${jailed} -eq 0 ]; then
+		if ! /sbin/kldstat -qm secadm; then
+			/sbin/kldload secadm
+		fi
 	fi
 }
 
