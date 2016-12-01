@@ -36,6 +36,7 @@
 #include <sys/mount.h>
 #include <sys/namei.h>
 #include <sys/proc.h>
+#include <sys/systm.h>
 #include <sys/sx.h>
 #include <sys/tree.h>
 #include <sys/ucred.h>
