@@ -43,6 +43,17 @@
 
 #include "secadm.h"
 
+static int
+secadm_pax_elf(struct image_params *imgp, pax_flag_t flags)
+{
+
+#if __HardenedBSD_version == 36 || __HardenedBSD_version > 38
+	return pax_elf(imgp, curthread, flags);
+#else
+	return pax_elf(imgp, flags);
+#endif
+}
+
 int
 secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
     struct label *vplabel, struct image_params *imgp,
@@ -175,14 +186,8 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 rule_inactive:
 	PE_RUNLOCK(entry);
 
-#if __HardenedBSD_version == 36 || __HardenedBSD_version > 38
 	if (err == 0 && flags)
-		err = pax_elf(imgp, curthread, flags);
-
-#else
-	if (err == 0 && flags)
-		err = pax_elf(imgp, flags);
-#endif
+		err = secadm_pax_elf(imgp, flags);
 
 	return (err);
 }
