@@ -94,6 +94,10 @@ tpe_check(struct image_params *imgp, secadm_prison_entry_t *entry)
 		return (0);
 	}
 
+	if (strlen(p1) < 2) {
+		return (EINVAL);
+	}
+
 	newpath = malloc((p1 - path) + 1, M_SECADM, M_WAITOK | M_ZERO);
 	strncpy(newpath, path, p1 - path);
 
