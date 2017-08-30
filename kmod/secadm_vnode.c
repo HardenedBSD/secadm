@@ -47,7 +47,9 @@ static int
 secadm_pax_elf(struct image_params *imgp, pax_flag_t flags)
 {
 
-#if __HardenedBSD_version == 36 || __HardenedBSD_version > 38
+#if (__HardenedBSD_version < 1300000 &&__HardenedBSD_version > 1200052)
+	return pax_elf(curthread, imgp, flags);
+#elif __HardenedBSD_version == 36 || __HardenedBSD_version > 38
 	return pax_elf(imgp, curthread, flags);
 #else
 	return pax_elf(imgp, flags);
