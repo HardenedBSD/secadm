@@ -47,7 +47,9 @@ static int
 secadm_pax_elf(struct image_params *imgp, pax_flag_t flags)
 {
 
-#if (__HardenedBSD_version < 1300000 && __HardenedBSD_version > 1200052) || \
+#if (__HardenedBSD_version < 1300000 && __HardenedBSD_version > 1200054)
+	return pax_control_acl_set_flags(curthread, imgp, flags);
+#elif (__HardenedBSD_version < 1300000 && __HardenedBSD_version > 1200052) || \
     (__HardenedBSD_version < 1200000 && __HardenedBSD_version > 1100048) || \
     (__HardenedBSD_version < 1100000 && __HardenedBSD_version > 1000048)
 	return pax_elf(curthread, imgp, flags);
@@ -185,6 +187,18 @@ secadm_vnode_check_exec(struct ucred *ucred, struct vnode *vp,
 					    PAX_NOTE_NODISALLOWMAP32BIT;
 				}
 			}
+
+#ifdef PAX_NOTE_PREFER_ACL
+			if (rule->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PREFER_ACL) {
+				if (rule->sr_pax_data->sp_pax &
+				    SECADM_PAX_PREFER_ACL) {
+					flags |= PAX_NOTE_PREFER_ACL;
+				} else {
+					flags &= ~PAX_NOTE_PREFER_ACL;
+				}
+			}
+#endif
 		}
 	}
 rule_inactive:

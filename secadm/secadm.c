@@ -334,6 +334,13 @@ show_action(int argc, char **argv)
 				    SECADM_PAX_SEGVGUARD ? 'S' : 's'));
 			}
 
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PREFER_ACL_SET) {
+				printf("%c",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_PREFER_ACL ? 'O' : 'o'));
+			}
+
 			printf("\n");
 
 			break;
@@ -834,6 +841,20 @@ add_action(int argc, char **argv)
 				    SECADM_PAX_MPROTECT_SET;
 				break;
 
+			case 'o':
+				rule->sr_pax_data->sp_pax &=
+				    ~(SECADM_PAX_PREFER_ACL);
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_PREFER_ACL_SET;
+				break;
+
+			case 'O':
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_PREFER_ACL;
+				rule->sr_pax_data->sp_pax_set |=
+				    SECADM_PAX_PREFER_ACL_SET;
+				break;
+
 			case 'p':
 				/* mprotect requires pageexec */
 				rule->sr_pax_data->sp_pax &=
@@ -1107,6 +1128,13 @@ emit_rules_xo(secadm_rule_t **ruleset, size_t num_rules, int style)
 				    SECADM_PAX_SHLIBRANDOM ? "true" : "false"));
 			}
 
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PREFER_ACL_SET) {
+				xo_emit("{:prefer_acl/%s}/",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_PREFER_ACL ? "true" : "false"));
+			}
+
 			xo_close_instance_d();
 		}
 	}
@@ -1195,7 +1223,12 @@ emit_rules_ucl(secadm_rule_t **ruleset, size_t num_rules)
 				    (ruleset[i]->sr_pax_data->sp_pax &
 				    SECADM_PAX_SHLIBRANDOM ? "true" : "false"));
 			}
-
+			if (ruleset[i]->sr_pax_data->sp_pax_set &
+			    SECADM_PAX_PREFER_ACL_SET) {
+				printf("        prefer_acl = %s;\n",
+				    (ruleset[i]->sr_pax_data->sp_pax &
+				    SECADM_PAX_PREFER_ACL ? "true" : "false"));
+			}
 			printf("    }\n");
 		}
 	}
@@ -1316,6 +1349,12 @@ parse_pax_object(const ucl_object_t *obj, secadm_rule_t *rule)
 			if (ucl_object_toboolean(cur))
 				rule->sr_pax_data->sp_pax |=
 				    SECADM_PAX_MAP32;
+		} else if (!strncmp(key, "prefer_acl", 10)) {
+			rule->sr_pax_data->sp_pax_set |=
+			    SECADM_PAX_PREFER_ACL_SET;
+			if (ucl_object_toboolean(cur))
+				rule->sr_pax_data->sp_pax |=
+				    SECADM_PAX_PREFER_ACL;
 		} else {
 			fprintf(stderr,
 			    "Unknown attribute '%s' of PaX rule.\n", key);

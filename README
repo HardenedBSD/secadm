@@ -59,18 +59,30 @@ The flags that can be passed to `secadm add pax` are:
 * M, m: Enable, disable MPROTECT
 * P, p: Enable, disable PAGEEXEC
 * S, s: Enable, disable SEGVGUARD
+* O, o: Enable, disable hbsdcontrol based FS-EA rules overriding
 
 By default, `secadm show` will show the active ruleset in abbreviated
 format. secadm now integrates with libxo to provide ruleset output in
 JSON, UCL, or XML formats. Specify a different format by using the -f
 option to `secadm show`. For example, `secadm show -f ucl`.
 
+Order of rule evaluation
+========================
+
+When the kernel is compiled with the PAX_CONTROL_EXTATTR kernel option, the
+order of the evaluation is secadm then hbsdcontrol. This ensures that
+the hbsdcontrol's settings always take precedence. To make secadm's
+rules take precedence, use the O flag for that rule (prefer_acl is the
+long option).
+
 Requirements
 ============
 
-* HardenedBSD version 31 or greater:
-  - `sysctl hardening.version` should show 31
+* HardenedBSD version 1200055 or greater:
+  - `sysctl hardening.version` should show 1200055
+* HardenedBSD kernel compiled with options PAX_CONTROL_ACL
 * textproc/libucl
+* textproc/libxo
 
 Installation And Usage
 ======================
@@ -116,6 +128,8 @@ secadm currently supports toggling ASLR, SEGVGUARD, mprotect(exec)
 hardening, and on certain HardenedBSD builds, PAGEEXEC hardening. In
 the etc directory, you will find secadm.rules.sample, which shows
 how to write rules.
+You can use the prefer_acl keyword, to ensure secadm's rule takes
+in effect over the file system extended attributes based settings.
 
 secadm uses libucl for parsing its config file. As it stands right
 now, the order of the rules do not matter, but that could change with
@@ -134,7 +148,8 @@ secadm {
 	pax {
 		path: "/bin/pwd",
 		mprotect: true,
-		pageexec: true
+		pageexec: true,
+		prefer_acl: true
 	}
 }
 ==== End of Example ====
