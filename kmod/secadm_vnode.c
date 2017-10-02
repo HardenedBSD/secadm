@@ -47,7 +47,9 @@ static int
 secadm_pax_elf(struct image_params *imgp, pax_flag_t flags)
 {
 
-#if (__HardenedBSD_version < 1300000 && __HardenedBSD_version > 1200054)
+#if (__HardenedBSD_version < 1300000 && __HardenedBSD_version > 1200054) || \
+	(__HardenedBSD_version < 1200000 && __HardenedBSD_version > 1100050) || \
+	(__HardenedBSD_version < 1100000 && __HardenedBSD_version > 1000049)
 	return pax_control_acl_set_flags(curthread, imgp, flags);
 #elif (__HardenedBSD_version < 1300000 && __HardenedBSD_version > 1200052) || \
     (__HardenedBSD_version < 1200000 && __HardenedBSD_version > 1100048) || \
