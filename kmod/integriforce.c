@@ -245,7 +245,12 @@ sysctl_integriforce_so(SYSCTL_HANDLER_ARGS)
 		return (err);
 	}
 
+	
+#if __FreeBSD_version >= 1300074
+	VOP_UNLOCK(nd.ni_vp);
+#else
 	VOP_UNLOCK(nd.ni_vp, 0);
+#endif
 
 	key.sk_jid = req->td->td_ucred->cr_prison->pr_id;
 	key.sk_type = secadm_integriforce_rule;
