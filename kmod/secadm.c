@@ -474,8 +474,8 @@ kernel_add_rule(struct thread *td, secadm_rule_t *rule, int ruleset)
 		r->sr_integriforce_data->si_hash = hash;
 		r->sr_integriforce_data->si_cache = 0;
 
-		if (!(rule->sr_integriforce_data->si_mode == 0 ||
-		    rule->sr_integriforce_data->si_mode == 1)) {
+		if (!(r->sr_integriforce_data->si_mode == 0 ||
+		    r->sr_integriforce_data->si_mode == 1)) {
 			kernel_free_rule(r);
 			return (EINVAL);
 		}
